@@ -146,7 +146,7 @@ def stored_features(rubric, item_ids, parsed, failure=None):
     produced no reply text (``failure`` says why).
     """
     if parsed is None or not parsed.usable:
-        reason = failure or (parsed.problems.get("") if parsed else None) \
+        reason = (parsed.problems.get("") if parsed else None) or failure \
             or "no answer"
         return {STATUS: "error", ERROR: f"no usable answer after retry: {reason}"}
     gate = rubric.gate_item
