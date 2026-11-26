@@ -50,6 +50,8 @@ _BRACES = re.compile(r"[{}]")
 _QUOTED = re.compile(r"""["'`]([^"'`]{0,2000})["'`]""")
 _TEMPLATE_PART = re.compile(r"\$\{[^{}]{0,500}\}")
 _SPACES = re.compile(r"\s+")
+_INNER_BRACES = re.compile(r"\{[^{}]{0,2000}\}")
+MAX_BRACE_PASSES = 8
 JSX_ATTRS = {"classname": "class", "htmlfor": "for"}
 
 
@@ -142,10 +144,10 @@ class Document:
 
 def _jsx_text(text):
     """Text in JSX with ``{...}`` expressions removed."""
-    previous = None
-    while previous != text and "{" in text:
-        previous = text
-        text = re.sub(r"\{[^{}]{0,2000}\}", " ", text)
+    for _ in range(MAX_BRACE_PASSES):
+        if "{" not in text:
+            break
+        text = _INNER_BRACES.sub(" ", text)
     if "{" in text:
         text = text[:text.index("{")]
     if "}" in text:

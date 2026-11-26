@@ -124,12 +124,14 @@ class Site:
         utilities; empty unless the site uses Tailwind."""
         if self.tailwind == "none":
             return []
-        found = []
-        for token, doc, element in self.class_tokens():
-            utility = tailwind.split(token)
-            if utility is not None:
-                found.append((utility, doc, element))
-        return found
+        if "_utilities" not in self.__dict__:
+            found = []
+            for token, doc, element in self.class_tokens():
+                utility = tailwind.split(token)
+                if utility is not None:
+                    found.append((utility, doc, element))
+            self.__dict__["_utilities"] = found
+        return self.__dict__["_utilities"]
 
     def copy_texts(self):
         """The page's visible text: text in markup (JSX included) and

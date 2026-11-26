@@ -255,3 +255,12 @@ def test_emoji_sequences_and_symbols():
                      "\U0001F469‍\U0001F4BB", "\U0001F44D\U0001F3FD",
                      "\U0001F1EC\U0001F1E7", "1️⃣"]
     assert symbols == ["✓", "→"]
+
+
+def test_hostile_file_names_and_jsx_braces_are_quick():
+    start = time.perf_counter()
+    assert catalog.resolve("js/a" + "-1.1" * 60 + "!.js", "script")[0] is None
+    assert catalog.resolve("vendor/bootstrap.bundle.min.js", "script")[0] == \
+        "bootstrap"
+    parse_html("<p>" + "{" * 50_000 + "x" + "}" * 50_000 + "</p>", jsx=True)
+    assert time.perf_counter() - start < 5

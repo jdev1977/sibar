@@ -118,7 +118,10 @@ _LIBS_PATH = re.compile(r"/ajax/libs/([\w.-]{1,80})/")
 _NPM_CDNS = frozenset({"cdn.jsdelivr.net", "unpkg.com", "esm.sh", "cdn.skypack.dev",
                        "ga.jspm.io", "jspm.dev", "cdn.esm.sh", "esm.run"})
 _LIBS_CDNS = frozenset({"cdnjs.cloudflare.com", "ajax.googleapis.com"})
-_STEM_NOISE = re.compile(r"(?:[.-]min|[.@_-]v?\d+(?:\.\d+){0,3}(?:-[\w.]+)?)+$")
+# One trailing ".min", "-3.7.1", "@2", "-v4.0.0-beta" or "-1.2.3.min" at a time.
+_STEM_NOISE = re.compile(r"(?:[.-]min|[.@_-]v?\d{1,6}(?:\.\d{1,6}){0,3}"
+                         r"(?:-[a-z]{1,10}\.?\d{0,6})?)$")
+MAX_NAME = 200
 _BUILTIN = frozenset({"fs", "path", "url", "http", "https", "os", "crypto", "util",
                       "events", "stream", "child_process", "process", "buffer"})
 
@@ -176,8 +179,18 @@ def _from_url(url):
 def _from_file_name(path):
     name = path.rstrip("/").rsplit("/", 1)[-1].lower()
     stem = name.rsplit(".", 1)[0] if name.endswith((".js", ".css", ".mjs")) else name
-    stem = _STEM_NOISE.sub("", stem)
-    return library_of_package(stem) if stem else None
+    if len(stem) > MAX_NAME:
+        return None
+    for _ in range(4):
+        shorter = _STEM_NOISE.sub("", stem)
+        if shorter == stem:
+            break
+        stem = shorter
+    if not stem:
+        return None
+    first = stem.split(".")[0]  # bootstrap.bundle, three.module, chart.umd
+    return (library_of_package(stem) or library_of_package(first)
+            or library_of_package(first + ".js"))
 
 
 def is_url(target):
