@@ -28,9 +28,9 @@ Playwright's cache in the user profile; nothing is installed system-wide.
 | `--clock` | The page's date and time, with a time zone | `2027-03-09T12:00:00+00:00` |
 | `--timezone`, `--locale` | | `UTC`, `en-US` |
 | `--settle-ms` | Page time run after loading | 5000 |
-| `--timeout` | Real seconds allowed for each image | 30 |
+| `--timeout` | Real seconds allowed for each image, once its browser has started | 30 |
 | `--max-height` | Tallest image, in CSS pixels of the screen | 8000 |
-| `--memory-mb` | Memory cap for one browser (Windows only) | 4096 |
+| `--memory-mb` | Memory cap for all the processes that make one image (Windows only) | 4096 |
 
 Exit codes: 0 every render is `ok`; 1 some are `failed` or `error`; 2 nothing
 (more) could be rendered: bad options, a bad or busy record file, or no usable
@@ -102,27 +102,47 @@ change the pixels. The Playwright and Chromium versions are stored.
 ## Isolation
 
 The page is served from the made-up origin `https://page.invalid/`. It may read
-the files in its own folder and nothing else. It cannot open the network, other
+the files in its own folder and nothing else; for a record, only the files the
+record lists (so not the images of an earlier render). It cannot open the network, other
 files, other pages or windows, or downloads.
 
 | Layer | What it does |
 |---|---|
-| Request interception | Every request is answered from the folder or refused. Paths with `..`, backslashes, drive letters or links leading out are refused. Popups get nothing; WebSockets are closed without connecting |
+| Request interception | Every request is answered from the folder or refused. At most 4 files are read at once and 200 MB served for one image (`max_served_mb`); further requests are refused and counted in `over_budget`. Paths with `..`, backslashes, drive letters or links leading out are refused. Popups get nothing; WebSockets are closed without connecting |
 | Offline mode | The browser context is offline; service workers are blocked; no permissions are granted |
 | Launch arguments | No host name resolves; all traffic goes to a proxy port where nothing listens (loopback included); WebRTC may not send outside the proxy; QUIC, DNS prefetch, pings and background networking are off |
-| Script setup | `RTCPeerConnection` and `WebTransport` are removed; leaving the page is cancelled before it starts |
+| Script setup | `RTCPeerConnection` and `WebTransport` are removed from windows; leaving the page is cancelled before it starts; in every frame the `console` functions do nothing and cannot be put back |
 | Chromium sandbox | On (Playwright's default is off). A browser that reports `--no-sandbox` is not used |
-| Disposable browser | Each image has a new browser and profile, ended afterwards |
-| Limits | A time limit per image; on Windows a job object caps the memory of the browser's processes; JavaScript heap capped; downloads refused; dialogs dismissed; files over 25 MB not served |
+| Disposable processes | Each image is made by a new process with its own Playwright driver, browser and profile, all ended afterwards, also when it hangs |
+| Memory cap (Windows) | That process is put in a job object before it starts anything, so it, the driver and every browser process, the graphics process included, share one cap. The job is closed, killing them all, when the image is done or the caller dies |
+| Limits | A time limit per image, and 90 s more for the whole process; JavaScript heap capped; downloads refused; dialogs dismissed; files over 25 MB not served |
 
 The tests check with a TCP and UDP listener on this machine that nothing
 arrives, both normally and with only the launch arguments in force.
 
 Limits of this protection: it relies on Chromium's sandbox for anything that
-breaks out of the page, so keep Playwright current. The memory cap is applied
-just after the browser starts and only on Windows; elsewhere the time limit and
-Chromium's own limits apply. This is not a virtual machine: do not point the
-renderer at pages built to attack the browser itself.
+breaks out of the page, so keep Playwright current. The memory cap exists only
+on Windows. Elsewhere nothing limits memory but Chromium itself, and a page
+that floods the driver, or fills graphics memory, can exhaust the machine; the
+time limit then kills the process group. This is not a virtual machine: do not
+point the renderer at pages built to attack the browser itself.
+
+### Memory
+
+The console is silenced because every message is copied into the Playwright
+driver and the Python process: a page logging long strings in a loop could make
+them hold gigabytes. Silencing covers frames only. Workers keep their console,
+and thrown errors, dialog texts and other events are copied too, so the cap is
+what actually bounds memory. A page that goes over it ends as `failed`
+("over the memory cap"), or renders with whatever it could not allocate
+missing: look at `peak_memory_mb`. Windows counts a refused request in that
+peak, so it can read slightly above the cap. Only the renderer's caller, which
+reads a short reply, is outside the cap.
+
+WebGL is left on (`--disable-3d-apis` would blank the 3D parts of pages). It is
+drawn in software, and its memory is inside the cap. The tests flood the
+console, throw errors and fill graphics memory under an 800 MB cap, and watch
+from outside that all the processes together stay under it.
 
 ## What blocked resources do to the images
 
@@ -134,6 +154,12 @@ stops. Nothing is downloaded or substituted. Extractors and reviewers must
 read `blocked` before judging a screenshot: it lists each refused URL without
 user name, query or fragment, cut to 200 characters (the first 100 distinct
 ones; `blocked_dropped` counts the rest).
+
+**`blocked` is not a complete list.** Some attempts are refused further down,
+where the renderer does not see them, and are not recorded: WebSockets opened
+by workers, `WebSocketStream`, and `WebTransport` (removed from windows; in a
+worker it fails in the browser). WebRTC is not recorded either. They are still
+refused.
 
 `missing` lists files the page asked for in its own folder that are not there.
 This often means a code block had no file name and was saved as `block-NN.css`
@@ -150,7 +176,7 @@ and the record gets one entry in `checks`, replacing an earlier render:
 | `name`, `tool`, `tool_version` | `render`, `renderer`, the renderer's version |
 | `outcome` | `ok`: all four images. `failed`: the page's doing (no HTML file, never finished, crashed); not tried again without `--force`, so after a run on an overloaded machine, re-render time-outs with `--record-id ID --force`. `error`: the renderer's doing (stored files missing or changed, an unexpected browser error); tried again on the next run |
 | `files` | The images made (a render can have some of the four) |
-| `detail` | `entry`, `candidates`, `candidate_count`, `settings`, `playwright`, `browser`, `memory_limited`, `variants` (per image: outcome, viewport, scale, image and content size, `truncated`, error), `blocked`, `blocked_dropped`, `missing`, `dialogs` (up to 20 distinct), `dialog_count`, `popups`, `downloads`, and `error` when there is one |
+| `detail` | `entry`, `candidates`, `candidate_count`, `settings`, `playwright`, `browser`, `memory_limited`, `peak_memory_mb`, `over_budget`, `variants` (per image: outcome, viewport, scale, image and content size, `truncated`, error), `blocked`, `blocked_dropped`, `missing`, `dialogs` (up to 20 distinct), `dialog_count`, `popups`, `downloads`, and `error` when there is one |
 
 `dialogs` and URLs are text chosen by the page. Treat them as untrusted.
 

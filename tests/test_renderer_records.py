@@ -6,13 +6,17 @@ import shutil
 import pytest
 
 from renderer.__main__ import main
-from renderer.browser import BrowserUnavailable, PageResult, Settings, VariantResult
+from renderer.browser import (
+    VARIANTS, BrowserUnavailable, PageResult, Settings, VariantResult, render_page,
+)
+from renderer.process import Run
 from renderer.records import RenderRefused, render_directory, render_file
 from renderer_support import PAGES, require_chromium
 from runner.files import save_files
 from runner.ledger import _lock, _unlock
 from runner.record import (
-    append_record, build_record, check_files, files_dir, read_records,
+    append_record, build_record, check_files, file_entry, files_dir, read_records,
+    write_records,
 )
 
 PAGE = "```html index.html\n<!doctype html><html><body>hello</body></html>\n```\n"
@@ -38,7 +42,7 @@ class FakeRender:
     def __init__(self, outcome="ok", error=None):
         self.calls, self.outcome, self.error = [], outcome, error
 
-    def __call__(self, root, entry, out, settings):
+    def __call__(self, root, entry, out, settings, files=None):
         self.calls.append((root, entry))
         if self.error:
             raise self.error
@@ -95,6 +99,27 @@ def test_the_render_is_stored_in_the_record(tmp_path):
     assert detail["browser"] == "1.2"
     assert detail["variants"]["phone-dark"]["viewport"] == [390, 844]
     assert "secret" not in json.dumps(check)
+
+
+@pytest.mark.browser
+def test_a_later_image_cannot_load_an_earlier_one(tmp_path):
+    # Files stored outside extracted/: the page's folder then holds render/ too.
+    require_chromium()
+    path = tmp_path / "records.jsonl"
+    record = add(path, None, raw_response="imported")
+    directory = files_dir(path, record["record_id"])
+    directory.mkdir(parents=True)
+    (directory / "index.html").write_text(
+        "<!doctype html><script>fetch('render/desktop-light.png')"
+        ".then((r) => alert(r.status))</script>", encoding="utf-8")
+    record["files"] = [file_entry(directory, "index.html")]
+    write_records(path, [record])
+    settings = Settings(variants=VARIANTS[:2], timeout=120, memory_mb=1536)
+    said = []
+    assert render_file(path, settings, say=said.append) == {"ok": 1}
+    detail = checks(path)[0][0]["detail"]
+    assert detail["dialogs"] == [{"type": "alert", "message": "404"}]
+    assert detail["missing"] == ["render/desktop-light.png"]
 
 
 def test_other_checks_are_kept(tmp_path):
@@ -209,14 +234,40 @@ def test_each_render_is_saved_at_once(tmp_path):
     add(path, run_index=2)
     first = FakeRender()
 
-    def stop_at_the_second(*arguments):
+    def stop_at_the_second(*arguments, **named):
         if first.calls:
             raise BrowserUnavailable("gone")
-        return first(*arguments)
+        return first(*arguments, **named)
 
     with pytest.raises(BrowserUnavailable):
         run(path, stop_at_the_second)
     assert [len(c) for c in checks(path)] == [1, 0]
+
+
+# --- when the render process gives no result ------------------------------------
+
+
+@pytest.mark.parametrize("run, outcome, words", [
+    (dict(timed_out=True), "failed", "did not finish within 30 seconds"),
+    (dict(exit_code=7), "error", "without a result (exit code 7)"),
+    (dict(exit_code=7, refused_memory=True), "failed", "memory cap of 4096 MB"),
+    (dict(reply={"error": "Error: Connection closed"}), "error",
+     "Connection closed"),
+    (dict(reply={"error": "MemoryError: "}, refused_memory=True), "failed",
+     "memory cap"),
+], ids=["hung", "died", "died over the cap", "our error", "error over the cap"])
+def test_what_a_lost_render_is_called(tmp_path, monkeypatch, run, outcome, words):
+    values = dict(reply=None, timed_out=False, exit_code=0, memory_limited=True,
+                  peak_mb=10, refused_memory=False)
+    values.update(run)
+    monkeypatch.setattr("renderer.browser.run_worker",
+                        lambda *arguments: Run(**values))
+    (tmp_path / "index.html").write_text("x")
+    out = tmp_path / "out"
+    result = render_page(tmp_path, "index.html", out)
+    assert [v.outcome for v in result.variants] == [outcome] * 4
+    assert words in result.variants[0].error
+    assert result.peak_memory_mb == 10
 
 
 # --- a single directory -------------------------------------------------------
@@ -275,7 +326,7 @@ def test_command_line_refusals(tmp_path, monkeypatch, capsys, arguments, message
 
 
 def test_command_line_reports_a_page_it_cannot_serve(tmp_path, monkeypatch, capsys):
-    def cannot(*arguments):
+    def cannot(*arguments, **named):
         raise ValueError("'x.html' is not a file in the page's folder")
 
     monkeypatch.setattr("renderer.__main__.render_directory", cannot)

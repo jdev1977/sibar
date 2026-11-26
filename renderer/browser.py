@@ -5,27 +5,35 @@ from the page's folder or refused; the browser is in offline mode; its launch
 arguments resolve no host name, send everything to a proxy that is not there
 and allow no WebRTC traffic outside it; and the Chromium sandbox stays on.
 
-Every image is made by a browser of its own, which is thrown away afterwards.
+Every image is made in a process of its own (renderer.process), with its own
+browser, inside a memory cap, and all of it is ended afterwards.
+:func:`render_page` is the caller's side; :func:`render_here` is what runs in
+that process.
 """
 
 import asyncio
 import base64
 import datetime
+import json
 import math
 import re
 import socket
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import quote
 
-from renderer.limits import ProcessLimit
 from renderer.policy import ORIGIN, BlockLog, content_type, local_file, local_path
+from renderer.process import WorkerFailed, run_worker
 
 # Noon on March 9, 2027: see prompts/website/leak-check.md and docs/leak-check.md.
 DEFAULT_CLOCK = datetime.datetime(2027, 3, 9, 12, tzinfo=datetime.timezone.utc)
 MAX_FILE_BYTES = 25 * 1024 * 1024
 MAX_DIALOGS = 20
+MAX_READS = 4  # files read and handed to the browser at once
+MAX_REPORTS = 100  # stopped navigations one frame reports
+# Seconds beyond the page's own time limit for starting and ending a render.
+OVERHEAD = 90.0
 MAX_TEXT = 300
 # A phone browser zooms out at most this far to fit a page that is too wide.
 MAX_SHRINK = 4
@@ -40,6 +48,16 @@ _CRASH = re.compile(r"[\w.]+: (Target|Page) crashed")
 
 # Runs in every frame before the page's own scripts.
 INIT_SCRIPT = """(() => {
+  // The console says nothing, so a page cannot flood the programs listening
+  // to it. (Workers keep theirs: the memory cap is what holds.)
+  const report = console.debug.bind(console);
+  for (const name of Object.getOwnPropertyNames(console)) {
+    if (typeof console[name] === "function") {
+      Object.defineProperty(console, name, {
+        value: () => {}, writable: false, configurable: false, enumerable: true});
+    }
+  }
+  let reports = 0;
   for (const name of ["RTCPeerConnection", "webkitRTCPeerConnection",
                       "WebTransport"]) {
     Object.defineProperty(window, name,
@@ -52,7 +70,9 @@ INIT_SCRIPT = """(() => {
       if (event.cancelable && !event.destination.sameDocument
           && event.downloadRequest === null) {
         event.preventDefault();
-        console.debug("%s" + event.destination.url);
+        if (reports++ < %d) {
+          report("%s" + event.destination.url.slice(0, 1000));
+        }
       }
     });
   }
@@ -64,7 +84,7 @@ INIT_SCRIPT = """(() => {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-})();""" % LEFT
+})();""" % (MAX_REPORTS, LEFT)
 
 
 # Runs after the stand-in clock is installed. Without a floor, a 0 ms
@@ -103,7 +123,8 @@ class Settings:
     settle_ms: int = 5000  # page time run after loading
     timeout: float = 30.0  # seconds for one image
     max_height: int = 8000  # CSS pixels of the screen
-    memory_mb: int = 4096  # for all processes of one browser (Windows)
+    memory_mb: int = 4096  # for all processes of one image (Windows)
+    max_served_mb: int = 200  # of the page's files, for one image
     variants: Tuple[Variant, ...] = VARIANTS
 
     def __post_init__(self):
@@ -111,9 +132,10 @@ class Settings:
             raise ValueError("clock: needs a time zone")
         if not (self.timeout > 0 and math.isfinite(self.timeout)):
             raise ValueError("timeout: must be more than 0 seconds")
-        if self.settle_ms < 0 or self.max_height < 1 or self.memory_mb < 256:
-            raise ValueError("settle_ms must be at least 0, max_height at least 1 "
-                             "and memory_mb at least 256")
+        if (self.settle_ms < 0 or self.max_height < 1 or self.memory_mb < 256
+                or self.max_served_mb < 1):
+            raise ValueError("settle_ms must be at least 0, max_height and "
+                             "max_served_mb at least 1 and memory_mb at least 256")
 
 
 @dataclass(frozen=True)
@@ -142,6 +164,8 @@ class PageResult:
     browser_version: str = ""
     command_line: str = ""  # holds local paths: not for storing
     memory_limited: bool = False
+    peak_memory_mb: int = 0  # the most one image's processes held (Windows)
+    over_budget: int = 0  # requests refused because max_served_mb was used up
 
     @property
     def outcome(self):
@@ -203,14 +227,16 @@ def _printable(text):
     return text[:MAX_TEXT].encode("utf-8", "replace").decode("utf-8")
 
 
-async def _guard(context, page, root, entry_url, log):
+async def _guard(context, page, root, files, entry_url, budget, log):
     """Answer every request of ``context`` from ``root`` or refuse it."""
     from playwright.async_api import Error
 
     entered = False
+    served = 0
+    reading = asyncio.Semaphore(MAX_READS)
 
     async def handle(route):
-        nonlocal entered
+        nonlocal entered, served
         request = route.request
         url = request.url
         navigation = request.is_navigation_request()
@@ -227,13 +253,20 @@ async def _guard(context, page, root, entry_url, log):
                     await route.fulfill(status=204)  # stay on this document
                     return
                 entered = True
-            path = local_file(root, url) if own else None
+            path = local_file(root, url, files) if own else None
             if (path is not None and request.method in ("GET", "HEAD")
                     and path.stat().st_size <= MAX_FILE_BYTES):
-                await route.fulfill(
-                    status=200, body=path.read_bytes(),
-                    headers={"content-type": content_type(path),
-                             "cache-control": "no-store"})
+                size = path.stat().st_size
+                if served + size > budget:
+                    log.result.over_budget += 1
+                    await route.abort("failed")
+                    return
+                served += size  # before waiting, so requests cannot share it
+                async with reading:
+                    await route.fulfill(
+                        status=200, body=path.read_bytes(),
+                        headers={"content-type": content_type(path),
+                                 "cache-control": "no-store"})
                 return
             wanted = local_path(url) if own else None
             if wanted is not None:
@@ -305,7 +338,7 @@ async def _shrink(browser, png, variant, width, height):
     return await page.screenshot()
 
 
-async def _capture(browser, root, entry, variant, settings, log, crashed):
+async def _capture(browser, root, files, entry, variant, settings, log, crashed):
     """Load the page and return ``(png, content size, truncated)``."""
     from playwright.async_api import Error, TimeoutError as PlaywrightTimeout
 
@@ -320,7 +353,8 @@ async def _capture(browser, root, entry, variant, settings, log, crashed):
     page = await context.new_page()
     page.on("crash", lambda _: crashed.set())
     entry_url = ORIGIN + quote(entry)
-    await _guard(context, page, root, entry_url, log)
+    await _guard(context, page, root, files, entry_url,
+                 settings.max_served_mb << 20, log)
     # Page time stands still except when run_for moves it.
     await page.clock.install(time=settings.clock - datetime.timedelta(seconds=1))
     await page.clock.pause_at(settings.clock)
@@ -389,8 +423,8 @@ async def _capture(browser, root, entry, variant, settings, log, crashed):
     return png, (content_width, content_height), content_height > cap
 
 
-async def _render_variant(playwright, root, entry, out, variant, settings, proxy_port,
-                          log):
+async def _render_variant(playwright, root, files, entry, out, variant, settings,
+                          proxy_port, log):
     from playwright.async_api import Error, TimeoutError as PlaywrightTimeout
 
     try:
@@ -401,23 +435,18 @@ async def _render_variant(playwright, root, entry, out, variant, settings, proxy
         raise BrowserUnavailable(
             "Chromium did not start; install it with `python -m playwright "
             f"install chromium` ({str(error).splitlines()[0]})") from error
-    limit, closed = None, False
     try:
         devtools = await browser.new_browser_cdp_session()
         command = await devtools.send("Browser.getBrowserCommandLine")
         log.result.command_line = " ".join(command["arguments"])
         if "--no-sandbox" in command["arguments"]:
             raise BrowserUnavailable("Chromium started without its sandbox")
-        processes = await devtools.send("SystemInfo.getProcessInfo")
-        pid = next(p["id"] for p in processes["processInfo"] if p["type"] == "browser")
-        limit = ProcessLimit(pid, settings.memory_mb)
-        log.result.memory_limited = limit.memory_limited
         log.result.browser_version = browser.version
 
         crashed = asyncio.Event()
         browser.on("disconnected", lambda _: crashed.set())
         work = asyncio.ensure_future(
-            _capture(browser, root, entry, variant, settings, log, crashed))
+            _capture(browser, root, files, entry, variant, settings, log, crashed))
         crash = asyncio.ensure_future(crashed.wait())
         done, _ = await asyncio.wait(
             {work, crash}, timeout=settings.timeout,
@@ -441,9 +470,7 @@ async def _render_variant(playwright, root, entry, out, variant, settings, proxy
                     raise
         if failure is not None:
             # End the browser first: it releases the cancelled call.
-            closed = await _close(browser)
-            limit.end(closed)
-            limit, closed = None, True
+            await _close(browser)
             await asyncio.wait({work}, timeout=5)
             if work.done() and not work.cancelled():
                 work.exception()  # seen: it is the failure reported here
@@ -460,21 +487,19 @@ async def _render_variant(playwright, root, entry, out, variant, settings, proxy
         message = str(error).splitlines()[0].replace(str(root), "<folder>")
         return VariantResult(variant.name, "error", error=_printable(message))
     finally:
-        closed = closed or await _close(browser)
-        if limit is not None:
-            limit.end(closed)
+        await _close(browser)
 
 
 async def _close(browser):
-    """Close ``browser``; False if it did not answer in time."""
+    """Close ``browser`` if it answers; the caller of this process ends it
+    otherwise."""
     try:
         await asyncio.wait_for(browser.close(), 5)
     except Exception:
-        return False
-    return True
+        pass
 
 
-async def _render(root, entry, out, settings):
+async def _render(root, files, entry, out, settings):
     from playwright.async_api import async_playwright
 
     log = _Log()
@@ -485,26 +510,104 @@ async def _render(root, entry, out, settings):
         async with async_playwright() as playwright:
             for variant in settings.variants:
                 log.result.variants.append(await _render_variant(
-                    playwright, root, entry, out, variant, settings,
+                    playwright, root, files, entry, out, variant, settings,
                     nowhere.getsockname()[1], log))
     finally:
         nowhere.close()
     return log.finish()
 
 
-def render_page(root, entry, out_dir, settings=Settings()):
+def render_here(root, entry, out_dir, settings, files=None):
+    """The render itself, in this process: only for ``renderer.worker``, as
+    nothing here limits what the page makes the browser and its driver hold."""
+    return asyncio.run(_render(Path(root), files, entry, Path(out_dir), settings))
+
+
+def _one_image(root, entry, out, settings, files):
+    """Render the one variant of ``settings`` in its own capped process and
+    return its :class:`PageResult`, whatever becomes of the process."""
+    variant = settings.variants[0]
+    values = asdict(settings)
+    values["clock"] = settings.clock.isoformat()
+    request = {"root": str(root), "entry": entry, "out": str(out),
+               "files": files, "settings": values}
+    json.dumps(request)  # fail here, not in the pipe, if it cannot be sent
+    try:
+        run = run_worker(request, settings.memory_mb, settings.timeout + OVERHEAD)
+    except WorkerFailed as error:
+        raise BrowserUnavailable(str(error)) from error
+    reply = run.reply or {}
+    if "unavailable" in reply:
+        raise BrowserUnavailable(reply["unavailable"])
+    if "page" in reply:
+        page = PageResult(**reply["page"])
+        image = VariantResult(**page.variants[0])
+    else:
+        page = PageResult()
+        if run.timed_out:
+            image = VariantResult(
+                variant.name, "failed",
+                error=f"the page did not finish within {settings.timeout:g} seconds")
+        else:
+            image = VariantResult(
+                variant.name, "failed" if run.refused_memory else "error",
+                error=reply.get("error") or "the render process ended without a "
+                                            f"result (exit code {run.exit_code})")
+    if run.refused_memory and image.outcome != "ok":
+        # Whichever program was refused, the page's use of memory is why.
+        image = replace(image, outcome="failed",
+                        error=f"{image.error} (over the memory cap of "
+                              f"{settings.memory_mb} MB)")
+    if image.outcome != "ok":
+        (out / f"{variant.name}.png").unlink(missing_ok=True)
+    page.variants = [image]
+    page.memory_limited = run.memory_limited
+    page.peak_memory_mb = run.peak_mb
+    return page
+
+
+def _merge(pages):
+    """The results of the single images as one."""
+    log = _Log()
+    total = log.result
+    for page in pages:
+        total.variants += page.variants
+        for url in page.blocked:
+            log.blocked.add_text(url)
+        for path in page.missing:
+            log.missing.add_text(path)
+        for entry in page.dialogs:
+            if len(total.dialogs) < MAX_DIALOGS and entry not in total.dialogs:
+                total.dialogs.append(entry)
+        for name in ("dialog_count", "popups", "downloads", "over_budget"):
+            setattr(total, name, getattr(total, name) + getattr(page, name))
+        total.browser_version = page.browser_version or total.browser_version
+        total.command_line = page.command_line or total.command_line
+        total.memory_limited |= page.memory_limited
+        total.peak_memory_mb = max(total.peak_memory_mb, page.peak_memory_mb)
+    log.finish()
+    # What one image could not list is not known to be new in another.
+    total.blocked_dropped += max((p.blocked_dropped for p in pages), default=0)
+    return total
+
+
+def render_page(root, entry, out_dir, settings=Settings(), files=None):
     """Render ``entry`` (a ``/`` separated path under ``root``) into
     ``out_dir``, one ``<variant>.png`` per variant; return a :class:`PageResult`.
 
-    The page can read the files under ``root`` and nothing else. Images of an
-    earlier render in ``out_dir`` are removed first. Raises
-    :class:`BrowserUnavailable` if Chromium cannot be used.
+    The page can read the files under ``root`` and nothing else; with
+    ``files`` (relative paths), only those. Images of an earlier render in
+    ``out_dir`` are removed first. Raises :class:`BrowserUnavailable` if
+    Chromium cannot be used.
     """
     root = Path(root).resolve()
-    if local_file(root, ORIGIN + quote(entry)) is None:
+    files = None if files is None else list(files)
+    if local_file(root, ORIGIN + quote(entry), files) is None:
         raise ValueError(f"{entry!r} is not a file in the page's folder")
-    out = Path(out_dir)
+    out = Path(out_dir).resolve()
     out.mkdir(parents=True, exist_ok=True)
     for variant in VARIANTS:
         (out / f"{variant.name}.png").unlink(missing_ok=True)
-    return asyncio.run(_render(root, entry, out, settings))
+    return _merge([
+        _one_image(root, entry, out, replace(settings, variants=(variant,)), files)
+        for variant in settings.variants])

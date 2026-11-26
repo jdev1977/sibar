@@ -50,7 +50,7 @@ def build_parser():
     parser.add_argument("--max-height", type=int, default=defaults.max_height,
                         help="tallest image, in CSS pixels (default %(default)s)")
     parser.add_argument("--memory-mb", type=int, default=defaults.memory_mb,
-                        help="memory cap of one browser, Windows only "
+                        help="memory cap for the processes of one image, Windows only "
                              "(default %(default)s)")
     return parser
 

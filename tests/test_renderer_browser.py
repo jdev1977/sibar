@@ -1,6 +1,7 @@
 """Rendering in a real headless Chromium, with no network (T1.3)."""
 
 import datetime
+import gc
 import json
 import os
 import socket
@@ -11,7 +12,9 @@ from dataclasses import replace
 import pytest
 
 from renderer.browser import VARIANTS, BrowserUnavailable, Settings, render_page
-from renderer_support import PAGES, Png, require_chromium
+from renderer_support import (
+    PAGES, Png, TreeMemory, _descendants, require_chromium,
+)
 
 pytestmark = pytest.mark.browser
 
@@ -35,10 +38,13 @@ def page(tmp_path, body, name="index.html"):
 
 # Long enough for a busy machine; tests of pages that never finish set their own.
 PATIENT = 120.0
+# A small cap for test pages, so a hostile one cannot use up the machine.
+CAP = 1536
 
 
-def one(site, tmp_path, variant=DESKTOP, timeout=PATIENT, **changes):
-    settings = Settings(variants=(variant,), timeout=timeout, **changes)
+def one(site, tmp_path, variant=DESKTOP, timeout=PATIENT, memory_mb=CAP, **changes):
+    settings = Settings(variants=(variant,), timeout=timeout, memory_mb=memory_mb,
+                        **changes)
     result = render_page(site, "index.html", tmp_path / "out", settings)
     return result, result.variants[0]
 
@@ -506,15 +512,15 @@ def test_a_page_with_bugs_or_busy_timers_is_still_rendered(tmp_path, script):
 
 
 @pytest.mark.skipif(os.name != "nt", reason="the memory limit is Windows only")
-def test_a_page_that_crashes_the_renderer_is_given_up_on(tmp_path):
-    # Canvases until the memory cap kills the renderer.
+def test_a_page_that_goes_on_past_the_cap_is_given_up_on(tmp_path):
+    # Canvases until the cap refuses memory: a crash, or no end.
     site = page(tmp_path, """<script>const kept = []; for (;;) {
       const c = new OffscreenCanvas(8000, 8000).getContext("2d");
       c.fillRect(0, 0, 8000, 8000); c.getImageData(0, 0, 1, 1); kept.push(c); }
     </script>""")
-    result, variant = one(site, tmp_path, memory_mb=300)
+    result, variant = one(site, tmp_path, memory_mb=700, timeout=30)
     assert (result.outcome, variant.outcome) == ("failed", "failed")
-    assert variant.error == "the page crashed"
+    assert "memory cap of 700 MB" in variant.error
 
 
 def test_an_entry_with_an_awkward_name_loads(tmp_path):
@@ -551,25 +557,172 @@ def test_a_page_that_hides_its_size_still_renders(tmp_path):
     assert (variant.outcome, variant.width, variant.height) == ("ok", 1440, 900)
 
 
-@pytest.mark.skipif(os.name != "nt", reason="the memory limit is Windows only")
+windows_only = pytest.mark.skipif(os.name != "nt",
+                                  reason="the memory limit is Windows only")
+# Room for what the sampling counts differently from the job.
+SLACK = 100
+
+
+@windows_only
 def test_memory_is_limited(tmp_path):
     site = page(tmp_path, """<script>onload = () => setTimeout(() => {
       const kept = [];
-      try { while (kept.length < 24) {
+      try { while (kept.length < 8) {
         const b = new Uint8Array(1 << 28); b.fill(1); kept.push(b); } }
       finally { alert("held " + kept.length); }
     }, 10)</script>""")
     result, variant = one(site, tmp_path, memory_mb=1024, timeout=40)
     assert result.memory_limited is True
+    # Windows counts the refused request in the peak, so allow for one.
+    assert 0 < result.peak_memory_mb <= 1024 + SLACK
     # Either the allocation failed under the limit, or the renderer died.
     for said in reports(result):
         assert int(said.split()[1]) * 256 < 1024
     assert reports(result) or variant.outcome == "failed"
 
 
+@windows_only
+def test_a_console_flood_stays_inside_the_memory_cap(tmp_path):
+    # 40 messages of 16 MB from the page and as many from a worker, which has
+    # its own console: bounded, so that even with no cap the machine copes.
+    site = page(tmp_path, """<body><script>
+      const flood = 'const s = "x".repeat(1 << 24);'
+        + 'for (let i = 0; i < 40; i++) console.log(s + i);';
+      new Worker(URL.createObjectURL(new Blob([flood])));
+      eval(flood);
+      const f = document.createElement("iframe"); document.body.appendChild(f);
+      for (let i = 0; i < 10; i++) f.contentWindow.console.error("y".repeat(1 << 24));
+    </script>""")
+    with TreeMemory() as memory:
+        result, variant = one(site, tmp_path, memory_mb=800, timeout=30)
+    assert memory.own < 100  # the caller's process does not take the flood
+    assert 0 < memory.started <= 800 + SLACK
+    assert result.peak_memory_mb <= 800 + SLACK
+    assert variant.outcome in ("ok", "failed"), variant
+
+
+@windows_only
+def test_errors_thrown_without_end_stay_inside_the_memory_cap(tmp_path):
+    site = page(tmp_path, """<script>
+      const s = "x".repeat(1 << 24); let n = 0;
+      const again = () => { if (++n < 60) setTimeout(again, 10); throw new Error(s + n) };
+      again();</script>""")
+    with TreeMemory() as memory:
+        result, variant = one(site, tmp_path, memory_mb=800, timeout=30)
+    assert memory.own < 100
+    assert memory.started <= 800 + SLACK
+    assert variant.outcome in ("ok", "failed"), variant
+
+
+@windows_only
+def test_graphics_memory_stays_inside_the_cap(tmp_path):
+    # 20 textures of 64 MB each, held by the graphics process.
+    site = page(tmp_path, """<script>
+      const kept = [];
+      for (let i = 0; i < 20; i++) {
+        const gl = document.createElement("canvas").getContext("webgl2");
+        if (!gl) break;
+        const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 4096, 4096);
+        const f = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0,
+                                gl.TEXTURE_2D, t, 0);
+        gl.clearColor(1, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT); gl.finish();
+        kept.push(gl);
+      }
+      alert("contexts " + kept.length);</script>""")
+    with TreeMemory() as memory:
+        result, variant = one(site, tmp_path, memory_mb=800, timeout=40)
+    assert 0 < memory.started <= 800 + SLACK
+    assert result.peak_memory_mb <= 800 + SLACK
+    assert variant.outcome in ("ok", "failed"), variant
+
+
+def test_webgl_still_draws(tmp_path):
+    site = page(tmp_path, """<body style="margin:0"><canvas width="100" height="100">
+      </canvas><script>
+      const gl = document.querySelector("canvas").getContext("webgl2",
+        {preserveDrawingBuffer: true});
+      gl.clearColor(0, 1, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT);</script>""")
+    _, variant = one(site, tmp_path)
+    assert Png(tmp_path / "out" / variant.file).pixel(50, 50) == (0, 255, 0)
+
+
+def test_the_console_is_silenced_in_every_frame(tmp_path):
+    site = page(tmp_path, """<body><script>
+      const f = document.createElement("iframe"); document.body.appendChild(f);
+      alert([window, f.contentWindow].map((w) => ["log", "debug", "error", "table"]
+        .map((n) => { const d = Object.getOwnPropertyDescriptor(w.console, n);
+          return [d.writable, d.configurable, /native code/.test(String(d.value))]
+            .join(); }).join(" ")).join(" "))</script>""")
+    result, _ = one(site, tmp_path)
+    assert reports(result) == [" ".join(["false,false,false"] * 8)]
+
+
+def test_navigation_reports_are_limited(tmp_path):
+    site = page(tmp_path, """<body><script>onload = () => {
+      for (let i = 0; i < 500; i++) location.href = "https://example.com/" + i; };
+    </script>""")
+    result, variant = one(site, tmp_path)
+    assert variant.outcome == "ok", variant
+    assert 0 < len(result.blocked) + result.blocked_dropped <= 100
+
+
+def test_timeouts_print_nothing(tmp_path, capfd):
+    one(page(tmp_path, "<script>for (;;) {}</script>"), tmp_path, timeout=4)
+    gc.collect()
+    assert capfd.readouterr() == ("", "")
+
+
+def test_the_bytes_served_to_one_image_are_bounded(tmp_path):
+    site = page(tmp_path, """<script>(async () => {
+      const got = await Promise.all(Array.from({length: 12}, (_, i) =>
+        fetch("big.txt?" + i).then(async (r) => (await r.text()).length, () => 0)));
+      alert(got.filter((n) => n === 1048576).length + " "
+        + got.filter((n) => !n).length);
+    })();</script>""")
+    (site / "big.txt").write_bytes(b"x" * (1 << 20))
+    result, variant = one(site, tmp_path, max_served_mb=5)
+    assert variant.outcome == "ok", variant
+    assert reports(result) == ["4 8"]  # the page itself uses part of the 5 MB
+    assert result.over_budget == 8
+
+
+def test_only_listed_files_are_served(tmp_path):
+    site = page(tmp_path, """<script>(async () => {
+      const got = [];
+      for (const url of ["a.txt", "b.txt"]) got.push((await fetch(url)).status);
+      alert(got.join(" "));
+    })();</script>""")
+    (site / "a.txt").write_text("a")
+    (site / "b.txt").write_text("b")
+    result = render_page(site, "index.html", tmp_path / "out",
+                         Settings(variants=(DESKTOP,), timeout=PATIENT, memory_mb=CAP),
+                         files=["index.html", "a.txt"])
+    assert reports(result) == ["200 404"]
+    assert result.missing == ["b.txt"]
+
+
+@windows_only
+def test_a_render_process_that_hangs_is_ended_with_all_it_started(
+        tmp_path, monkeypatch):
+    # The caller's own deadline, set to pass before the page's time limit.
+    monkeypatch.setattr("renderer.browser.OVERHEAD", -55.0)
+    site = page(tmp_path, "<script>for (;;) {}</script>")
+    started = time.monotonic()
+    _, variant = one(site, tmp_path, timeout=60)
+    assert time.monotonic() - started < 40
+    assert (variant.outcome, variant.file) == ("failed", None)
+    assert "60 seconds" in variant.error
+    deadline = time.monotonic() + 10
+    while _descendants(os.getpid()) and time.monotonic() < deadline:
+        time.sleep(0.2)
+    assert _descendants(os.getpid()) == set()
+
+
 def test_the_batch_goes_on_after_a_hostile_page(tmp_path):
     bad = page(tmp_path, "<script>for (;;) {}</script>")
-    settings = Settings(variants=(DESKTOP, PHONE), timeout=5)
+    settings = Settings(variants=(DESKTOP, PHONE), timeout=5, memory_mb=CAP)
     assert render_page(bad, "index.html", tmp_path / "a", settings).outcome == "failed"
     good = render_page(PAGES / "bakery", "index.html", tmp_path / "b",
                        replace(settings, timeout=PATIENT))

@@ -34,7 +34,8 @@ def _settings_detail(settings):
     return {"clock": settings.clock.isoformat(), "timezone": settings.timezone,
             "locale": settings.locale, "settle_ms": settings.settle_ms,
             "timeout": settings.timeout, "max_height": settings.max_height,
-            "memory_mb": settings.memory_mb}
+            "memory_mb": settings.memory_mb,
+            "max_served_mb": settings.max_served_mb}
 
 
 def _variant_detail(variant, result):
@@ -60,10 +61,11 @@ def _render_check(root, candidates_from, out, base, entry, settings, render):
     if entry is None:
         detail["error"] = "no HTML file"
         return _check("failed", detail)
-    result = render(root, entry, out, settings)
+    result = render(root, entry, out, settings, files=candidates_from)
     shown = {variant.name: variant for variant in settings.variants}
     detail.update(
         browser=result.browser_version, memory_limited=result.memory_limited,
+        peak_memory_mb=result.peak_memory_mb, over_budget=result.over_budget,
         variants={r.name: _variant_detail(shown[r.name], r) for r in result.variants},
         blocked=result.blocked, blocked_dropped=result.blocked_dropped,
         missing=result.missing, dialogs=result.dialogs,

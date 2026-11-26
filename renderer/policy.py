@@ -42,8 +42,9 @@ def local_path(url):
     return path if _is_relative_path(path) else None
 
 
-def local_file(root, url):
-    """The file under ``root`` that ``url`` may read, or None."""
+def local_file(root, url, listed=None):
+    """The file under ``root`` that ``url`` may read, or None. ``listed``, if
+    given, are the only relative paths that may be read."""
     path = local_path(url)
     if path is None:
         return None
@@ -52,6 +53,9 @@ def local_file(root, url):
         # resolve() follows links, so a link out of the folder is refused.
         target = base.joinpath(*path.split("/")).resolve()
         if not target.is_relative_to(base) or not target.is_file():
+            return None
+        if listed is not None and target not in {
+                base.joinpath(*name.split("/")).resolve() for name in listed}:
             return None
     except (OSError, ValueError):
         return None
