@@ -22,15 +22,17 @@ ROOT = Path(__file__).resolve().parents[1]
 FOLDER = ROOT / "prompts" / "website"
 
 # Each task's prompt-set version and a fingerprint of its 6 texts as sent.
-# A text change must raise the version (see prompts/website/README.md); then
-# update both values here. The test prints the new fingerprint.
+# Any text change makes the test fail until this table is updated. The test
+# cannot tell whether the version was raised: the rule in
+# prompts/website/README.md is to raise it in the same change, and a reviewer
+# checks that both values changed together. The test prints the new values.
 EXPECTED = {
-    "bakery-landing": ("1", "ac10f30b65735956"),
-    "dashboard": ("1", "8ed1eda7b7d2c95a"),
+    "bakery-landing": ("1", "191c1714178e13cb"),
+    "dashboard": ("1", "f96bdc5e739fd123"),
     "event-page": ("1", "b921700e205e3928"),
     "portfolio": ("1", "7e9cdc05dcc1c314"),
-    "pricing-page": ("1", "1fe304fb08b96bd4"),
-    "todo-app": ("1", "fdb45b811f9368af"),
+    "pricing-page": ("1", "88540755bbdae07b"),
+    "todo-app": ("1", "6c29324b0f1086af"),
 }
 
 # Words that every prompt of a task uses, so the levels ask for the same thing.
@@ -41,6 +43,19 @@ SUBJECT = {
     "portfolio": "portfolio",
     "pricing-page": "pricing page",
     "todo-app": "to-do list",
+}
+
+# Invented names and labels that both L2 wordings of a task must contain.
+NAMES = {
+    "bakery-landing": ["Wrenmoor Bread Room", "Tanner Street", "Wrenmoor",
+                       "Priya Halvorsen", "Dev Okafor"],
+    "dashboard": ["Ostrey Food Bank"],
+    "event-page": ["Fix-It Day", "Marrowick Tool Share",
+                   "Marrowick Community Hall", "Ferry Road", "Rosa Imbert"],
+    "portfolio": ["Joss Achterberg", "Fennlow", "Tideline"],
+    "pricing-page": ["Billfinch", "Starter", "Solo", "Studio"],
+    "todo-app": ["Term Planner", "HIST 210", "CHEM 101", "STAT 230",
+                 "LIT 305", "Bauhaus"],
 }
 
 # L0 and L1 must not name or imply a look, a component or a technology. A
@@ -62,11 +77,13 @@ STYLE_WORDS = """
     animation animated chart graph responsive mobile desktop
 """.split()
 
-# No prompt at any level asks for a format or a technology.
+# No prompt at any level asks for a format or a technology. "single" alone is
+# allowed ("a single oxblood red"), so its compounds are listed.
 TECH_WORDS = """
     html css javascript typescript js jsx tsx react vue svelte angular
     next.js nextjs nuxt tailwind bootstrap jquery node npm framework library file
-    single-file cdn localstorage python php
+    single-file one-file single-page one-page multi-page cdn localstorage
+    python php
 """.split()
 
 # Colour and type words, compared between the two L2 wordings.
@@ -79,8 +96,10 @@ LOOK_WORDS = """
 
 
 def word_pattern(words):
+    """Match a listed word on its own or as part of a hyphenated compound
+    ("dark-mode", "React-based"), but not inside a longer word."""
     alternatives = "|".join(re.escape(w) for w in words)
-    return re.compile(rf"(?<![\w-])(?:{alternatives})(?:e?s)?(?![\w-])",
+    return re.compile(rf"(?<![a-z0-9])(?:{alternatives})(?:e?s)?(?![a-z0-9])",
                       re.IGNORECASE)
 
 
@@ -229,17 +248,41 @@ def test_the_two_wordings_differ_in_phrasing(task_id, level):
     assert ratio < MAX_SIMILARITY[level]
 
 
+def l2_fact_problems(task_id, a, b):
+    """Differences in checkable facts between the two L2 wordings.
+
+    Numbers, emails and quoted text are compared in order, so two swapped
+    prices or percentages count as a difference. Each name in NAMES must
+    appear in both, wherever it stands in the sentence.
+    """
+    problems = []
+    for label, pattern in (("numbers", NUMBER), ("emails", EMAIL),
+                           ("quoted text", QUOTED)):
+        if pattern.findall(a) != pattern.findall(b):
+            problems.append(f"{label} differ or are in another order")
+    if look_words(a) != look_words(b):
+        problems.append("color and type words differ")
+    for name in NAMES[task_id]:
+        for wording, text in (("A", a), ("B", b)):
+            if name not in text:
+                problems.append(f"{wording} lacks {name!r}")
+    for wording, text, other in (("A", a, b), ("B", b, a)):
+        missing = sorted(name for name in mid_sentence_names(text)
+                         if not re.search(rf"\b{name}\b", other))
+        if missing:
+            problems.append(f"names only in {wording}: {missing}")
+    return problems
+
+
+def test_names_are_listed_for_every_task():
+    assert sorted(NAMES) == sorted(EXPECTED)
+
+
 @pytest.mark.parametrize("task_id", sorted(EXPECTED))
 def test_the_two_l2_wordings_carry_the_same_facts(task_id):
     task = tasks()[task_id]
-    a, b = task.text("L2", "A"), task.text("L2", "B")
-    for pattern in (NUMBER, EMAIL, QUOTED):
-        assert set(pattern.findall(a)) == set(pattern.findall(b)), pattern
-    assert look_words(a) == look_words(b)
-    for text, other in ((a, b), (b, a)):
-        missing = {name for name in mid_sentence_names(text)
-                   if not re.search(rf"\b{name}\b", other)}
-        assert missing == set()
+    assert l2_fact_problems(task_id, task.text("L2", "A"),
+                            task.text("L2", "B")) == []
 
 
 # --- the checks themselves ---------------------------------------------------
@@ -251,6 +294,10 @@ def test_the_two_l2_wordings_carry_the_same_facts(task_id):
     "Make a bakery site with cards and a hero.",
     "Make a website in pastel colours.",
     "Use a serif font.",
+    "Make a website with a dark-mode toggle.",
+    "Make a card-based pricing page.",
+    "Make a two-column portfolio.",
+    "Make a mobile-friendly event page.",
 ])
 def test_the_style_check_catches_a_hint(text):
     assert STYLE.findall(text)
@@ -261,9 +308,47 @@ def test_the_style_check_catches_a_hint(text):
     "Use React and Tailwind.",
     "Build it with Next.js.",
     "Keep everything in localStorage.",
+    "Make a single-page site.",
+    "Make a React-based to-do list.",
+    "Keep it HTML-only.",
 ])
 def test_the_technology_check_catches_a_request(text):
     assert TECH.findall(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Make a to-do list web app.",
+    "Make a page for a one-day event that takes pre-orders.",
+    "A lightweight, cardamom-scented profile of a tabletop maker.",
+])
+def test_the_checks_pass_ordinary_words_and_compounds(text):
+    assert STYLE.findall(text) == [] and TECH.findall(text) == []
+
+
+def test_single_alone_is_not_a_technology():
+    assert TECH.findall("Charts in a single oxblood red.") == []
+
+
+def l2(task_id):
+    task = tasks()[task_id]
+    return task.text("L2", "A"), task.text("L2", "B")
+
+
+@pytest.mark.parametrize("task_id,old,new", [
+    ("bakery-landing", "loaf for $9, seeded rye for $10",
+     "loaf for $10, seeded rye for $9"),                       # swapped prices
+    ("dashboard", "pasta and rice 82%, canned vegetables 64%",
+     "pasta and rice 64%, canned vegetables 82%"),           # swapped shares
+    ("bakery-landing", "It's owned by Priya Halvorsen",
+     "It's owned by Maya Halvorsen"),                        # changed person
+    ("event-page", "volunteer Rosa Imbert", "volunteer Rosa Imbach"),
+    ("pricing-page", '"Start free"', '"Start for free"'),
+    ("todo-app", "Call it Term Planner", "Call it Term Tracker"),
+])
+def test_the_fact_check_catches_a_changed_fact(task_id, old, new):
+    a, b = l2(task_id)
+    assert old in b
+    assert l2_fact_problems(task_id, a, b.replace(old, new, 1)) != []
 
 
 def test_mid_sentence_names_skip_first_words():

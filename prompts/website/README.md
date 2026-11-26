@@ -46,8 +46,12 @@ direction differs from the others. The intended direction, and the default it
 moves away from, is a comment above L2 in each file. The expected defaults are
 guesses until the pilot (T1.7) measures them.
 
-The dashboard's L2 adds one realistic constraint (it must work with no
-internet connection). No other L2 sets a technical constraint.
+Two L2 briefs set a realistic technical constraint, stated as a need and not
+as a technology: the dashboard must work with no internet connection, and the
+to-do app must keep tasks on the device between visits with no accounts or
+sign-in. Both will move the technology choices for those tasks. The other L2
+briefs ask for features (such as a pre-order or booking form) but set no
+technical constraint.
 
 ## The wordings
 
@@ -78,26 +82,37 @@ must not be mixed. Changes to comments or `notes` only do not need a new
 version.
 
 [tests/test_website_prompts.py](../../tests/test_website_prompts.py) pins each
-file's version together with a fingerprint of its texts, so a text change
-without a new version fails the tests. After raising the version, put the new
-version and the fingerprint the failing test prints into `EXPECTED` there.
+file's version together with a fingerprint of its texts in `EXPECTED`. Any
+text change makes that test fail until `EXPECTED` is updated, so no change goes
+unnoticed. The test cannot tell whether the version was raised: raise it in the
+same change, then copy the new version and the fingerprint that the failing
+test prints into `EXPECTED`. A reviewer checks that both values changed
+together.
+
+Before the first run, texts may be corrected without a new version. Version
+"1" of the six files was revised once that way, after review and before any
+run.
 
 ## Checks
 
 `python -m pytest tests/test_website_prompts.py` loads every prompt and
 checks:
 
-- 6 tasks x 3 levels x 2 wordings = 36 prompts, each file with a version that
-  matches its pinned fingerprint, and an L2 direction comment;
-- every prompt names its task's subject, and asks for no format or
-  technology;
+- 6 tasks x 3 levels x 2 wordings = 36 prompts, each file's version and text
+  fingerprint equal to the pinned values, and an L2 direction comment;
+- every prompt names its task's subject, and names no format or technology
+  word from a list (also inside hyphenated compounds such as "React-based"
+  or "single-page");
 - L0 and L1 contain none of a list of style, color, type, layout, component
-  and technology words, and no invented details (numbers, emails, quotes);
+  and technology words (also inside compounds such as "dark-mode" or
+  "two-column"), and no invented details (numbers, emails, quotes);
 - each level is longer than the one before;
 - the two wordings of each cell differ (word-sequence similarity below a
   limit);
-- the two L2 wordings share the same numbers, emails, quoted text, names, and
-  color and type words, and the L2 color and type words differ between tasks;
+- the two L2 wordings have the same numbers, emails and quoted text in the
+  same order (so swapped prices are caught), the same color and type words,
+  each listed invented name, and no capitalized name found in only one; the
+  L2 color and type words differ between tasks;
 - contact details are `example.com` emails and 555-01xx numbers only.
 
 These checks are mechanical. A word list cannot catch every hint, so the T1.2

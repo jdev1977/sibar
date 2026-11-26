@@ -20,7 +20,7 @@ prompts:
   # a script or display serif, rounded cards with soft shadows, cheerful copy.
   L2:
     A: |
-      Make a website for Second Rise Bakery, a sourdough bakery on Tanner Street in Wrenmoor that takes pre-orders for weekend pickup.
+      Make a website for the Wrenmoor Bread Room, a sourdough bakery on Tanner Street in Wrenmoor that takes pre-orders for weekend pickup.
 
       Business details:
       - Owners: Priya Halvorsen and Dev Okafor, who opened the bakery in 2019.
@@ -41,7 +41,7 @@ prompts:
 
       Visual direction: a stark, newsprint-like look. Black text on an off-white background, with signal orange as the only accent. Condensed sans-serif headings, and a monospace face for prices and hours. Square corners, thin black rules between sections, no shadows and no gradients.
     B: |
-      Can you build a website for our bakery? We're Second Rise Bakery, a sourdough bakery on Tanner Street in Wrenmoor. Priya Halvorsen and Dev Okafor opened it in 2019, and we take pre-orders for weekend pickup.
+      Can you build a website for our bakery? We're the Wrenmoor Bread Room, a sourdough bakery on Tanner Street in Wrenmoor. It's owned by Priya Halvorsen and Dev Okafor, who opened it in 2019, and we take pre-orders for weekend pickup.
 
       We're open Wednesday to Friday from 7am to 2pm, and on Saturday and Sunday from 8am to 1pm. We're closed on Monday and Tuesday. Pre-orders for Saturday and Sunday close at 6pm on Thursday, and people pay when they pick up. They can reach us at orders@example.com or on 555-0147.
 

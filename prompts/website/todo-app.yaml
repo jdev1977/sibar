@@ -14,7 +14,8 @@ prompts:
     A: Make a to-do list web app that helps a university student keep track of assignments and deadlines.
     B: Can you build a to-do list app that runs in a web browser? It's meant to help a university student stay on top of their coursework and when each piece is due.
   # L2 direction: Bauhaus-inspired (off-white ground, blocks of primary red,
-  # yellow and blue, thick black outlines, one primary colour per course,
+  # yellow and blue, thick black outlines, one color per course (red,
+  # yellow, blue or black),
   # heavy geometric sans-serif headings, square checkboxes, no rounded
   # corners, shadows or gradients), short direct interface text.
   # Points away from the expected to-do default: white or slate with one
@@ -34,12 +35,12 @@ prompts:
       - Keep tasks on this device after the page is reloaded. No accounts or sign-in.
 
       Start with these example tasks:
-      - "Read chapters 3 and 4", HIST 210, reading, due March 2
-      - "Problem set 5", STAT 230, problem set, due March 4
-      - "Lab report draft", CHEM 101, lab report, due March 8
-      - "Essay outline on the course novel", LIT 305, essay, due March 10
-      - "Midterm exam", CHEM 101, exam, due March 15
-      - "Problem set 6", STAT 230, problem set, due March 18
+      - "Read chapters 3 and 4", HIST 210, reading, due March 2, 2027
+      - "Problem set 5", STAT 230, problem set, due March 4, 2027
+      - "Lab report draft", CHEM 101, lab report, due March 8, 2027
+      - "Essay outline on the course novel", LIT 305, essay, due March 10, 2027
+      - "Midterm exam", CHEM 101, exam, due March 15, 2027
+      - "Problem set 6", STAT 230, problem set, due March 18, 2027
 
       Interface text: short and direct.
 
@@ -51,6 +52,6 @@ prompts:
 
       I want to be able to add, edit and delete tasks and mark them as done. The list should be in due-date order with the soonest first, and overdue tasks should be flagged. I'd also like to filter by course, and to see at the top how many tasks are due in the next 7 days. Tasks should still be there on this device after I reload the page, without any accounts or sign-in.
 
-      Please start it off with these example tasks: "Read chapters 3 and 4" for HIST 210 (reading, due March 2), "Problem set 5" for STAT 230 (problem set, due March 4), "Lab report draft" for CHEM 101 (lab report, due March 8), "Essay outline on the course novel" for LIT 305 (essay, due March 10), "Midterm exam" for CHEM 101 (exam, due March 15) and "Problem set 6" for STAT 230 (problem set, due March 18).
+      Please start it off with these example tasks: "Read chapters 3 and 4" for HIST 210 (reading, due March 2, 2027), "Problem set 5" for STAT 230 (problem set, due March 4, 2027), "Lab report draft" for CHEM 101 (lab report, due March 8, 2027), "Essay outline on the course novel" for LIT 305 (essay, due March 10, 2027), "Midterm exam" for CHEM 101 (exam, due March 15, 2027) and "Problem set 6" for STAT 230 (problem set, due March 18, 2027).
 
       Keep the interface text short and direct. As for the look, take the Bauhaus as the inspiration: primary red, yellow and blue in blocks on an off-white background, with thick black outlines. Each course has its own color, so HIST 210 is red, CHEM 101 yellow, STAT 230 blue and LIT 305 black. For headings, a heavy geometric sans-serif. Checkboxes should be square, and I don't want rounded corners, shadows or gradients anywhere.

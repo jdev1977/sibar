@@ -64,10 +64,10 @@ prompts:
 
       Please show households served per hour so far as a chart: 9am: 12; 10am: 21; 11am: 18; 12pm: 15; 1pm: 20.
 
-      Stock levels, as a percentage of target, are pasta and rice 82%, canned vegetables 64%, baby supplies 58%, breakfast cereal 47%, canned fish and meat 31%, and toiletries 22%. Anything under 35% should be flagged as low.
+      Any stock under 35% of its target should be flagged as low. The stock levels, as a percentage of target, are pasta and rice 82%, canned vegetables 64%, baby supplies 58%, breakfast cereal 47%, canned fish and meat 31%, and toiletries 22%.
 
       Today's notes: chiller 2 is running warm, so dairy goes in chiller 1; and a donation pickup van arrives at 3:30pm and needs two volunteers to unload it.
 
       So the page needs the header, the key figures, households per hour, the stock levels with the low ones flagged, and the notes. Use plain labels without jargon.
 
-      As for the look, it should be light and editorial, closer to a printed report. Text in dark grey over a warm white background. Numbers in a serif, using old-style figures. Charts as plain bars in one oxblood red, plus greys. Thin hairline rules to divide the areas rather than boxes or cards, and no icons or rounded corners anywhere.
+      As for the look, it should be light and editorial, in the manner of a printed report. Text in dark grey over a warm white background. Numbers in a serif, using old-style figures. Charts as plain bars in one oxblood red, plus greys. Thin hairline rules to divide the areas rather than boxes or cards, and no icons or rounded corners anywhere.
