@@ -75,6 +75,11 @@ class Result:
     retryable: bool = False
     retry_after: Optional[float] = None
     stop: Optional[str] = None
+    http_status: Optional[int] = None  # set for HTTP error responses
+    # What the response says about how it was served (service tier, region,
+    # speed), stored in the record's settings.
+    reported: Optional[Mapping] = None
+    premium: Optional[str] = None  # why the serving is not standard pricing
 
 
 def word_or_none(value):
@@ -92,6 +97,32 @@ def add(*values):
     if any(value is None for value in values):
         return None
     return sum(values)
+
+
+def billed_output(output, total, *inputs):
+    """Output to bill: at least ``total`` minus every input count, where the
+    provider reports a total, so tokens it counts but does not break down are
+    still charged. None if the output count is unknown."""
+    if output is None:
+        return None
+    if total is None or any(value is None for value in inputs):
+        return output
+    return max(output, total - sum(inputs))
+
+
+def serving(values, standard):
+    """(reported, premium) from what a response says about its serving.
+
+    ``values`` maps a field name to the reported value; ``standard`` maps it to
+    the values priced at the list rates models.yaml holds. ``premium`` names
+    the first field outside them, or is None.
+    """
+    reported = {name: value for name, value in values.items()
+                if isinstance(value, str) and value}
+    for name, value in reported.items():
+        if value not in standard[name]:
+            return reported, f"{name} {value!r}"
+    return reported or None, None
 
 
 def clip(text, limit=MAX_ERROR_TEXT):
@@ -212,4 +243,4 @@ class Adapter:
         return Result(
             "failed", error=clip(text), retryable=retryable, stop=stop,
             retry_after=parse_retry_after(response.header("retry-after")),
-            request_id=request_id)
+            request_id=request_id, http_status=status)

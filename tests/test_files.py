@@ -5,8 +5,9 @@ import os
 
 import pytest
 
-from runner.files import MAX_FILES, extract_files, safe_path, write_files
-from runner.record import _is_relative_path, check_files
+from runner.files import (MAX_FILES, MAX_FULL_PATH, ExtractedFile, extract_files,
+                          safe_path, save_files, write_files)
+from runner.record import RecordError, _is_relative_path, check_files
 
 FENCE = "`" * 3
 
@@ -217,6 +218,52 @@ def test_generated_names_do_not_collide_with_hinted_ones():
 def test_the_number_of_files_is_capped():
     text = "".join(fenced("txt", f"{n}\n") for n in range(MAX_FILES + 5))
     assert len(extract_files(text)) == MAX_FILES
+
+
+def test_a_hint_longer_than_the_length_budget_falls_back_to_a_generic_name():
+    hint = "src/" + "x" * 40 + ".js"
+    assert names(fenced(f"js {hint}", "1\n")) == [hint]
+    assert [f.path for f in extract_files(fenced(f"js {hint}", "1\n"),
+                                          max_length=30)] == ["block-01.js"]
+    assert [f.path for f in extract_files(fenced("js a.js", "1\n"),
+                                          max_length=0)] == ["block-01.js"]
+
+
+def long_base(tmp_path, length=150):
+    """A folder whose resolved path is about ``length`` characters."""
+    base = tmp_path.resolve()
+    while len(str(base)) < length - 40:
+        base = base / ("d" * 30)
+    base = base / ("e" * max(1, length - len(str(base)) - 1))
+    base.mkdir(parents=True)
+    return base
+
+
+def test_deep_names_under_a_long_base_stay_within_the_full_path_limit(tmp_path):
+    base = long_base(tmp_path, 150)
+    title = "/".join(["folder" + "f" * 30] * 5) + "/index.html"  # ~188 characters
+    text = fenced(f"html {title}", "<p>hi</p>\n") + fenced("css s.css", "p{}\n")
+    entries = save_files(base, text)
+    assert [e["path"] for e in entries] == ["extracted/block-01.html",
+                                           "extracted/s.css"]
+    for entry in entries:
+        full = base.joinpath(*entry["path"].split("/"))
+        assert full.is_file() and len(str(full)) <= MAX_FULL_PATH
+    assert check_files({"files": entries, "checks": []}, base) == []
+
+
+def test_writing_refuses_a_path_beyond_the_full_path_limit(tmp_path):
+    base = long_base(tmp_path, 200)
+    files = [ExtractedFile("x" * 60 + ".txt", "x\n", "fence")]
+    with pytest.raises(RecordError, match="too long"):
+        write_files(base, files)
+    assert not list((base / "extracted").rglob("*.txt"))
+
+
+def test_a_base_with_no_room_left_raises_rather_than_writing(tmp_path):
+    base = long_base(tmp_path, 235)
+    with pytest.raises(RecordError):
+        save_files(base, fenced("txt", "x\n"))
 
 
 # --- Writing ----------------------------------------------------------------------

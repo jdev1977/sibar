@@ -12,7 +12,7 @@ import time
 import pytest
 
 from runner.transport import (HttpRequest, NotSentError, SendError,
-                              UrllibTransport)
+                              TotalTimeoutError, UrllibTransport)
 
 LOCAL = ("127.0.0.1",)
 
@@ -157,8 +157,9 @@ def test_the_total_time_limit_applies_between_lines(server):
     transport = UrllibTransport(allow_http_hosts=LOCAL, total_timeout=0.0)
     with transport.send(HttpRequest("POST", url(server, "stream"))) as response:
         time.sleep(0.01)
-        with pytest.raises(SendError, match="total time"):
+        with pytest.raises(TotalTimeoutError, match="total time"):
             list(response.lines())
+    assert issubclass(TotalTimeoutError, SendError)  # may have been billed
 
 
 @pytest.mark.parametrize("address", ["http://example.com/x", "ftp://127.0.0.1/x",

@@ -30,8 +30,10 @@ allows either.
 Usage: ``prompt_tokens`` (equals cache hits plus misses); ``completion_tokens``
 includes reasoning: ``completion_tokens_details`` is a "breakdown of tokens
 used in a completion", ``total_tokens`` is prompt plus completion, and
-billing is by input plus output tokens. ``reasoning_tokens`` is the reasoning
-part. The chain of thought (``reasoning_content``) is not stored.
+billing is by input plus output tokens. Output is billed as at least
+``total_tokens - prompt_tokens``. ``reasoning_tokens`` is the reasoning part.
+The chain of thought (``reasoning_content``) is not stored. No service tier is
+documented, so none is recorded.
 
 Not verified against a live response (no key yet): the whole adapter; the
 exact default output limit; whether the server sends an error object inside
@@ -42,8 +44,8 @@ documented, so the completion id is used).
 import json
 
 from runner.providers.base import (
-    Adapter, ParseError, Prepared, Result, Tokens, clip, count, events,
-    ok_or_empty, word_or_none,
+    Adapter, ParseError, Prepared, Result, Tokens, billed_output, clip, count,
+    events, ok_or_empty, word_or_none,
 )
 from runner.transport import HttpRequest
 
@@ -110,8 +112,10 @@ class DeepSeekAdapter(Adapter):
                           **fields)
         usage = usage or {}
         details = usage.get("completion_tokens_details") or {}
-        tokens = Tokens(input=count(usage.get("prompt_tokens")),
-                        output=count(usage.get("completion_tokens")),
+        prompt = count(usage.get("prompt_tokens"))
+        tokens = Tokens(input=prompt,
+                        output=billed_output(count(usage.get("completion_tokens")),
+                                             count(usage.get("total_tokens")), prompt),
                         reasoning=count(details.get("reasoning_tokens"))
                         if isinstance(details, dict) else None)
         if finish == "stop":

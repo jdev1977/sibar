@@ -46,6 +46,7 @@ batch cap from $0.
 | `--rerun refused,truncated` | Also run these statuses again (failed always runs again) |
 | `--workers N` | Requests in flight at once (default 1) |
 | `--max-attempts N` | Attempts per cell including the first (default 4) |
+| `--max-consecutive-429 N` | Stop a provider after N HTTP 429 answers in a row (default 6) |
 | `--rpm PROVIDER=N` | Requests per minute per provider (default 30 each) |
 | `--read-timeout`, `--total-timeout` | Seconds: a silent response fails after 900, any response after 3600 |
 | `--models-file PATH` | Another model list (tests use a copy) |
@@ -62,23 +63,32 @@ each." Once the keys are set (T0.3) and `confirmed_by_human` is true:
 
 ```
 python -m runner.run --prompts tests/fixtures/prompts/example/tiny-task.yaml \
-    --levels L0 --wordings A --runs 1 --models all \
+    --levels L0 --wordings A --runs 1 --models all --max-attempts 2 \
     --batch-id t0.5-live-check --dry-run
 
 python -m runner.run --prompts tests/fixtures/prompts/example/tiny-task.yaml \
-    --levels L0 --wordings A --runs 1 --models all \
-    --batch-id t0.5-live-check --paid --batch-cap 10 --total-cap 10
+    --levels L0 --wordings A --runs 1 --models all --max-attempts 2 \
+    --batch-id t0.5-live-check --paid --batch-cap 15 --total-cap 15
 
 python -m runner.record --files data/runs/t0.5-live-check/records.jsonl
 python -m runner.ledger
 ```
 
-The prompt asks for a short poem, so real costs are cents. The caps must still
-cover the worst case of a call in flight: $6.66 for all eight models together
-(Claude Opus 5.5 alone is $2.56), and more if retries are needed. The check
-passes when the last two commands show eight valid records, all `ok`, and one
-charge per request. If a provider fails, its record says why; fix the adapter
-and run the same command again: done cells are skipped.
+The prompt asks for a short poem, so real costs are cents. The caps are set
+by the worst case instead, because every attempt is reserved at its worst
+case and an attempt without reported usage (an HTTP error, a timeout) stays
+charged at it. The headroom a run can need is therefore **attempts per cell ×
+worst case per cell**, summed over the cells: one attempt of each of the eight
+models is $6.66 at worst (Claude Opus 5.5 alone $2.56), so with
+`--max-attempts 2` the caps need $13.32; $15 leaves a little over.
+
+The check passes when the last two commands show eight valid records, all
+`ok`, and one charge per request. If a provider fails, its record says why;
+fix the adapter and run the same command again: done cells are skipped. A
+retry spends the same headroom again, and worst-case charges (overstated
+when the provider would not actually bill a failed request) stay in the
+ledger for good: after a few failed attempts, raise the batch cap or start a
+new batch id, and keep the total cap as the overall limit.
 
 ## What is sent
 
@@ -95,6 +105,17 @@ parameter, no reasoning or thinking setting. Every adapter streams.
 
 `settings` holds the body parameters sent (besides the model and prompt) plus
 the header that pins the API version, so a record can be sent again exactly.
+It also holds what the response reports about how it was served, as
+`reported_<field>`: Anthropic `reported_service_tier`, `reported_speed` and
+`reported_inference_geo`; OpenAI and Google `reported_service_tier`. DeepSeek
+documents none.
+
+**Each provider account or project must be on the default (standard) tier.**
+Priority, flex, scale, fast and regional serving are priced differently from
+the list rates in models.yaml, which the ledger uses. If a response reports
+anything but Anthropic `standard`/`standard`/`global`, OpenAI `default` (or
+`auto`) or Google `standard`, the record is kept, its cost is charged at the
+worst case (record `cost_usd` null), and that provider is stopped for the run.
 
 Why streaming: Anthropic says not to send a large `max_tokens` without it;
 Google cuts a non-streamed request at 10 minutes and a streamed one at 20;
@@ -131,8 +152,8 @@ recheck.
 
 Text from separate blocks is joined with a blank line (so a code fence that
 ends one block still closes); text inside a block is never changed. Reasoning
-or thinking text is not stored. Keys are removed from any stored text (see
-[Keys](#keys)).
+or thinking text is not stored. The only other change to model output: an
+exact key in use, if it ever appeared, would be replaced (see [Keys](#keys)).
 
 **Status.** `ok`: finished normally with text. `truncated`: stopped by a
 length limit (Anthropic `max_tokens` or `model_context_window_exceeded`;
@@ -157,6 +178,12 @@ holds the error text.
 | Google | `total_input_tokens` (+ tool-use tokens) | **No**: `output = total_output_tokens + total_thought_tokens` | `total_thought_tokens` |
 | DeepSeek | `prompt_tokens` | Yes (`completion_tokens_details` is a breakdown of the completion; billing is input plus output) | `completion_tokens_details.reasoning_tokens` |
 
+Where a provider also reports a total (OpenAI `total_tokens`, Google
+`total_tokens`, DeepSeek `total_tokens`), `output` is billed as at least the
+total minus the input (and Google's tool-use tokens), so tokens a provider
+counts without breaking them down are still charged. Anthropic reports no
+total.
+
 **Files.** Fenced code blocks and complete HTML documents outside fences are
 saved under `files/<record_id>/extracted/` beside the record file, with
 `sha256` and `size` in the record (`runner/files.py`). A block is named from a
@@ -165,7 +192,14 @@ unfenced HTML is `document-NN.html`. Names from the model are made safe: no
 `..`, drive or root, a whitelist of characters, Windows reserved names
 defused, trailing dots and spaces removed, limited depth and length, unique
 ignoring case; files are created exclusively and must land inside the folder.
-Unclosed blocks are not extracted. Failed records get no files.
+A name is also replaced by the generic one when the whole path, folder
+included, would pass 240 characters (Windows without long-path support
+refuses 260). Unclosed blocks are not extracted. Failed records get no files.
+
+Saving files can never lose a response: if writing fails for any reason, the
+partly written `files/<record_id>/` folder is removed, a warning is printed,
+and the record is written with an empty `files` list and the whole response
+in `raw_response`, from which extraction can be redone.
 
 ## Retries and rate limits
 
@@ -179,13 +213,21 @@ header is followed.
 Not retried: other 4xx (authentication, validation, billing), spend-limit and
 quota errors (Anthropic `enforced_spend_limit_reached`, OpenAI
 `insufficient_quota` and the spend-limit codes, Google `quota_exceeded`),
-refusals, truncations, unreadable responses.
+refusals, truncations, unreadable responses, and a response cut by the total
+time limit while it was already streaming (sending it again would likely run
+as long; it is still charged at the worst case).
 
 Errors that would repeat stop further calls for the rest of the run, so they
 cannot spend the budget cell after cell: 401, 402, 403 and spend or quota
-errors stop **that provider**; 400, 404, 413, 422, an unreadable response or
-an unexpected stop reason stop **that model**. Other models carry on, and
-skipped cells run on the next invocation.
+errors stop **that provider**, and so do `--max-consecutive-429` HTTP 429
+answers in a row from it, across cells (default 6, since a daily quota or
+billing limit can answer every request with a retryable-looking 429, each
+charged at the worst case); a non-standard service tier stops it too (see
+[What is sent](#what-is-sent)). 400, 404, 413, 422, an unreadable response,
+a response that is not an event stream, an unexpected stop reason, a total
+timeout or an unexpected error in the transport stop **that model**. Every
+attempt still gets its record. Other models carry on, and skipped cells run
+on the next invocation.
 
 Each provider gets an even spacing of `60 / rpm` seconds between request
 starts, shared by all workers (default 30 per minute). Providers also limit
@@ -200,6 +242,7 @@ before it is sent and settled immediately after, whatever the outcome:
 |---|---|
 | The provider reported input and output tokens | Those tokens, at list price |
 | The connection could not be opened (no byte of the request was sent) | $0 |
+| A non-standard service tier was reported | The worst case (premium prices are not modelled) |
 | Anything else: timeout or drop after sending, HTTP error without usage, unreadable response, crash | The worst case: prompt estimate plus the output limit at the output rate |
 
 The worst case uses the limit sent (Anthropic) or the model's maximum from
@@ -249,10 +292,13 @@ missing or contains spaces or line breaks (values are never shown). Choose
 models with `--models` to run without some providers.
 
 Keys go only into request headers, never into URLs, bodies, records, files,
-the ledger or messages. Every stored or printed text passes through a
-scrubber that replaces the keys in use and anything shaped like a known key or
-bearer token with `[redacted]`. A request object never shows its headers, and
-an invalid header value never appears in an error.
+the ledger or messages. Console output and error text pass through a scrubber
+that replaces the keys in use and anything shaped like a known key or bearer
+token with `[redacted]`. Model output (`raw_response` and extracted files)
+gets only the exact keys in use replaced, so a model's own key-shaped
+placeholders (`sk-...` in example code) stay as written. A request object
+never shows its headers, and an invalid header value never appears in an
+error.
 
 `ANTHROPIC_WORKSPACE_ID` (optional, not secret) is sent as
 `anthropic-workspace-id`, which Anthropic requires for keys not scoped to one
@@ -300,7 +346,12 @@ pilot estimate should scale by prompt length and expected output size.
   request id (no header is documented).
 - DeepSeek: the exact default output limit; whether errors can arrive inside
   a stream; any request id header.
-- Billing of HTTP error responses (charged at worst case, see Money).
+- Billing of HTTP error responses (charged at worst case, see Money; kept by
+  ruling in review).
+- The serving values a default account reports (assumed: Anthropic
+  `standard`, `standard`, `global`; OpenAI `default`; Google `standard`). If a
+  default account reports something else, the first call stops that provider
+  and the value is in the record's settings.
 - Default read and total timeouts (900 s, 3600 s) against real long
   generations; default rate limits (30 per minute) against each account's
   real limits.

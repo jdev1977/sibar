@@ -24,6 +24,10 @@ cache_read_input_tokens`` (the documented total). ``output_tokens`` already
 includes thinking ("the inclusive, authoritative total used for billing");
 ``output_tokens_details.thinking_tokens`` is the reasoning part.
 
+Serving: ``usage.service_tier``, ``usage.speed`` and ``usage.inference_geo``
+are recorded; anything but ``standard`` / ``standard`` / ``global`` is priced
+differently from models.yaml, so the runner stops calling Anthropic.
+
 Not verified against a live response (no key yet): the whole adapter; whether
 128000 is accepted as ``max_tokens`` (models.yaml reads "128K" as 128000); and
 whether a key needs ``anthropic-workspace-id`` (required for keys not scoped to
@@ -34,7 +38,7 @@ import json
 
 from runner.providers.base import (
     Adapter, ParseError, Prepared, Result, Tokens, add, clip, count, events,
-    join_text, ok_or_empty, word_or_none,
+    join_text, ok_or_empty, serving, word_or_none,
 )
 from runner.transport import HttpRequest
 
@@ -44,6 +48,11 @@ TRUNCATED = frozenset({"max_tokens", "model_context_window_exceeded"})
 OK = frozenset({"end_turn", "stop_sequence"})
 RETRYABLE_TYPES = frozenset({"overloaded_error", "api_error", "rate_limit_error",
                              "timeout_error"})
+# usage fields saying how a request was served, and the values billed at the
+# list rates models.yaml holds (priority tier, fast mode and regional
+# inference are priced differently).
+STANDARD_SERVING = {"service_tier": {"standard"}, "speed": {"standard"},
+                    "inference_geo": {"global"}}
 ACCOUNT_CODES = frozenset({
     "enforced_spend_limit_reached", "contract_spend_limit_reached",
     "linked_organization_spend_limit_reached",
@@ -134,8 +143,11 @@ class AnthropicAdapter(Adapter):
             # ping and event types added later are ignored, as documented
         text = join_text(blocks[index]["text"] for index in sorted(blocks)
                          if blocks[index]["type"] == "text")
+        reported, premium = serving(
+            {name: usage.get(name) for name in STANDARD_SERVING}, STANDARD_SERVING)
         fields = {"request_id": request_id or message_id, "model_id_returned": model,
-                  "stop_reason": stop_reason}
+                  "stop_reason": stop_reason, "reported": reported,
+                  "premium": premium}
         if not finished:
             return Result("failed", text=text or None, retryable=True,
                           error="the stream ended before message_stop", **fields)

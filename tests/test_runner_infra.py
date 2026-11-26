@@ -218,6 +218,15 @@ def test_key_shaped_strings_are_replaced_even_when_unknown():
         assert secret not in scrub(f"error: {secret}!")
 
 
+def test_exact_scrubbing_leaves_key_shaped_model_output_alone():
+    key = fake_key()
+    scrub = Scrubber([key])
+    shaped = "sk-" + "example" + "0" * 20  # looks like a key, is not one in use
+    text = f"const apiKey = '{shaped}'; // and {key}"
+    assert scrub.exact(text) == f"const apiKey = '{shaped}'; // and [redacted]"
+    assert shaped not in scrub(text)  # console and error text get both
+
+
 def test_short_values_are_not_treated_as_keys():
     scrub = Scrubber(["abc", ""])
     assert scrub("abc def") == "abc def"

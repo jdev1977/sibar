@@ -22,7 +22,10 @@ from runner.ledger import (
     DEFAULT_PATH, ROOT, Ledger, LedgerError, _lock, _text, _unlock, call_cost,
     estimate_prompt_tokens, read_ledger,
 )
-from runner.loop import DEFAULT_RERUN, Runner, RunError, pending_cells, plan_cells
+from runner.loop import (
+    DEFAULT_MAX_CONSECUTIVE_429, DEFAULT_RERUN, Runner, RunError, pending_cells,
+    plan_cells,
+)
 from runner.models import ModelsError, load_models
 from runner.prompts import PromptError, load_prompts
 from runner.providers import adapter_for
@@ -76,6 +79,10 @@ def build_parser():
                         help="attempts per cell, including the first")
     parser.add_argument("--rpm", action="append", default=[], metavar="PROVIDER=N",
                         help=f"requests per minute for a provider (default {DEFAULT_RPM})")
+    parser.add_argument("--max-consecutive-429", type=int,
+                        default=DEFAULT_MAX_CONSECUTIVE_429, metavar="N",
+                        help="stop a provider after N HTTP 429 answers in a row "
+                             f"(default {DEFAULT_MAX_CONSECUTIVE_429})")
     parser.add_argument("--read-timeout", type=float, default=900.0, metavar="SECONDS",
                         help="give up on a response silent this long (default 900)")
     parser.add_argument("--total-timeout", type=float, default=3600.0,
@@ -256,6 +263,7 @@ def _paid(cells, args, model_list, environ, ledger_path, transport, out):
                 transport=transport, keys=keys, retry=retry,
                 rpm=_rpm(args.rpm, {c.model.provider for c in cells}),
                 workers=args.workers, rerun_statuses=rerun, out=out,
+                max_consecutive_429=args.max_consecutive_429,
                 anthropic_workspace_id=(environ.get("ANTHROPIC_WORKSPACE_ID")
                                         or "").strip() or None)
             summary = runner.run(todo)
@@ -291,6 +299,8 @@ def main(argv=None, *, transport=None, environ=None, out=print):
                           "(it names a folder), starting with a letter or digit")
         if args.workers < 1:
             raise Refusal("--workers must be at least 1")
+        if args.max_consecutive_429 < 1:
+            raise Refusal("--max-consecutive-429 must be at least 1")
         for option, value in (("--read-timeout", args.read_timeout),
                               ("--total-timeout", args.total_timeout)):
             if not 0 < value < float("inf"):

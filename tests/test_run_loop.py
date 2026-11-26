@@ -430,6 +430,155 @@ def test_a_missing_key_is_refused_before_any_call(tmp_path):
     assert harness.transport.requests == []
 
 
+# --- Review fixes, round 1 ------------------------------------------------------------
+
+
+def test_files_that_cannot_be_saved_never_lose_the_record(tmp_path, monkeypatch):
+    import runner.loop as loop_module
+
+    def failing_save(directory, text):
+        (directory / "extracted").mkdir(parents=True)
+        (directory / "extracted" / "partial.html").write_text("x", encoding="utf-8")
+        raise OSError(206, "The filename or extension is too long")
+    monkeypatch.setattr(loop_module, "save_files", failing_save)
+    harness = Harness(tmp_path, lambda r, n: anthropic_stream(text=PAGE))
+    summary = harness.run(one_prompt_cells([MODELS.get("claude-opus-5-5")], runs=2))
+    records = harness.records_found()
+    assert [r["status"] for r in records] == ["ok", "ok"]
+    assert all(r["files"] == [] and r["raw_response"] == PAGE for r in records)
+    assert summary.stopped is None
+    for record in records:
+        assert not files_dir(harness.records, record["record_id"]).exists()
+    assert sum("could not be saved" in line for line in harness.output) == 2
+
+
+def test_a_deep_file_name_under_a_long_folder_falls_back_to_a_generic_name(tmp_path):
+    from runner.files import MAX_FULL_PATH
+    deep = tmp_path.resolve()
+    while len(str(deep)) < 120:
+        deep = deep / ("long" * 8)
+    title = "/".join(["folder" + "f" * 30] * 5) + "/index.html"
+    text = f"```html {title}\n<p>bread</p>\n```\n"
+    harness = Harness(deep, lambda r, n: anthropic_stream(text=text))
+    harness.run(one_prompt_cells([MODELS.get("claude-opus-5-5")]))
+    (record,) = harness.records_found()
+    assert [f["path"] for f in record["files"]] == ["extracted/block-01.html"]
+    directory = files_dir(harness.records, record["record_id"])
+    assert check_files(record, directory) == []
+    for path in directory.rglob("*"):
+        assert len(str(path.resolve())) <= MAX_FULL_PATH
+
+
+@pytest.mark.parametrize("error", [RuntimeError("transport bug"),
+                                   ValueError("unexpected")])
+def test_an_unexpected_transport_error_still_writes_a_record(tmp_path, error):
+    harness = Harness(tmp_path, lambda r, n: error)
+    summary = harness.run(one_prompt_cells([MODELS.get("claude-opus-5-5")], runs=2))
+    (record,) = harness.records_found()
+    assert record["status"] == "failed" and "transport" in record["error"]
+    assert summary.skipped == 1 and summary.stopped is None  # model stopped
+    charge = [e for e in harness.ledger_entries() if e["type"] == "charge"][0]
+    assert charge["estimated"]
+
+
+def test_a_failing_close_still_writes_a_record_and_keeps_the_text(tmp_path):
+    response = anthropic_stream(text="Bread poem.")
+
+    def broken_close():
+        raise RuntimeError("close failed")
+    response.close = broken_close
+    harness = Harness(tmp_path, lambda r, n: response)
+    harness.run(one_prompt_cells([MODELS.get("claude-opus-5-5")], runs=2))
+    (record,) = harness.records_found()
+    assert record["status"] == "failed" and "close" in record["error"]
+    assert record["raw_response"] == "Bread poem."
+    assert record["tokens"]["output"] == 120  # usage reported, so billed as reported
+
+
+def test_key_shaped_model_output_is_kept_but_real_keys_are_removed(tmp_path):
+    key = KEYS["ANTHROPIC_API_KEY"]
+    shaped = "sk-" + "placeholder" + "0" * 20
+    text = f"Set API_KEY to {shaped} first.\n\n```js app.js\nconst k = '{shaped}';\n```\n"
+    leaky = text + f"Real: {key}\n"
+    harness = Harness(tmp_path, lambda r, n: anthropic_stream(text=leaky))
+    harness.run(one_prompt_cells([MODELS.get("claude-opus-5-5")]))
+    (record,) = harness.records_found()
+    assert shaped in record["raw_response"] and key not in record["raw_response"]
+    app = files_dir(harness.records, record["record_id"]) / "extracted" / "app.js"
+    assert shaped in app.read_text(encoding="utf-8")
+
+
+def test_the_reported_service_tier_is_recorded_in_settings(tmp_path):
+    harness = Harness(tmp_path, by_provider())
+    harness.run(one_prompt_cells([MODELS.get("claude-opus-5-5"),
+                                  MODELS.get("gpt-6.2-sol"),
+                                  MODELS.get("gemini-4-hydrogen")]))
+    settings = {r["model_id"]: r["settings"] for r in harness.records_found()}
+    assert settings["claude-opus-5-5"]["reported_service_tier"] == "standard"
+    assert settings["claude-opus-5-5"]["reported_inference_geo"] == "global"
+    assert settings["gpt-6.2-sol"]["reported_service_tier"] == "default"
+    assert settings["gemini-4-hydrogen"]["reported_service_tier"] == "standard"
+
+
+def test_a_premium_tier_stops_the_provider_and_charges_the_worst_case(tmp_path):
+    harness = Harness(tmp_path, lambda r, n: anthropic_stream(service_tier="priority"))
+    summary = harness.run(one_prompt_cells([MODELS.get("claude-opus-5-5"),
+                                            MODELS.get("claude-haiku-5-5")]))
+    (record,) = harness.records_found()
+    assert record["status"] == "ok"
+    assert record["settings"]["reported_service_tier"] == "priority"
+    assert record["cost_usd"] is None
+    charge = [e for e in harness.ledger_entries() if e["type"] == "charge"][0]
+    assert charge["estimated"]
+    assert summary.skipped == 1
+    assert any("provider anthropic" in line and "priority" in line
+               for line in harness.output)
+
+
+def test_a_total_timeout_is_not_retried_and_charged_at_worst_case(tmp_path):
+    from runner.transport import TotalTimeoutError
+
+    class Slow(FakeResponse):
+        def lines(self):
+            yield b"event: ping\n"
+            raise TotalTimeoutError("the response took longer than the total time limit")
+    harness = Harness(tmp_path, lambda r, n: Slow(200, {}))
+    summary = harness.run(one_prompt_cells([MODELS.get("claude-opus-5-5")], runs=2))
+    (record,) = harness.records_found()
+    assert record["status"] == "failed" and "total time" in record["error"]
+    assert harness.sleeps == [] and summary.skipped == 1
+    charge = [e for e in harness.ledger_entries() if e["type"] == "charge"][0]
+    assert charge["estimated"]
+
+
+def too_many():
+    return error_response(429, {"code": "too_many_requests",
+                                "message": "Quota exceeded for the day"})
+
+
+def test_consecutive_429s_stop_the_provider(tmp_path):
+    harness = Harness(tmp_path, lambda r, n: too_many(), max_consecutive_429=4)
+    cells = one_prompt_cells([MODELS.get("gemini-4-hydrogen")], runs=5)
+    summary = harness.run(cells)
+    # cell 1: three attempts; cell 2: the fourth 429 stops the provider
+    assert len(harness.transport.requests) == 4
+    assert summary.finished == {"failed": 2} and summary.skipped == 3
+    assert len(harness.sleeps) == 2  # no wait once the provider is stopped
+    assert any("provider google" in line and "429" in line for line in harness.output)
+
+
+def test_a_success_resets_the_429_count(tmp_path):
+    answers = [too_many(), too_many(), google_ok(), too_many(), too_many(), google_ok()]
+    harness = Harness(tmp_path, lambda r, n: answers[n - 1], max_consecutive_429=3)
+    summary = harness.run(one_prompt_cells([MODELS.get("gemini-4-hydrogen")], runs=2))
+    assert summary.finished == {"ok": 2} and summary.skipped == 0
+
+
+def google_ok():
+    from fakes import google_stream
+    return google_stream()
+
+
 # --- Interrupts -----------------------------------------------------------------------
 
 

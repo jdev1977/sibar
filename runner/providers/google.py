@@ -31,7 +31,12 @@ Usage: ``total_output_tokens`` excludes thinking (the documented example has
 ``total = input + output + thought``), so output here is
 ``total_output_tokens + total_thought_tokens``, and reasoning is
 ``total_thought_tokens``. Input is ``total_input_tokens`` plus
-``total_tool_use_tokens`` (none expected without tools).
+``total_tool_use_tokens`` (none expected without tools). Output is billed as
+at least ``total_tokens`` minus both, since ``total_tokens`` also counts
+"other internal tokens".
+
+Serving: the interaction's ``service_tier`` is recorded; ``flex`` or
+``priority`` is priced differently, so the runner stops calling Google.
 
 Not verified against a live response (no key yet): the whole adapter; whether
 Gemini 3.5 Flash-Lite also stops at 65,536 when no limit is sent (its model
@@ -42,8 +47,8 @@ so the interaction id is used).
 import json
 
 from runner.providers.base import (
-    Adapter, ParseError, Prepared, Result, Tokens, add, clip, count, events,
-    join_text, ok_or_empty, word_or_none,
+    Adapter, ParseError, Prepared, Result, Tokens, add, billed_output, clip,
+    count, events, join_text, ok_or_empty, serving, word_or_none,
 )
 from runner.transport import HttpRequest
 
@@ -59,6 +64,9 @@ RETRYABLE_CODES = frozenset({
     "service_unavailable", "deadline_exceeded", "gateway_timeout", "aborted",
     "internal", "unavailable", "resource_exhausted",
 })
+# Service tiers are flex, standard and priority; only standard is billed at
+# the list rates in models.yaml.
+STANDARD_SERVING = {"service_tier": {"standard"}}
 ACCOUNT_CODES = frozenset({"quota_exceeded", "payment_required",
                            "authentication", "permission_denied",
                            "failed_precondition"})
@@ -91,7 +99,7 @@ class GoogleAdapter(Adapter):
         return kind, code.lower() if code else code, message
 
     def parse_stream(self, response):
-        interaction_id = model = status = None
+        interaction_id = model = status = tier = None
         usage, steps, texts, finished = None, {}, {}, False
         for name, data in events(response):
             if data == "[DONE]":
@@ -104,6 +112,7 @@ class GoogleAdapter(Adapter):
                 interaction_id = word_or_none(interaction.get("id")) or interaction_id
                 model = word_or_none(interaction.get("model")) or model
                 status = interaction.get("status") or status
+                tier = interaction.get("service_tier") or tier
                 if kind == "interaction.completed":
                     usage = interaction.get("usage") or {}
                     finished = True
@@ -122,17 +131,21 @@ class GoogleAdapter(Adapter):
             # step.stop and later additions are ignored
         order = sorted(texts, key=lambda index: (not isinstance(index, int), str(index)))
         text = join_text(texts[index] for index in order)
+        reported, premium = serving({"service_tier": tier}, STANDARD_SERVING)
         fields = {"request_id": interaction_id, "model_id_returned": model,
-                  "stop_reason": status}
+                  "stop_reason": status, "reported": reported, "premium": premium}
         if not finished:
             return Result("failed", text=text or None, retryable=True,
                           error="the stream ended before interaction.completed",
                           **fields)
+        prompt = count(usage.get("total_input_tokens"))
+        tool_use = count(usage.get("total_tool_use_tokens")) or 0
         tokens = Tokens(
-            input=add(count(usage.get("total_input_tokens")),
-                      count(usage.get("total_tool_use_tokens")) or 0),
-            output=add(count(usage.get("total_output_tokens")),
-                       count(usage.get("total_thought_tokens")) or 0),
+            input=add(prompt, tool_use),
+            output=billed_output(
+                add(count(usage.get("total_output_tokens")),
+                    count(usage.get("total_thought_tokens")) or 0),
+                count(usage.get("total_tokens")), prompt, tool_use),
             reasoning=count(usage.get("total_thought_tokens")))
         if status == "completed":
             return ok_or_empty(text, tokens=tokens, **fields)

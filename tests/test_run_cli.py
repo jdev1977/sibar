@@ -158,6 +158,7 @@ def test_a_key_with_spaces_or_line_breaks_is_refused_without_showing_it(
     (["--workers", "0"], "workers"),
     (["--max-attempts", "0"], "max_attempts"),
     (["--read-timeout", "0"], "--read-timeout"),
+    (["--max-consecutive-429", "0"], "--max-consecutive-429"),
     (["--total-timeout", "inf"], "--total-timeout"),
 ])
 def test_bad_options_are_refused(tmp_path, confirmed, env, args, message):
@@ -248,6 +249,18 @@ def test_the_anthropic_workspace_id_comes_from_the_environment(tmp_path, confirm
                   transport, env)
     assert code == 0
     assert transport.requests[0].headers["anthropic-workspace-id"] == "wrkspc_test"
+
+
+def test_the_429_limit_reaches_the_run(tmp_path, confirmed, env):
+    from fakes import error_response
+    transport = FakeTransport(lambda r, n: error_response(
+        429, {"code": "too_many_requests", "message": "daily quota"}))
+    argv = paid(tmp_path, confirmed, "--models", "gemini-4-hydrogen", "--runs", "3",
+                "--max-consecutive-429", "2", "--max-attempts", "4")
+    code, output = run(argv, transport, env)
+    assert code == 1
+    assert len(transport.requests) == 2
+    assert "2 HTTP 429 answers in a row" in output
 
 
 def test_the_confirmed_flag_is_read_from_the_models_file(confirmed):

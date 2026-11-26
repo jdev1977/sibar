@@ -42,6 +42,11 @@ class SendError(TransportError):
     sent = True
 
 
+class TotalTimeoutError(SendError):
+    """A response, possibly already streaming, ran past the total time limit.
+    It may have been billed; sending it again would likely run as long."""
+
+
 @dataclass(frozen=True, repr=False)
 class HttpRequest:
     method: str
@@ -131,7 +136,8 @@ class _Response:
 
     def _check_deadline(self):
         if time.monotonic() > self._deadline:
-            raise SendError("the response took longer than the total time limit")
+            raise TotalTimeoutError("the response took longer than the total "
+                                    "time limit")
 
     def lines(self):
         """Yield the body line by line (bytes, with line breaks)."""

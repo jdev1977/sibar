@@ -19,7 +19,9 @@ Rules (documented in ``docs/runner.md``):
   error that would repeat for every prompt stops calls to that model.
 """
 
+import dataclasses
 import random
+import shutil
 import threading
 import time
 import uuid
@@ -28,20 +30,24 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from runner.files import extract_files, write_files
+from runner.files import save_files
 from runner.ledger import BudgetExceeded, LedgerError, Usage, estimate_prompt_tokens
 from runner.providers import adapter_for
 from runner.providers.base import ParseError, Result
 from runner.ratelimit import RateLimiter
 from runner.record import (
-    LEVELS, WORDINGS, CellKey, append_record, build_record, cell_key, files_dir,
-    read_records, repair_tail, utc_now,
+    LEVELS, WORDINGS, CellKey, RecordError, append_record, build_record,
+    cell_key, files_dir, read_records, repair_tail, utc_now,
 )
 from runner.retry import RetryPolicy
 from runner.scrub import Scrubber
-from runner.transport import NotSentError, SendError
+from runner.transport import NotSentError, SendError, TotalTimeoutError
 
 DEFAULT_RERUN = ("failed",)
+# HTTP 429 answers in a row from one provider, across cells, before it is
+# stopped for the run: a daily quota or billing limit answers 429 to every
+# request, and each one is charged at the worst case.
+DEFAULT_MAX_CONSECUTIVE_429 = 6
 
 
 class RunError(Exception):
@@ -155,9 +161,14 @@ class Runner:
     def __init__(self, *, batch_id, records_path, ledger, transport, keys,
                  retry=None, rpm=None, workers=1, rerun_statuses=DEFAULT_RERUN,
                  adapters=None, sleep=None, rng=None, out=print,
-                 anthropic_workspace_id=None):
+                 anthropic_workspace_id=None,
+                 max_consecutive_429=DEFAULT_MAX_CONSECUTIVE_429):
         if type(workers) is not int or workers < 1:
             raise RunError("workers must be a whole number of at least 1")
+        if type(max_consecutive_429) is not int or max_consecutive_429 < 1:
+            raise RunError("max_consecutive_429 must be a whole number of at least 1")
+        self.max_consecutive_429 = max_consecutive_429
+        self._consecutive_429 = Counter()
         self.batch_id = batch_id
         self.records_path = Path(records_path)
         self.ledger = ledger
@@ -319,8 +330,14 @@ class Runner:
                     self._count(finished=last.status)
                 return
             attempts, last = attempts + 1, result
+            self._watch_429(cell.model, result)
+            if result.premium:
+                self._block("provider", cell.model,
+                            f"the response reports {result.premium}, which is not "
+                            "priced at the list rates the ledger uses")
             if (result.status == "failed" and result.retryable
-                    and self.retry.may_retry(attempts)):
+                    and self.retry.may_retry(attempts)
+                    and not self._blocked(cell.model)):
                 wait = self.retry.delay(attempts, result.retry_after, self._rng)
                 if wait is not None:
                     self.say(f"  retrying {cell.label()} in {wait:.1f} s")
@@ -332,6 +349,19 @@ class Runner:
                 self._block(result.stop, cell.model, result.error or result.status)
             self._count(finished=result.status)
             return
+
+    def _watch_429(self, model, result):
+        """Stop a provider after too many HTTP 429 answers in a row."""
+        with self._lock:
+            if result.http_status == 429:
+                self._consecutive_429[model.provider] += 1
+            else:
+                self._consecutive_429[model.provider] = 0
+            reached = self._consecutive_429[model.provider] >= self.max_consecutive_429
+        if reached:
+            self._block("provider", model,
+                        f"{self.max_consecutive_429} HTTP 429 answers in a row (a "
+                        "daily quota or billing limit?)")
 
     def _attempt(self, cell, number):
         """Reserve, send, settle and record one attempt; None if the run
@@ -364,6 +394,8 @@ class Runner:
             result, sent = self._send(adapter, prepared)
             if not sent:
                 usage = Usage(input=0, output=0)  # nothing left the machine
+            elif result.premium:
+                pass  # priced above list rates: charge the worst case
             elif result.tokens is not None and result.tokens.complete:
                 usage = Usage(input=result.tokens.input, output=result.tokens.output,
                               reasoning=result.tokens.reasoning,
@@ -391,26 +423,42 @@ class Runner:
             return Result("failed", retryable=True, error=f"not sent: {error}"), False
         except SendError as error:
             return Result("failed", retryable=True, error=f"no response: {error}"), True
-        try:
-            return adapter.parse(response), True
-        except SendError as error:
-            return Result("failed", retryable=True,
-                          request_id=adapter.header_request_id(response),
-                          error=f"the response was cut off: {error}"), True
-        except ParseError as error:
+        except Exception as error:  # a transport bug: record it, do not repeat it
             return Result("failed", stop="model",
-                          request_id=adapter.header_request_id(response),
-                          error=f"unreadable response: {error}"), True
-        except Exception as error:  # an undocumented shape: do not repeat it
-            return Result("failed", stop="model",
-                          error=f"could not read the response: "
+                          error=f"the transport failed: "
                                 f"{type(error).__name__}: {error}"), True
-        finally:
+        try:
+            result = adapter.parse(response)
+        except TotalTimeoutError as error:  # sending again would run as long
+            result = Result("failed", stop="model",
+                            request_id=adapter.header_request_id(response),
+                            error=f"{error}; not retried")
+        except SendError as error:
+            result = Result("failed", retryable=True,
+                            request_id=adapter.header_request_id(response),
+                            error=f"the response was cut off: {error}")
+        except ParseError as error:
+            result = Result("failed", stop="model",
+                            request_id=adapter.header_request_id(response),
+                            error=f"unreadable response: {error}")
+        except Exception as error:  # an undocumented shape: do not repeat it
+            result = Result("failed", stop="model",
+                            error=f"could not read the response: "
+                                  f"{type(error).__name__}: {error}")
+        try:
             response.close()
+        except Exception as error:  # keep what was read; record the failure
+            result = dataclasses.replace(
+                result, status="failed", retryable=False, stop="model",
+                error=f"closing the response failed: {type(error).__name__}: "
+                      f"{error}" + (f" (after: {result.error})" if result.error else ""))
+        return result, True
 
     def _record(self, cell, number, record_id, prepared, result, charge, sent_at):
         status = result.status
-        text = self._scrub(result.text) if result.text else None
+        # Model output keeps key-shaped text the model wrote; only the keys in
+        # use are removed. Error text gets the full scrub.
+        text = self._scrub.exact(result.text) if result.text else None
         error = self._scrub(result.error) if result.error else None
         if status == "ok":
             error = None
@@ -418,8 +466,20 @@ class Runner:
             error = "failed with no detail"
         files = []
         if text and status != "failed":
-            files = write_files(files_dir(self.records_path, record_id),
-                                extract_files(text))
+            directory = files_dir(self.records_path, record_id)
+            try:
+                files = save_files(directory, text)
+            except (OSError, RecordError) as problem:
+                # Never lose a paid response over a file: the record keeps the
+                # full text, and extraction can be redone from it.
+                files = []
+                shutil.rmtree(directory, ignore_errors=True)
+                self.say(f"warning: files from {cell.label()} could not be saved "
+                         f"({type(problem).__name__}: {problem}); the record "
+                         "keeps the whole response")
+        settings = dict(prepared.settings)
+        for name, value in (result.reported or {}).items():
+            settings[f"reported_{name}"] = value
         tokens = {}
         if result.tokens is not None:
             tokens = {"input": result.tokens.input, "output": result.tokens.output,
@@ -436,7 +496,7 @@ class Runner:
             wording=cell.wording, run_index=cell.run_index,
             prompt_text=cell.prompt_text, provider=cell.model.provider,
             model_id=cell.model.id, model_id_returned=result.model_id_returned,
-            settings=dict(prepared.settings), timestamp=sent_at, tokens=tokens,
+            settings=settings, timestamp=sent_at, tokens=tokens,
             cost_usd=cost, status=status, error=error, stop_reason=stop_reason,
             request_id=result.request_id, raw_response=text, files=files)
         with self._write_lock:

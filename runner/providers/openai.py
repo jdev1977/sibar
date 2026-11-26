@@ -30,8 +30,13 @@ complete response object, which is parsed as a non-streamed one would be.
 Usage: ``input_tokens`` (cached included); ``output_tokens`` includes
 reasoning (the documented example has ``total = input + output`` with
 reasoning inside output); ``output_tokens_details.reasoning_tokens`` is the
-reasoning part. Cache writes (``input_tokens_details.cache_write_tokens``) are
-priced above plain input and are not modelled by the ledger.
+reasoning part. Output is billed as at least ``total_tokens - input_tokens``.
+Cache writes (``input_tokens_details.cache_write_tokens``) are priced above
+plain input and are not modelled by the ledger.
+
+Serving: the response's ``service_tier`` is recorded; anything but
+``default`` (or ``auto``) is priced differently, so the runner stops calling
+OpenAI. The project must stay on the default tier.
 
 Not verified against a live response (no key yet): the whole adapter, and
 the output bound that applies when ``max_output_tokens`` is omitted (stated
@@ -41,8 +46,8 @@ neither way; models.yaml's 128000 is assumed).
 import json
 
 from runner.providers.base import (
-    Adapter, ParseError, Prepared, Result, Tokens, clip, count, events,
-    join_text, ok_or_empty, word_or_none,
+    Adapter, ParseError, Prepared, Result, Tokens, billed_output, clip, count,
+    events, join_text, ok_or_empty, serving, word_or_none,
 )
 from runner.transport import HttpRequest
 
@@ -53,6 +58,10 @@ REFUSED_CODES = frozenset({"invalid_prompt", "bio_policy",
                            "misalignment_policy_violation"})
 RETRYABLE_CODES = frozenset({"server_error", "rate_limit_exceeded", "slow_down",
                              "server_is_overloaded"})
+# The response's service_tier is "the processing mode actually used". Only
+# "default" is billed at the list rates in models.yaml; "auto" is accepted as
+# the project default (which must be left at "default").
+STANDARD_SERVING = {"service_tier": {"default", "auto"}}
 ACCOUNT_CODES = frozenset({
     "insufficient_quota", "credit_balance_exhausted",
     "organization_spend_limit_exceeded", "project_spend_limit_exceeded",
@@ -122,14 +131,20 @@ class OpenAIAdapter(Adapter):
         text = join_text(texts)
         usage = final.get("usage") or {}
         details = usage.get("output_tokens_details") or {}
-        tokens = Tokens(input=count(usage.get("input_tokens")),
-                        output=count(usage.get("output_tokens")),
+        input_tokens = count(usage.get("input_tokens"))
+        tokens = Tokens(input=input_tokens,
+                        output=billed_output(count(usage.get("output_tokens")),
+                                             count(usage.get("total_tokens")),
+                                             input_tokens),
                         reasoning=count(details.get("reasoning_tokens")))
         status = final.get("status")
         incomplete = (final.get("incomplete_details") or {}).get("reason")
+        reported, premium = serving({"service_tier": final.get("service_tier")},
+                                    STANDARD_SERVING)
         fields = {"request_id": request_id or word_or_none(final.get("id")),
                   "model_id_returned": word_or_none(final.get("model")),
-                  "stop_reason": incomplete or status, "tokens": tokens}
+                  "stop_reason": incomplete or status, "tokens": tokens,
+                  "reported": reported, "premium": premium}
         if status == "completed":
             if refusals and not text.strip():
                 return Result("refused", text=join_text(refusals) or None,

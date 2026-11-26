@@ -186,6 +186,65 @@ def test_unknown_events_are_ignored():
     assert parse("google", google_stream(extra=extra)).status == "ok"
 
 
+# --- Billed output from reported totals ----------------------------------------------------
+
+
+@pytest.mark.parametrize("provider,response,output", [
+    # total minus input is larger than the output count: bill the difference
+    ("openai", openai_stream(input_tokens=30, output_tokens=200, total_tokens=290), 260),
+    ("google", google_stream(input_tokens=11, output_tokens=90, thought_tokens=245,
+                             total_tokens=400), 389),
+    ("deepseek", deepseek_stream(prompt_tokens=7, completion_tokens=40,
+                                 total_tokens=60), 53),
+    # a smaller total never lowers the output count
+    ("openai", openai_stream(input_tokens=30, output_tokens=200, total_tokens=100), 200),
+    ("google", google_stream(output_tokens=90, thought_tokens=245, total_tokens=5), 335),
+    ("deepseek", deepseek_stream(completion_tokens=40, total_tokens=1), 40),
+])
+def test_output_is_billed_as_at_least_total_minus_input(provider, response, output):
+    result = parse(provider, response)
+    assert result.status == "ok"
+    assert result.tokens.output == output
+
+
+# --- Service tier and inference region ------------------------------------------------------
+
+
+def test_the_reported_tier_is_returned_and_standard_is_not_premium():
+    result = parse("anthropic", anthropic_stream())
+    assert result.reported == {"service_tier": "standard", "inference_geo": "global",
+                               "speed": "standard"}
+    assert result.premium is None
+    assert parse("openai", openai_stream()).reported == {"service_tier": "default"}
+    assert parse("google", google_stream()).reported == {"service_tier": "standard"}
+    for provider, response in (("openai", openai_stream()),
+                               ("google", google_stream()),
+                               ("deepseek", deepseek_stream())):
+        assert parse(provider, response).premium is None
+
+
+@pytest.mark.parametrize("provider,response,word", [
+    ("anthropic", anthropic_stream(service_tier="priority"), "priority"),
+    ("anthropic", anthropic_stream(speed="fast"), "fast"),
+    ("anthropic", anthropic_stream(inference_geo="us"), "us"),
+    ("openai", openai_stream(service_tier="priority"), "priority"),
+    ("openai", openai_stream(service_tier="flex"), "flex"),
+    ("openai", openai_stream(service_tier="scale"), "scale"),
+    ("google", google_stream(service_tier="priority"), "priority"),
+    ("google", google_stream(service_tier="flex"), "flex"),
+])
+def test_a_non_standard_tier_is_flagged_as_premium(provider, response, word):
+    result = parse(provider, response)
+    assert result.status == "ok"
+    assert result.premium and word in result.premium
+
+
+def test_http_errors_carry_their_status():
+    assert parse("google", error_response(429, {"code": "too_many_requests",
+                                                "message": "x"})).http_status == 429
+    assert parse("anthropic", anthropic_stream()).http_status is None
+
+
 # --- Truncated and refused -------------------------------------------------------------
 
 

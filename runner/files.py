@@ -28,7 +28,10 @@ from runner.record import RESERVED_STEMS, RecordError, _is_relative_path, file_e
 MAX_FILES = 500
 MAX_DEPTH = 5
 MAX_PART = 100
-MAX_PATH = 200
+MAX_PATH = 200  # characters in a relative path
+# Characters in a whole path, folder included: Windows without long-path
+# support refuses paths of 260 or more, so stay well under.
+MAX_FULL_PATH = 240
 PREFIX = "extracted"
 
 EXTENSIONS = {
@@ -179,7 +182,9 @@ class _Names:
         return (folded in self.files or folded in self.folders
                 or any(prefix in self.files for prefix in prefixes))
 
-    def allocate(self, path):
+    def allocate(self, path, limit=None):
+        """A unique path based on ``path``; None (nothing reserved) if it
+        would be longer than ``limit``."""
         parts = path.split("/")
         prefixes = ["/".join(parts[:n]).casefold() for n in range(1, len(parts))]
         if any(prefix in self.files for prefix in prefixes):
@@ -193,6 +198,8 @@ class _Names:
             numbered = f"{stem}-{number}{dot}{ext}"
             candidate = f"{folder}/{numbered}" if folder else numbered
             number += 1
+        if limit is not None and len(candidate) > limit:
+            return None
         self.files.add(candidate.casefold())
         parts = candidate.casefold().split("/")
         self.folders.update("/".join(parts[:n]) for n in range(1, len(parts)))
@@ -250,8 +257,12 @@ def _blocks(text):
     return blocks, spans
 
 
-def extract_files(text):
-    """The files in ``text``, in order of appearance, at most ``MAX_FILES``."""
+def extract_files(text, max_length=MAX_PATH):
+    """The files in ``text``, in order of appearance, at most ``MAX_FILES``.
+
+    A name from the model longer than ``max_length`` characters (after
+    making it safe and unique) is replaced by the generic name.
+    """
     blocks, spans = _blocks(text)
     found = []  # (offset, source, name hint or None, generic name, content)
     for number, (start, _, info, body, line_before) in enumerate(blocks, start=1):
@@ -276,8 +287,11 @@ def extract_files(text):
     found.sort(key=lambda item: item[0])
     names, files = _Names(), []
     for _, source, hint, generic, content in found[:MAX_FILES]:
-        path = (safe_path(hint) if hint else None) or generic
-        files.append(ExtractedFile(names.allocate(path), content, source))
+        path = safe_path(hint) if hint else None
+        allocated = names.allocate(path, max_length) if path else None
+        if allocated is None:
+            allocated = names.allocate(generic)
+        files.append(ExtractedFile(allocated, content, source))
     return files
 
 
@@ -293,13 +307,18 @@ def write_files(directory, files, prefix=PREFIX):
     """
     base = Path(directory)
     root = base / prefix if prefix else base
-    root.mkdir(parents=True, exist_ok=True)
     inside = root.resolve()
-    entries = []
-    for item in files:
+    for item in files:  # check every path before creating anything
         relative = f"{prefix}/{item.path}" if prefix else item.path
         if not _is_relative_path(relative):
             raise RecordError(f"unsafe file path {item.path!r}")
+        if len(str(inside)) + 1 + len(item.path) > MAX_FULL_PATH:
+            raise RecordError(f"file path {item.path!r} is too long: the whole "
+                              f"path would pass {MAX_FULL_PATH} characters")
+    root.mkdir(parents=True, exist_ok=True)
+    entries = []
+    for item in files:
+        relative = f"{prefix}/{item.path}" if prefix else item.path
         target = root.joinpath(*item.path.split("/"))
         target.parent.mkdir(parents=True, exist_ok=True)
         if not target.parent.resolve().is_relative_to(inside):
@@ -308,3 +327,13 @@ def write_files(directory, files, prefix=PREFIX):
             handle.write(item.content.encode("utf-8", "replace"))
         entries.append(file_entry(base, relative))
     return entries
+
+
+def save_files(directory, text, prefix=PREFIX):
+    """Extract the files in ``text`` and write them under ``directory/prefix``,
+    with names short enough that no whole path passes ``MAX_FULL_PATH``.
+    Returns the record ``files`` entries; raises ``OSError`` or
+    :class:`RecordError` (then some files may already be written)."""
+    root = (Path(directory) / prefix).resolve() if prefix else Path(directory).resolve()
+    budget = MAX_FULL_PATH - len(str(root)) - 1
+    return write_files(directory, extract_files(text, min(MAX_PATH, budget)), prefix)
