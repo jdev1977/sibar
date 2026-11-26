@@ -36,14 +36,14 @@ log and the ledger before going on.
 | `--records FILE...` | Run record files. Records of the rubric's type with status `ok` are tagged (`--statuses ok,truncated` to add others) |
 | `--type`, `--rubric-version` | The rubric, `rubrics/<type>.v<N>.yaml` (default version 1) |
 | `--tagger` | A tagger id from [taggers.yaml](taggers.yaml) |
-| `--run` | The run's name: its folder `data/tagger/<run>/` and its ledger batch `tag-<run>` |
-| `--dry-run` | Counts, the worst case at standard rates and at the batch price, and missing keys. Sends and writes nothing. `--show-prompt RECORD_ID` prints one request |
+| `--run` | The run's name: its folder `data/tagger/<run>/` and its ledger batch `tag-<run>`. **Resume a run with the same `--run`** (and the same `--ledger`): only it collects its jobs |
+| `--dry-run` | Counts, the worst case at standard rates and at the batch price, and missing keys. Sends and writes nothing (not even a repair of a cut last line). `--show-prompt RECORD_ID` prints one request |
 | `--paid` | Sends requests. Needs `--batch-cap` and `--total-cap`, the tagger's key in its environment variable, and `confirmed_by_human: true` in taggers.yaml |
 | `--max-requests` | Requests per job (default 1000) |
 | `--max-tokens`, `--effort` | Output limit (default 16000, from taggers.yaml) and reasoning effort (default: the model's own). Both change the request, so the cache key |
 | `--wait`, `--poll-seconds` | Keep polling until every record is tagged (default: do one round and stop) |
 | `--retry-errors` | Tag once more the outputs whose cached answer is `status: error` |
-| `--abandon JOB` | Declare dead a job that may exist (see "After a crash") |
+| `--abandon JOB` | Declare dead a job sent with no answer, after checking the provider's console (see "After a crash"). A submitted job, with a provider id, cannot be abandoned |
 | `--out`, `--cache`, `--ledger`, `--run-dir` | Other paths |
 
 A batch job takes minutes to hours. Without `--wait`, each invocation
@@ -99,7 +99,10 @@ when not `ok`, `error`. Declare both under `common` in `features.yaml`; a
 variable's `dimension` key now gives each item its own dimension.
 
 Each tagger writes its own copy, so a record never holds two taggers' tags
-(one entry per extractor per record). The input files are not changed.
+(one entry per extractor per record). If the input already holds tags of
+the same extractor (another tagger's copy given as input), they are removed
+from every record this tagger has not tagged yet, so a copy never mixes two
+taggers. The input files are not changed.
 
 ### Faults in an answer
 
@@ -124,10 +127,13 @@ multi-select list of distinct option ids or a reserved answer alone.
 **A live model does not give the same tags twice.** Repeatability here comes
 from a cache, `data/tagger/cache.jsonl`: one final answer per key, where the
 key is the SHA-256 of the whole request (template version, provider, model,
-output limit, effort, rubric text, option order, schema and the response)
-and of the response. Tagging an output again with the same settings sends
-nothing and stores the cached tags, in any run. Any change to what would be
-sent is a new key and a new request.
+output limit, effort, rubric text, option order, schema and the response),
+of the response, of the rubric name and version, and of
+`ANSWERS_VERSION` in [answers.py](answers.py) (raise it when a change there
+could store other features for the same reply). Tagging an output again
+with the same settings sends nothing and stores the cached tags, in any run.
+Any change to what would be sent, or to how a reply becomes stored
+features, is a new key and a new request.
 
 To **measure** how much a live model's tags vary (docs/rubrics.md, "Repeat
 tagging", target 0.97), tag again into a separate cache and compare:
@@ -155,14 +161,35 @@ tagging", target 0.97), tag again into a separate cache and compare:
 - The tagger-only model (Claude Sonnet 5.5) is priced from taggers.yaml and
   passed to the ledger with the models under test; models.yaml and the
   pilot list are not changed.
+- **Set a spend limit in the provider's Console too** (Anthropic Console
+  workspace limits, OpenAI project budget) before the first paid run, a
+  little above `--total-cap`. The ledger is this project's cap; the
+  provider's limit is the backstop if a bug or a second machine gets past it.
+- **Watch the truncation rate.** Every request may write up to `--max-tokens`
+  (16000 by default), and the reservation is that full amount. After the
+  first small run, read the job log: a reply cut at the output limit (a
+  `result` line with `status: truncated`) is a fault and is asked
+  again, so many cuts double the spend and leave `partial` tags. If cuts
+  appear, the limit is too low for that output size or the model is
+  rambling; if the largest real output is far below the limit, lower
+  `--max-tokens` to free room under the caps (a new limit is a new cache
+  key, so only untagged outputs are affected).
 
 ### After a crash
 
 The job log `data/tagger/<run>/jobs.jsonl` is written before and after every
-step ([store.py](store.py)). On the next run:
+step ([store.py](store.py)). **Resume with the same `--run` and `--ledger`**:
+a job's `prepared` line names the ledger file and ledger batch its requests
+are reserved in, and a run with another ledger or batch is refused (exit 2)
+rather than settle them where they were not reserved. A new `--run` on the
+same cache does not send again what another run has in flight (the run list
+`<cache>.runs` names every job log that used the cache); it says which run
+holds those requests. On the next run:
 
-- a job reserved but never sent: its reservations are settled at zero and
-  its requests sent again;
+- a job prepared but never sent: its reservations are settled at zero and
+  its requests sent again. `prepared` is written with the call ids before
+  any reservation is made, so a crash while reserving leaves nothing the
+  next run cannot find;
 - a job whose create request was sent with no answer: it may exist, and
   neither API takes an idempotency key, so it is never created again blind.
   The provider's job list is searched: an OpenAI job by the
@@ -174,7 +201,12 @@ step ([store.py](store.py)). On the next run:
   again with `--abandon JOB` if it does not exist. An abandoned job's
   reservations stay in the ledger at their worst case;
 - a job that was submitted: collected when it ends, even by a later run
-  (`Ledger.reopen` settles a reservation made by an earlier run).
+  (`Ledger.reopen` settles a reservation made by an earlier run). It cannot
+  be abandoned: wait for it, or cancel it at the provider, and its
+  unprocessed requests are sent again when it is collected;
+- if the ledger cannot record a settlement (a damaged file, a missing
+  reservation), the run stops (exit 4) with the result kept in the job log;
+  only "already settled" (a run that stopped after settling) is passed over.
 
 Only one tagging run may use a run folder or a cache file at a time (the
 same operating-system lock as the ledger).
@@ -198,6 +230,14 @@ others, and the direction per answer, each with a bootstrap interval,
 flagged at 0.10 or more when the interval leaves out 0. AC1 takes K as the
 number of answers either side gave, which reproduces both worked examples in
 docs/rubrics.md.
+
+Two readings of docs/rubrics.md: an output whose tagging ended in
+`status: error` has no answer, so it is left out of every measure and
+counted on its own line (docs/rubrics.md scores `cannot-tell` because it is
+an answer; an error is not). A `null` item of a `partial` tagging stays a
+`cannot-tell`, as the metrics read it. Minority agreement counts only the
+judgements where A answered the item: where A stopped at the gate, the
+items after it have no A answer.
 
 ## The human tag file
 
