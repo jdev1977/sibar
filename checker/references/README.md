@@ -95,7 +95,7 @@ quantities:
     accepted_examples:           # values the tolerance is meant to accept
       - {value: 0.0339, why: Three significant figures}
     not_accepted:                # known wrong answers the tolerance must reject
-      - {value: 0.0678, why: One face taken as the whole cooled area}
+      - {value: 0.0678, why: Twice the cooled area}
 ```
 
 - **`kind: fixed`**: one reference `value` follows from the givens and the
