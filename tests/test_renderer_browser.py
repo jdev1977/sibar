@@ -573,8 +573,9 @@ def test_memory_is_limited(tmp_path):
     }, 10)</script>""")
     result, variant = one(site, tmp_path, memory_mb=1024, timeout=40)
     assert result.memory_limited is True
-    # Windows counts the refused request in the peak, so allow for one.
-    assert 0 < result.peak_memory_mb <= 1024 + SLACK
+    # Windows counts the refused request in the peak, so allow for one block
+    # of 256 MB; with no cap the page would hold 2048 MB.
+    assert 0 < result.peak_memory_mb <= 1024 + 256 + SLACK
     # Either the allocation failed under the limit, or the renderer died.
     for said in reports(result):
         assert int(said.split()[1]) * 256 < 1024

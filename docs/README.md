@@ -16,6 +16,8 @@ Project documents. Present now:
   website extractors, feature by feature (T1.4)
 - [metrics.md](metrics.md): the fingerprint tables, convergence, prompt
   sensitivity, intervals, the stability rule and their worked examples (T1.5)
+- [analysis/README.md](../analysis/README.md): how to compute them from
+  record files, and the stability check command (T1.6)
 
 Added by later tasks in [tasks.md](../tasks.md):
 
