@@ -14,6 +14,8 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
+HOOKS = (".githooks/pre-commit", ".githooks/pre-push")
+HOOK_FILES = (*HOOKS, ".githooks/find-python.sh")
 
 KEY_NAME = "ANTHROPIC_API" + "_KEY"
 BODY = "Ab3dEf6h" * 5
@@ -113,6 +115,39 @@ def test_harmless_line_is_not_flagged(line):
     assert scanner().scan_text("a.txt", line) == []
 
 
+def lookup(function, default):
+    return f'token = {function}("{KEY_NAME}", {default})'
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        lookup("os.getenv", '"hunter2value"'),
+        lookup("os.environ.get", "'hunter2value'"),
+        lookup("config.get", 'default="hunter2value"'),
+        lookup("getenv", '"hunter2value"'),
+        lookup("os.environ.setdefault", '"hunter2value"'),
+        KEY_NAME + " = " + lookup("os.getenv", '"hunter2value"')[8:],
+    ],
+)
+def test_literal_default_for_api_key_lookup_is_found(line):
+    findings = scanner().scan_text("a.py", line)
+    assert len(findings) == 1
+    assert "hunter2value" not in str(findings) + repr(findings)
+
+
+@pytest.mark.parametrize(
+    "default", ['""', "''", "None", "other_variable", '"<your-key>"', '"$NAME"']
+)
+def test_harmless_default_is_not_flagged(default):
+    assert scanner().scan_text("a.py", lookup("os.getenv", default)) == []
+
+
+def test_allow_marker_silences_a_literal_default():
+    line = lookup("os.getenv", '"not-a-secret"') + "  # secret-scan: allow"
+    assert scanner().scan_text("a.py", line) == []
+
+
 def test_allow_marker_silences_only_the_generic_rule():
     marker = "  # secret-scan: allow"
     assert scanner().scan_text("a.py", assign("not-a-secret") + marker) == []
@@ -150,6 +185,8 @@ def test_utf16_content_is_scanned():
     [
         ".env", "sub/.env", ".env.local", "prod.env", ".envrc", ".ENV",
         "server.key", "a/b/cert.PEM", "plan.private.md", "notes/x.private.md",
+        "id_rsa", ".ssh/id_ed25519", "id_ecdsa", "id_dsa", "id_ed25519_sk",
+        "ID_RSA", "id_rsa.bak", "store.p12", "store.PFX", "server.pem.bak",
     ],
 )
 def test_forbidden_filename(path):
@@ -159,7 +196,8 @@ def test_forbidden_filename(path):
 @pytest.mark.parametrize(
     "path",
     [".env.example", "sub/.env.example", "environment.py", "keys.md",
-     "docs/secrets.md", "private.md", "monkey"],
+     "docs/secrets.md", "private.md", "monkey", "id_rsa.pub",
+     "id_ed25519_sk.pub", "pemmican.txt", "valid_rsa"],
 )
 def test_allowed_filename(path):
     assert not scanner().forbidden_filename(path)
@@ -198,12 +236,21 @@ def test_gitignore_keeps_env_example():
     assert ignored(".env.example") == 1
 
 
-def test_hook_is_checked_out_with_lf():
-    out = subprocess.run(
-        ["git", "check-attr", "eol", "--", ".githooks/pre-commit"],
-        cwd=ROOT, capture_output=True, text=True, check=True,
+def git_output(*args):
+    return subprocess.run(
+        ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True
     ).stdout
+
+
+@pytest.mark.parametrize("hook", HOOK_FILES)
+def test_hook_is_checked_out_with_lf(hook):
+    out = git_output("check-attr", "eol", "--", hook)
     assert out.strip().endswith("eol: lf")
+
+
+@pytest.mark.parametrize("hook", HOOKS)
+def test_hook_is_tracked_as_executable(hook):
+    assert git_output("ls-files", "-s", "--", hook).startswith("100755 ")
 
 
 # --- end to end -------------------------------------------------------------
@@ -267,7 +314,7 @@ def repo(tmp_path):
     r.git("init", "-q")
     r.git("config", "user.name", "Test")
     r.git("config", "user.email", "test@example.invalid")
-    for relative in (".githooks/pre-commit", "tools/secret_scan.py"):
+    for relative in (*HOOK_FILES, "tools/secret_scan.py"):
         source = ROOT / relative
         if source.exists():
             (path / relative).parent.mkdir(exist_ok=True)
@@ -339,13 +386,17 @@ def test_deleting_a_forbidden_file_is_allowed(repo):
     assert result.returncode == 0, result.stderr
 
 
-def test_commit_blocked_when_python_is_unavailable(repo, tmp_path):
+def break_python(repo, tmp_path):
     stubs = tmp_path / "stubs"
     stubs.mkdir()
     for name in ("python", "python3", "py"):
         (stubs / name).write_bytes(b"#!/bin/sh\nexit 1\n")
         (stubs / name).chmod(0o755)
     repo.env["PATH"] = str(stubs) + os.pathsep + repo.env["PATH"]
+
+
+def test_commit_blocked_when_python_is_unavailable(repo, tmp_path):
+    break_python(repo, tmp_path)
     repo.add("ok.txt", "nothing to see\n")
     result = repo.commit()
     assert_blocked(repo, result)
@@ -423,7 +474,188 @@ def test_outside_a_repository_fails_closed(repo, tmp_path):
     assert repo.scan("--staged", cwd=outside).returncode == 2
 
 
+# --- pre-push ---------------------------------------------------------------
+
+
+@pytest.fixture
+def remote(repo, tmp_path):
+    path = tmp_path / "remote with space.git"
+    repo.git("init", "-q", "--bare", str(path))
+    repo.git("remote", "add", "origin", str(path))
+    repo.git("checkout", "-q", "-b", "trunk")
+    return path
+
+
+def remote_refs(repo):
+    out = repo.git("ls-remote", "origin").stdout
+    return {ref: sha for sha, ref in (line.split() for line in out.splitlines())}
+
+
+def push(repo, *args):
+    return repo.git("push", *(args or ("origin", "trunk")), check=False)
+
+
+def assert_push_rejected(repo, result, refs_before):
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "secret-scan" in result.stderr
+    assert FAKE not in result.stdout + result.stderr
+    assert remote_refs(repo) == refs_before
+
+
+def test_clean_push_to_new_branch_succeeds(repo, remote):
+    repo.commit_unchecked("a.txt", "clean\n")
+    result = push(repo)
+    assert result.returncode == 0, result.stderr
+    assert remote_refs(repo)["refs/heads/trunk"] == repo.head()
+
+
+def test_push_of_new_branch_with_secret_is_rejected(repo, remote):
+    repo.commit_unchecked("a.txt", FAKE + "\n")
+    result = push(repo)
+    assert_push_rejected(repo, result, {})
+    assert "a.txt:1" in result.stderr
+
+
+def test_push_to_existing_branch_finds_secret_later_removed(repo, remote):
+    repo.commit_unchecked("a.txt", "clean\n")
+    assert push(repo).returncode == 0
+    before = remote_refs(repo)
+    repo.commit_unchecked("a.txt", FAKE + "\n")
+    repo.commit_unchecked("a.txt", "clean again\n")
+    assert_push_rejected(repo, push(repo), before)
+
+
+def test_push_does_not_rescan_what_the_remote_has(repo, remote):
+    repo.commit_unchecked("a.txt", FAKE + "\n")
+    assert push(repo, "--no-verify", "origin", "trunk").returncode == 0
+    repo.commit_unchecked("a.txt", "clean\n")
+    result = push(repo)  # existing branch
+    assert result.returncode == 0, result.stderr
+    repo.git("checkout", "-q", "-b", "topic")
+    repo.commit_unchecked("b.txt", "clean\n")
+    result = push(repo, "origin", "topic")  # new branch on top of it
+    assert result.returncode == 0, result.stderr
+
+
+def test_push_scans_every_ref(repo, remote):
+    repo.commit_unchecked("a.txt", "clean\n")
+    repo.git("checkout", "-q", "-b", "dirty")
+    repo.commit_unchecked("b.txt", FAKE + "\n")
+    assert_push_rejected(repo, push(repo, "origin", "trunk", "dirty"), {})
+
+
+def test_push_to_a_url_scans_the_whole_history(repo, remote):
+    repo.commit_unchecked("a.txt", FAKE + "\n")
+    assert_push_rejected(repo, push(repo, str(remote), "trunk"), {})
+
+
+def test_deleting_a_remote_branch_is_allowed(repo, remote):
+    repo.commit_unchecked("a.txt", FAKE + "\n")
+    assert push(repo, "--no-verify", "origin", "trunk").returncode == 0
+    result = push(repo, "origin", ":trunk")
+    assert result.returncode == 0, result.stderr
+    assert remote_refs(repo) == {}
+
+
+def test_pushing_a_ref_to_a_non_commit_is_rejected(repo, remote):
+    repo.write("a.txt", FAKE + "\n")
+    blob = repo.git("hash-object", "-w", "a.txt").stdout.strip()
+    repo.git("tag", "blob-tag", blob)
+    assert_push_rejected(repo, push(repo, "origin", "blob-tag"), {})
+
+
+def advance_remote_elsewhere(repo, remote, tmp_path):
+    """Give the remote branch a commit that `repo` has never seen."""
+    other = Repo(tmp_path / "other clone")
+    repo.git("clone", "-q", "--branch", "trunk", str(remote), str(other.path))
+    other.git("config", "user.name", "Test")
+    other.git("config", "user.email", "test@example.invalid")
+    other.commit_unchecked("other.txt", "elsewhere\n")
+    other.git("push", "-q", "origin", "trunk")
+
+
+@pytest.mark.parametrize(
+    "content, accepted", [("clean\n", True), (FAKE + "\n", False)]
+)
+def test_unknown_remote_commit_widens_the_scan(
+    repo, remote, tmp_path, content, accepted
+):
+    repo.commit_unchecked("a.txt", content)
+    assert push(repo, "--no-verify", "origin", "trunk").returncode == 0
+    advance_remote_elsewhere(repo, remote, tmp_path)
+    before = remote_refs(repo)
+    repo.commit_unchecked("b.txt", "mine\n")
+    result = push(repo, "--force", "origin", "trunk")
+    if accepted:
+        assert result.returncode == 0, result.stderr
+    else:
+        assert_push_rejected(repo, result, before)
+
+
+def test_push_blocked_when_python_is_unavailable(repo, remote, tmp_path):
+    repo.commit_unchecked("a.txt", "clean\n")
+    break_python(repo, tmp_path)
+    result = push(repo)
+    assert_push_rejected(repo, result, {})
+    assert "no usable Python" in result.stderr
+
+
+def test_push_blocked_when_scanner_is_missing(repo, remote):
+    repo.commit_unchecked("a.txt", "clean\n")
+    (repo.path / "tools" / "secret_scan.py").unlink(missing_ok=True)
+    result = push(repo)
+    assert result.returncode != 0
+    assert remote_refs(repo) == {}
+
+
 # --- gitleaks ---------------------------------------------------------------
+
+
+def fake_gitleaks(monkeypatch, scan, inspect):
+    # gitleaks is an optional external program: fake only that process.
+    real_run = subprocess.run
+
+    def fake_run(command, **kwargs):
+        if command[0] != "fake-gitleaks":
+            return real_run(command, **kwargs)
+        inspect(command, Path(kwargs["cwd"]))
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(scan.shutil, "which", lambda name: "fake-gitleaks")
+    monkeypatch.setattr(scan.subprocess, "run", fake_run)
+
+
+def test_gitleaks_all_mode_scans_tracked_files_not_history(repo, monkeypatch):
+    scan = scanner()
+    repo.add("sub/tracked.txt", "staged\n")
+    repo.write("untracked.txt", "local only\n")
+    seen = []
+
+    def inspect(command, cwd):
+        files = sorted(p.relative_to(cwd).as_posix() for p in cwd.rglob("*.txt"))
+        seen.append((command, cwd, files))
+
+    fake_gitleaks(monkeypatch, scan, inspect)
+    assert scan.run_gitleaks(repo.path, "all") is True
+    command, cwd, files = seen[0]
+    assert "--no-git" in command and "--redact" in command
+    assert files == ["sub/tracked.txt"]
+    assert not cwd.exists()  # the exported copy is removed afterwards
+
+
+@pytest.mark.parametrize(
+    "remote_name, log_opts",
+    [
+        (None, "--log-opts=abc..def"),
+        ("origin", "--log-opts=abc..def --not --remotes=origin"),
+    ],
+)
+def test_gitleaks_range_mode_gets_the_same_commits(monkeypatch, remote_name, log_opts):
+    scan = scanner()
+    calls = []
+    fake_gitleaks(monkeypatch, scan, lambda command, cwd: calls.append(command))
+    assert scan.run_gitleaks(ROOT, "range", "abc..def", remote_name) is True
+    assert log_opts in calls[0] and "--no-git" not in calls[0]
 
 
 @pytest.mark.parametrize("status, passed", [(0, True), (1, False), (126, False)])

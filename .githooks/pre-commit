@@ -4,13 +4,6 @@
 # Fails closed: any problem running the scanner blocks the commit.
 
 root=$(git rev-parse --show-toplevel) || exit 1
-
-# Skip candidates that exist but do not run (e.g. the Windows Store alias).
-for python in "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python" python3 python py; do
-    if "$python" -c 'import sys; sys.exit(sys.version_info < (3, 9))' >/dev/null 2>&1; then
-        exec "$python" -I "$root/tools/secret_scan.py" --staged
-    fi
-done
-
-echo "secret-scan: no usable Python (3.9+) found; commit blocked. See docs/secrets.md." >&2
-exit 1
+. "$root/.githooks/find-python.sh" || exit 1
+find_python "$root" || exit 1
+exec "$python" -I "$root/tools/secret_scan.py" --staged

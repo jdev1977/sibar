@@ -4,6 +4,7 @@ Usage (see docs/secrets.md):
     python tools/secret_scan.py [--staged]     what is about to be committed
     python tools/secret_scan.py --all          every tracked file (index content)
     python tools/secret_scan.py --range A..B   every commit in a git range
+        [--exclude-remote NAME]                except what that remote has
 
 Exit status: 0 clean, 1 findings, 2 the scan could not run.
 Matched secrets are never printed.
@@ -15,6 +16,8 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 from typing import NamedTuple
 
 PROVIDER_PATTERNS = {
@@ -37,6 +40,16 @@ ASSIGNMENT = re.compile(
     r"(?::=|\?=|\+=|=(?!=)|:(?!-\}|[:=?]))"
     r"(?=[ \t]*(?P<value>.*))"
 )
+
+# A literal default in a lookup: getenv, .get or .setdefault.
+LITERAL_DEFAULT = re.compile(
+    r"(?:getenv|\.get|\.setdefault)\(\s*"
+    r"[\"'](?P<name>(?:[A-Z0-9_]*_)?API_KEY)[\"']\s*,\s*(?:default\s*=\s*)?"
+    r"(?P<literal>(?P<quote>[\"'])(?:(?!(?P=quote)).)+(?P=quote))"
+)
+
+# Private key files by their usual OpenSSH names (the .pub halves are fine).
+SSH_KEY_NAME = re.compile(r"id_(?:rsa|dsa|ecdsa|ed25519)(?:_sk)?(?:\..*)?(?<!\.pub)")
 
 # Right-hand sides that cannot be a literal secret.
 SAFE_VALUE = re.compile(
@@ -84,7 +97,9 @@ def forbidden_filename(path):
     return (
         name == ".envrc"
         or name.startswith(".env.")
-        or name.endswith((".env", ".key", ".pem", ".private.md"))
+        or ".pem." in name
+        or name.endswith((".env", ".key", ".pem", ".p12", ".pfx", ".private.md"))
+        or SSH_KEY_NAME.fullmatch(name) is not None
     )
 
 
@@ -103,6 +118,11 @@ def scan_text(path, text, commit=""):
                 f"non-empty value assigned to {match['name']}"
                 for match in ASSIGNMENT.finditer(line)
                 if not SAFE_VALUE.match(match["value"])
+            ]
+            rules += [
+                f"non-empty default for {match['name']}"
+                for match in LITERAL_DEFAULT.finditer(line)
+                if not SAFE_VALUE.match(match["literal"])
             ]
         findings.extend(Finding(shown, number, rule, commit) for rule in rules)
     return findings
@@ -152,10 +172,18 @@ def tracked_entries(root):
     return entries
 
 
-def range_commits(root, revisions):
+def exclusion(exclude_remote):
+    """Revision options leaving out what a remote's tracking refs contain."""
+    return ["--not", f"--remotes={exclude_remote}"] if exclude_remote else []
+
+
+def range_commits(root, revisions, exclude_remote=None):
     if not revisions or revisions.startswith("-"):
         raise ScanError("--range needs a revision or A..B range")
-    output = git(root, "rev-list", "--end-of-options", revisions, "--")
+    excluded = exclusion(exclude_remote)
+    if excluded:
+        excluded.append("--not")  # the revisions that follow are included again
+    output = git(root, "rev-list", *excluded, "--end-of-options", revisions, "--")
     return output.decode("ascii").split()
 
 
@@ -191,10 +219,10 @@ def read_objects(root, object_ids):
     return objects
 
 
-def scan_repository(root, mode, revisions=None):
+def scan_repository(root, mode, revisions=None, exclude_remote=None):
     commits = []
     if mode == "range":
-        commits = range_commits(root, revisions)
+        commits = range_commits(root, revisions, exclude_remote)
         entries = commit_entries(root, commits)
     elif mode == "all":
         entries = tracked_entries(root)
@@ -216,18 +244,26 @@ def scan_repository(root, mode, revisions=None):
     return findings
 
 
-def run_gitleaks(root, mode, revisions=None):
+def run_gitleaks(root, mode, revisions=None, exclude_remote=None):
     """Run gitleaks as a second opinion if installed. True means it passed."""
     executable = shutil.which("gitleaks")
     if executable is None:
         return True
-    command = [executable, "protect", "--staged"]
-    if mode != "staged":
-        command = [executable, "detect"]
+
+    def passes(directory, *arguments):
+        command = [executable, *arguments, "--redact", "--no-banner", "--source", "."]
+        return subprocess.run(command, cwd=directory).returncode == 0
+
+    if mode == "staged":
+        return passes(root, "protect", "--staged")
     if mode == "range":
-        command.append(f"--log-opts={revisions}")
-    command += ["--redact", "--no-banner", "--source", "."]
-    return subprocess.run(command, cwd=root).returncode == 0
+        log_opts = " ".join([revisions, *exclusion(exclude_remote)])
+        return passes(root, "detect", f"--log-opts={log_opts}")
+    # Scan the tracked files themselves: not history, and not untracked files
+    # such as a local .env. So give gitleaks a copy of the index.
+    with tempfile.TemporaryDirectory() as copy:
+        git(root, "checkout-index", "--all", f"--prefix={Path(copy).as_posix()}/")
+        return passes(copy, "detect", "--no-git")
 
 
 def main(argv=None):
@@ -236,7 +272,14 @@ def main(argv=None):
     modes.add_argument("--staged", action="store_true", help="staged changes (default)")
     modes.add_argument("--all", action="store_true", help="all tracked files")
     modes.add_argument("--range", metavar="A..B", help="all commits in a git range")
+    parser.add_argument(
+        "--exclude-remote",
+        metavar="NAME",
+        help="with --range: skip commits that remote already has",
+    )
     args = parser.parse_args(argv)
+    if args.exclude_remote is not None and args.range is None:
+        parser.error("--exclude-remote requires --range")
     if args.range is not None:
         mode = "range"
     else:
@@ -250,8 +293,8 @@ def main(argv=None):
         if top.returncode != 0:
             raise ScanError("not inside a git work tree")
         root = top.stdout.decode("utf-8").rstrip("\r\n")
-        findings = scan_repository(root, mode, args.range)
-        gitleaks_passed = run_gitleaks(root, mode, args.range)
+        findings = scan_repository(root, mode, args.range, args.exclude_remote)
+        gitleaks_passed = run_gitleaks(root, mode, args.range, args.exclude_remote)
     except ScanError as error:
         print(f"secret-scan: error: {error}", file=sys.stderr)
         return 2

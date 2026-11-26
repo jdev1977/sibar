@@ -10,9 +10,10 @@ Run once per clone (the setting is shared by all its worktrees):
 
     git config core.hooksPath .githooks
 
-The `pre-commit` hook then runs `tools/secret_scan.py` on the staged content. It
-needs Python 3.9 or later: it tries `.venv` first, then `python3`, `python` and
-`py`. If no Python works, or the scan cannot run, the commit is blocked. If
+The `pre-commit` hook then runs `tools/secret_scan.py` on the staged content,
+and the `pre-push` hook runs it on the commits about to be pushed. Both need
+Python 3.9 or later: they try `.venv` first, then `python3`, `python` and `py`.
+If no Python works, or the scan cannot run, the commit or push is blocked. If
 `gitleaks` is on `PATH`, it runs as well and can block too; it is optional.
 
 The hook is read from the checked-out files. A checkout of a branch that does
@@ -24,17 +25,27 @@ Development setup (Windows paths; use `.venv/bin/python` elsewhere):
     .venv/Scripts/python -m pip install -r requirements.txt
     .venv/Scripts/python -m pytest
 
-## Before every push
+## Pushing
 
-The hook can be skipped, and merges and rebases do not always run it, so check
-the commits about to be pushed:
+The commit hook can be skipped, and merges and rebases do not always run it, so
+`pre-push` checks each pushed ref again:
+
+- Existing remote branch: the commits between its current commit and yours.
+- New branch or tag: the commits that no tracking ref of that remote contains.
+  A push to a URL has no tracking refs, so its whole history is checked.
+- Remote commit unknown locally (someone else pushed): the whole history of what
+  is pushed.
+- Deleting a remote ref: nothing to check.
+- A ref that does not lead to a commit (for example a tag on a file) is blocked.
+
+The same range scan can be run by hand:
 
     python tools/secret_scan.py --range origin/main..HEAD
 
 `--range` checks the content each commit introduced (including content removed
-again later) and the commit messages. Use `--range HEAD` for the whole history.
-`--all` checks every tracked file as currently staged. Exit status: 0 clean,
-1 findings, 2 the scan could not run.
+again later) and the commit messages. Annotated tag messages are not checked.
+Use `--range HEAD` for the whole history. `--all` checks every tracked file as
+currently staged. Exit status: 0 clean, 1 findings, 2 the scan could not run.
 
 ## What is blocked
 
@@ -42,12 +53,17 @@ again later) and the commit messages. Use `--range HEAD` for the whole history.
   Google, xAI and Vercel AI Gateway.
 - Private key blocks.
 - A literal value assigned to a variable whose name ends in `API_KEY` (upper
-  case). This is the only rule for keys without a recognised prefix, such as
+  case), or given as the default when looking it up (`getenv`, `.get` or
+  `.setdefault`, written on one line). This is the only rule for keys without a recognised prefix, such as
   Mistral keys, so a key stored under another name is not detected.
-- Files named `.env`, `.env.*`, `*.env`, `.envrc`, `*.key`, `*.pem` or
-  `*.private.md`, even when force-added. `.env.example` is allowed.
+- Files named `.env`, `.env.*`, `*.env`, `.envrc`, `*.key`, `*.pem`, `*.pem.*`,
+  `*.p12`, `*.pfx`, `*.private.md`, or like an SSH private key (`id_rsa`,
+  `id_ed25519` and similar), even when force-added. `.env.example` and `*.pub`
+  keys are allowed.
 
 Findings show the file, line and rule, never the matched value.
+
+Compressed files, other binary formats and Git LFS content are not inspected.
 
 ## False positives
 
