@@ -54,7 +54,8 @@ _ANY_COLOR = re.compile(
     r"([a-z][a-z0-9-]{0,40}?)(?:/(\d{1,3}|\[[\d.%]{1,8}\]))?")
 # Values of those prefixes that are not colours.
 _NOT_COLOR = re.compile(
-    r"[xytrblse](?:-.{0,40})?|\d.{0,40}|\[.{0,60}|(?:xs|sm|base|lg|md|\d?xl|left|"
+    r"[xytrblse](?:-.{0,40})?|\d.{0,40}|\[.{0,60}|shadow(?:-.{0,40})?|"
+    r"(?:xs|sm|base|lg|md|\d?xl|left|"
     r"center|right|justify|start|end|wrap|nowrap|balance|pretty|ellipsis|clip|"
     r"solid|dashed|dotted|double|wavy|none|hidden|collapse|separate|cover|contain|"
     r"auto|top|bottom|fixed|local|scroll|inset|inner|reverse|from-font|slice|"
@@ -130,7 +131,7 @@ def color(utility, theme=None):
     return match.group(1), match.group(2), theme[match.group(2)]
 
 
-def unknown_color(utility, theme=None):
+def unknown_color(utility, theme=None, other_names=()):
     """The name in a colour utility whose name is neither a palette colour,
     a theme colour nor a non-colour value (``text-xl``, ``border-2``,
     ``bg-cover``), else None: a colour the page uses but this reader cannot
@@ -139,7 +140,7 @@ def unknown_color(utility, theme=None):
     if not match or _COLOR.fullmatch(utility.base):
         return None
     name = match.group(2)
-    if theme and name in theme:
+    if theme and name in theme or name in other_names:
         return None
     if _NOT_COLOR.fullmatch(name) or name in COLOR_KEYWORDS:
         return None

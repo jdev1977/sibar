@@ -822,3 +822,55 @@ def test_per_phrase_matches(slate):
     check(slate["stock-phrases"], {
         "stock_phrase_matches": {"acme": 1, "empowers": 1, "game-changer": 1,
                                  "get started": 2, "robust": 1, "unlock": 1}})
+
+
+
+# --- Fix round 2 ------------------------------------------------------------------
+
+
+def test_one_wrapper_does_not_collapse_the_page():
+    # B1: a min-h-screen wrapper (HTML) or a React root div holds the page.
+    check(run("html-wrapper")["layout"], {
+        "sections": ["nav", "hero", "features", "pricing", "footer"]})
+    check(run("react-wrapper")["layout"], {
+        "sections": ["nav", "hero", "faq"], "mapped_card_groups": 1})
+
+
+def test_section_words_beat_the_get_started_phrase():
+    # B2: "Simple pricing to get started" is pricing, "Get started in three
+    # steps" is steps; "Ready to get started?" stays cta; "Everything you need
+    # to get started" is not a call, so its words name nothing.
+    check(run("get-started-headings")["layout"], {
+        "sections": ["nav", "hero", "other", "pricing", "steps", "cta", "footer"],
+        "card_group_sizes": [3, 3]})
+
+
+def test_utility_classes_do_not_name_sections():
+    # bg-[url('/images/map-bg.jpg')] made the hero a contact section.
+    check(run("hero-utility-classes")["layout"], {
+        "sections": ["header", "hero", "other", "contact", "footer"]})
+
+
+def test_unreadable_theme_background_falls_through_and_hsl_vars_resolve():
+    # B3: bg-background is hsl(var(--background)); --background: 0 0% 100%.
+    values = run("shadcn-theme")["palette"]
+    check(values, {"background": "white", "background_hex": "#ffffff",
+                   "base_scheme": "light", "unparsed_colors": 0,
+                   "dominant_hue": "blue"})
+    assert "#2463eb" in values["colors"]  # --primary: 221 83% 53%
+
+
+def test_theme_name_keys_and_spreads():
+    # fontSize and backgroundImage keys are not colours; text-shadow-lg is not
+    # a colour; a spread in the colours object does not stop the reader.
+    check(run("theme-name-keys")["palette"], {
+        "tailwind_colors": ["accent", "brand-500", "white"],
+        "unknown_color_utilities": 0, "unknown_color_names": []})
+
+
+def test_unreadable_theme_background_with_nothing_else_is_unknown():
+    page = ('<script src="https://cdn.tailwindcss.com"></script><script>'
+            "tailwind.config={theme:{extend:{colors:{surface:'var(--nope)'}}}}"
+            '</script><body class="bg-surface"><p>x</p></body>')
+    values = only("palette", page)
+    assert values["background"] is None and values["base_scheme"] is None

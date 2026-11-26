@@ -186,6 +186,9 @@ def test_colour_functions(text, expected):
     ("#0f172a", "black"), ("#111111", "black"), ("#ef4444", "red-mid"),
     ("#64748b", "gray-mid"), ("#334155", "gray-dark"), ("#1e3a8a", "blue-dark"),
     ("#14213d", "blue-dark"), ("#667eea", "blue-mid"),
+    # Flat navies sit with slate-700 on every measure (chroma 13 to 15, HSL
+    # saturation 0.29 against 0.25, hue 210 against 215): documented boundary.
+    ("#2c3e50", "gray-dark"), ("#34495e", "gray-dark"),
     ("#10b981", "green-mid"), ("#14b8a6", "teal-mid"), ("#ec4899", "pink-mid"),
 ])
 def test_colour_classes(hex_color, expected):

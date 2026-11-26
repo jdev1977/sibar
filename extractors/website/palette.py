@@ -10,7 +10,7 @@ from extractors.website.values import (
     Resolver, color_nodes, most_common, parse_color_text, visible,
 )
 
-NAME, VERSION = "website.palette", "2"
+NAME, VERSION = "website.palette", "3"
 COLOR_ATTRIBUTES = ("fill", "stroke", "stop-color", "color", "bgcolor")
 BACKGROUND_PROPERTIES = ("background", "background-color")
 FULL_HEIGHT = frozenset({"min-h-screen", "h-screen", "min-h-full", "min-h-dvh",
@@ -57,11 +57,13 @@ def page_background(site, resolver=None):
     entry_tags = []
     if site.entry is not None:
         entry_tags = [e for e in site.entry.elements if e.tag in ("html", "body")]
+    unknown = False
     if site.tailwind != "none":
         for element in reversed(entry_tags):  # body before html
             hex_color, found = _tailwind_background(site, element, dark)
-            if found:
-                return (hex_color, "declared") if hex_color else (None, "unknown")
+            if found and hex_color:
+                return hex_color, "declared"
+            unknown |= found  # a theme colour that could not be read
     candidates = [d for d in site.declarations()
                   if d.prop in BACKGROUND_PROPERTIES and not d.media
                   and (is_page_selector(d.selector)
@@ -78,7 +80,7 @@ def page_background(site, resolver=None):
         if shown:
             return shown[0], "declared"
         if unread:
-            return None, "unknown"
+            unknown = True
     if site.tailwind != "none":
         for doc in site.page_docs():
             for element in doc.elements:
@@ -86,11 +88,11 @@ def page_background(site, resolver=None):
                     continue
                 if set(element.classes) & FULL_HEIGHT:
                     hex_color, found = _tailwind_background(site, element, dark)
-                    if found:
-                        return (hex_color, "declared") if hex_color else (
-                            None, "unknown")
+                    if found and hex_color:
+                        return hex_color, "declared"
+                    unknown |= found
                     break
-    return None, "default"
+    return (None, "unknown") if unknown else (None, "default")
 
 
 def extract(inputs):
@@ -122,7 +124,8 @@ def extract(inputs):
             else:
                 unread += 1
             continue
-        name = tailwind.unknown_color(utility, site.theme.colors)
+        name = tailwind.unknown_color(utility, site.theme.colors,
+                                      site.theme.other_names)
         if name:
             unknown.add(name)
     classes, hues, accents = Counter(), Counter(), Counter()

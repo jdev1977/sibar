@@ -10,7 +10,7 @@ from extractors.website.css import selector_parts, significant
 from extractors.website.site import get_site
 from extractors.website.values import to_px
 
-NAME, VERSION = "website.layout", "2"
+NAME, VERSION = "website.layout", "3"
 MAX_SECTIONS = 30
 MAX_UNWRAP = 6
 MIN_CARDS = 3
@@ -26,7 +26,7 @@ NOT_BLOCKS = frozenset({"script", "style", "noscript", "template", "link", "meta
 NOT_CARDS = frozenset({"tr", "option", "li", "a", "span", "br", "img", "section",
                        "header", "footer", "main", "nav", "form", "p", "h1", "h2",
                        "h3", "h4", "h5", "h6"})
-WRAPPERS = frozenset({"div", "main", "section", "article", "span", "app", "body"})
+WRAPPERS = frozenset({"div", "main", "span", "app", "body"})
 SECTION_WORDS = {
     "hero": "hero banner jumbotron masthead splash",
     "features": "features feature benefits services highlights why advantages",
@@ -77,18 +77,32 @@ def _words(text):
     return _ALNUM.findall(spaced.lower())
 
 
-def _kind_from_words(words, joined=""):
-    """The kind named by ``words``; multi-word names (``get-started``) are
-    matched with any separator, so a heading "Ready to get started?" or a
-    class ``get_started`` finds them as an id ``get-started`` does."""
-    joined = "-" + "-".join(_words(joined)) + "-"
-    for phrase in ("how-it-works", "call-to-action", "get-started", "find-us",
-                   "pre-order"):
-        if f"-{phrase}-" in joined:
-            return WORD_KIND[phrase]
+PHRASES = ("how-it-works", "call-to-action", "get-started", "find-us", "pre-order")
+# In heading text a call-to-action phrase names the section only when the
+# heading is the call itself ("Ready to get started?", "Get started today").
+_CTA_HEADING = re.compile(r"(?:ready|get-started|start|let-s|join)-")
+
+
+def _kind_from_words(words, joined="", heading=False):
+    """The kind named by ``words``.
+
+    A single section word wins (``pricing`` in "Simple pricing to get
+    started"); then multi-word names (``get-started``, ``how-it-works``),
+    matched with any separator. In heading text the call-to-action phrases
+    count only for a heading that is the call (it starts with "ready",
+    "get started", "start", "let's" or "join", or is a question).
+    """
     for word in words:
         if word not in _IGNORED and word in WORD_KIND:
             return WORD_KIND[word]
+    raw, joined = joined, "-".join(_words(joined))
+    for phrase in PHRASES:
+        if f"-{phrase}-" not in f"-{joined}-":
+            continue
+        if (heading and WORD_KIND[phrase] == "cta" and "?" not in raw
+                and not _CTA_HEADING.match(joined + "-")):
+            continue
+        return WORD_KIND[phrase]
     return None
 
 
@@ -105,7 +119,10 @@ def _named_kind(element):
     if element.component:
         return _kind_from_words(_words(element.name), element.name.lower())
     element_id = element.attrs.get("id", "")
-    classes = " ".join(c for c in element.classes if ":" not in c)
+    # Utility classes are styling, not names: bg-[url('/map.jpg')] says
+    # nothing about the block.
+    classes = " ".join(c for c in element.classes
+                       if not any(mark in c for mark in ":[]()/.'\""))
     label = element.attrs.get("aria-label", "")
     for text in (element_id, classes, label):
         kind = _kind_from_words(_words(text), text.lower())
@@ -137,7 +154,7 @@ def classify_block(doc, element, hero_slot=False):
         text = doc.text_of(heading, 200).lower()
         if _TESTIMONIAL.search(text):
             return "testimonials"
-        return _kind_from_words(_words(text), text)
+        return _kind_from_words(_words(text), text, heading=True)
     return None
 
 
@@ -168,7 +185,7 @@ def blocks(doc):
                 items = [e for e in _children(doc, htmls[0]) if e.tag != "head"]
     for _ in range(MAX_UNWRAP):
         if len(items) == 1 and not items[0].component and items[0].tag in WRAPPERS \
-                and classify_block(doc, items[0]) is None and items[0].children:
+                and _named_kind(items[0]) is None and items[0].children:
             items = _children(doc, items[0])
         else:
             break

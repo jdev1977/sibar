@@ -8,7 +8,7 @@ from extractors.website import colors
 from extractors.website.palette import page_background
 from extractors.website.site import get_site
 
-NAME, VERSION = "website.dark-mode", "2"
+NAME, VERSION = "website.dark-mode", "3"
 _DARK_CLASS = re.compile(r"\.(?:dark|dark-mode|dark-theme|theme-dark)(?![\w-])")
 _DARK_ATTRIBUTE = re.compile(r"\[data-(?:theme|mode|bs-theme|color-scheme)"
                              r"\s*=\s*['\"]?dark")

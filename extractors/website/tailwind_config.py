@@ -4,13 +4,16 @@ Read from:
 
 - ``tailwind.config = {...}`` in an inline script, and ``tailwind.config.*``
   files (v3): the ``colors`` and ``fontFamily`` objects, wherever they sit
-  (``theme`` or ``theme.extend``);
+  (``theme`` or ``theme.extend``), and the key names of ``fontSize`` and
+  ``backgroundImage`` (so ``text-display`` and ``bg-hero-pattern`` are not
+  taken for unknown colours);
 - ``@theme { --color-*: ...; --font-*: ... }`` in CSS (v4).
 
 Nested colour keys are joined with ``-`` (``primary: {500: ...}`` gives
 ``primary-500``; ``DEFAULT`` gives the bare name). A value that is not a
-plain colour (``hsl(var(--primary))``) is kept as a known name with no
-colour. Config objects are parsed by a small bounded reader of object
+plain colour is first resolved through the page's custom properties
+(``hsl(var(--primary))`` with ``--primary: 221 83% 53%``); if it still is not
+one it is kept as a known name with no colour. Config objects are parsed by a small bounded reader of object
 literals over the script's code with strings already set aside: keys,
 nested objects, arrays and strings. Anything else (function calls, spreads,
 references) is skipped, so the reader never fails on odd configs; it reads
@@ -20,14 +23,20 @@ less.
 import re
 
 from extractors.website.css import significant
-from extractors.website.values import Resolver, color_nodes, parse_color_text, visible
+from extractors.website.values import (
+    Resolver, color_nodes, parse_color_text, resolve_text, visible,
+)
 
 MAX_TOKENS = 5000
 MAX_OBJECTS = 20  # colors/fontFamily objects read per script
 MAX_DEPTH = 5
 CONFIG_FILE = re.compile(r"(?:^|/)tailwind\.config\.(?:js|cjs|mjs|ts)$")
-_TOKEN = re.compile(r'\s*(?:([{}:,\[\]()])|"§(\d+)"|([A-Za-z_$][\w$.-]{0,60}|\d{1,4}))')
-_KEYS = re.compile(r"\b(colors|fontFamily)\s*:\s*\{")
+_TOKEN = re.compile(
+    r'\s*(?:(\.\.\.|[{}:,\[\]()])|"§(\d+)"|([A-Za-z_$][\w$.-]{0,60}|\d{1,4}))')
+_KEYS = re.compile(r"\b(colors|fontFamily|fontSize|backgroundImage)\s*:\s*\{")
+# Theme keys whose names make utilities that look like colour utilities:
+# fontSize gives text-<name>, backgroundImage gives bg-<name>.
+NAME_KEYS = ("fontSize", "backgroundImage")
 
 
 def _tokens(code, start, strings):
@@ -59,6 +68,9 @@ def _parse_object(stream, depth):
             continue
         if kind == "punct" and value in "([":
             _skip(stream, value, None)  # a call or array where a key was expected
+            continue
+        if kind == "punct" and value == "...":
+            _parse_value(stream, MAX_DEPTH)  # a spread: skip what it spreads
             continue
         if kind not in ("string", "word"):
             return result
@@ -133,6 +145,8 @@ class Theme:
 
     def __init__(self, site):
         self.colors, self.fonts = {}, {}
+        self.other_names = set()  # fontSize and backgroundImage keys
+        resolver = Resolver(site.declarations())
         for script in _config_scripts(site):
             for count, match in enumerate(_KEYS.finditer(script.code)):
                 if count >= MAX_OBJECTS:
@@ -141,16 +155,18 @@ class Theme:
                 tree = _parse_object(stream, 1)
                 if match.group(1) == "colors":
                     for name, value in _flatten(tree):
-                        hex_color = parse_color_text(value) if isinstance(
-                            value, str) else None
+                        hex_color = None
+                        if isinstance(value, str):
+                            hex_color = parse_color_text(resolve_text(value, resolver))
                         self.colors.setdefault(name.lower(), hex_color)
+                elif match.group(1) in NAME_KEYS:
+                    self.other_names.update(str(key).lower() for key in tree)
                 else:
                     for key, value in tree.items():
                         first = value[0] if isinstance(value, list) and value else value
                         if isinstance(first, str) and first.strip():
                             self.fonts.setdefault(key, " ".join(
                                 first.replace('"', " ").replace("'", " ").split()).lower())
-        resolver = Resolver(site.declarations())
         for declaration in site.declarations():
             if declaration.selector != "@theme":
                 continue

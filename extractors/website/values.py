@@ -1,11 +1,13 @@
 """Reading CSS values: colours (following ``var()``), lengths and helpers
 shared by the website extractors."""
 
+import re
+
 import tinycss2
 
 from extractors.website import colors
 from extractors.website.css import (
-    is_dark_page_selector, is_page_selector, significant, walk,
+    is_dark_page_selector, is_page_selector, serialize, significant, walk,
 )
 
 # Properties whose plain words (``red``, ``navy``) are colours.
@@ -78,6 +80,11 @@ def color_nodes(nodes, prop, resolver=None, depth=0):
             name = node.lower_name
             if name in colors.COLOR_FUNCTIONS:
                 parsed = colors.parse_function(node)
+                if parsed is None and resolver and "var(" in node.serialize():
+                    # hsl(var(--primary)) with --primary: 221 83% 53% (shadcn)
+                    hex_color = parse_color_text(resolve_text(node.serialize(),
+                                                              resolver))
+                    parsed = (hex_color, 1.0) if hex_color else None
                 if parsed:
                     found.append(parsed)
                 else:
@@ -116,6 +123,26 @@ def substitute_vars(nodes, resolver, depth=0):
                 continue
         result.append(node)
     return result
+
+
+_VAR_TEXT = re.compile(r"var\(\s*(--[\w-]{1,100})\s*(?:,[^()]{0,200})?\)")
+
+
+def resolve_text(text, resolver):
+    """``text`` with each ``var(--name)`` replaced by the text of its value
+    (four rounds at most, so a cycle stops)."""
+    for _ in range(MAX_VAR_DEPTH):
+        if "var(" not in text:
+            break
+
+        def value(match):
+            nodes = resolver.lookup(match.group(1))
+            return serialize(nodes) if nodes is not None else match.group(0)
+        changed = _VAR_TEXT.sub(value, text[:2000])
+        if changed == text:
+            break
+        text = changed
+    return text
 
 
 def visible(found):

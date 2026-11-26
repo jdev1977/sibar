@@ -152,8 +152,14 @@ bare name). Configs are read by a small bounded reader of object literals,
 never run: keys, nested objects, arrays and strings; spreads, references and
 function calls are skipped. A theme colour whose value is not a plain colour
 (`hsl(var(--primary))`, common in shadcn-style setups) is a known name with
-no colour and counts in `unparsed_colors`. `darkMode` is read from inline
-configs and config files alike.
+no colour and counts in `unparsed_colors`; before that, its `var()`s are
+resolved through the page's custom properties, so shadcn-style
+`hsl(var(--primary))` with `--primary: 221 83% 53%` reads as `#2463eb` (CSS
+colour functions with `var()` inside are resolved the same way). The key
+names of `fontSize` and `backgroundImage` are read too, so `text-display`
+and `bg-hero-pattern` are not taken for unknown colours; a spread
+(`...other`) in an object is skipped. `darkMode` is read from inline configs
+and config files alike.
 
 Coverage of utility classes (Tailwind v3 default palette plus the project's
 theme colours and fonts):
@@ -200,6 +206,13 @@ well-known purple gradient, is hue 229 and reads as `blue-mid`, while
 `#6366f1` (indigo-500, 239) is `indigo-mid`; a gradient from `#667eea` to
 `#764ba2` is `blue>violet`. `slate-900` (`#0f172a`) is `black`.
 
+The neutral limit has a known boundary: the flat "navy" greys `#2c3e50` and
+`#34495e` read as `gray-dark`, because on every measure tried they sit with
+Tailwind's `slate-700` (`#334155`): chroma 13.3 and 15.1 against 13.8, HSL
+saturation 0.29 against 0.25, hue 210 against 215. Separating them would make
+slate blue again, so they stay grey; saturated navies (`#1e3a8a`,
+`#14213d`) are blue.
+
 A colour counts toward a page's **dominant hue** only when its chroma is 20
 or more: pale tints (a cream background, `indigo-50`) name a hue in
 `color_classes` and `hues` but do not outvote the accent colour.
@@ -216,7 +229,7 @@ any other selector that does not mention dark. Counted as
 ## The website extractors
 
 Versions: palette, fonts, layout, corners-shadows, gradients and dark-mode
-`2`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
+`3`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
 extractor returns `status: no-input`.
 
 ### website.palette
@@ -239,7 +252,7 @@ No input: no HTML and no CSS.
 | `unparsed_colors` | count of colour values not read, theme colour uses whose value is not a plain colour included |
 
 The page background is the first found of: a plain `bg-*` class on `<body>`
-or `<html>`; the last `background`/`background-color` outside `@media` on
+or `<html>` (a theme colour that cannot be read does not end the search); the last `background`/`background-color` outside `@media` on
 `html`, `body` or `:root` (or their `style`); a `bg-*` class on the first
 full-height wrapper (`min-h-screen`, `h-screen`...) of the page or its
 components. Its first visible colour counts, so a gradient background gives
@@ -332,7 +345,9 @@ most blocks is used; in JSX, the element rendering two or more components is
 the page. A block's kind comes from, in order:
 
 1. a name saying hero: a component name (`<HeroSection>`), `id`, class or
-   `aria-label` (so `<header class="hero">` is `hero`);
+   `aria-label` (so `<header class="hero">` is `hero`); utility classes
+   (with `:`, `[`, `(`, `/`, `.` or quotes, such as `bg-[url(...)]`) are not
+   names;
 2. its tag: `header`, `nav`, `footer`, `aside`, `form`;
 3. another kind its name gives (`<PricingTable>`, `id="faq"`);
 4. `hero` for the first content block (after any header or nav) that holds
@@ -340,8 +355,20 @@ the page. A block's kind comes from, in order:
 5. the words of its first `<h2>` or `<h3>` (never the h1).
 
 Names and headings are split into words (`HeroSection`, `hero_section`,
-"Ready to get started?"), so multi-word names such as `get-started`,
-`how-it-works` and `call-to-action` match whatever separates the words.
+"Ready to get started?"). A single section word wins ("Simple pricing to get
+started" is `pricing`, "Get started in three steps" is `steps`); then
+multi-word names (`get-started`, `how-it-works`, `call-to-action`) match
+whatever separates their words. In heading text the call-to-action phrases
+count only when the heading is the call itself: it starts with "ready",
+"get started", "start", "let's" or "join", or it is a question. So "Ready to
+get started?" is `cta`, and "Everything you need to get started" names
+nothing (`other`).
+
+A single wrapper is unwrapped only when its own name (component name, id,
+classes, `aria-label`) gives no kind; its headings are not consulted, so a
+React root `<div>` or a `<div class="min-h-screen">` holding the whole page
+no longer collapses it into one section. `<section>` and `<article>` are
+never unwrapped.
 
 Blind spots: section kinds from keywords miss blocks named in other
 languages or by content alone (they become `other`); order across separate
@@ -417,7 +444,7 @@ No input: no HTML.
 | `stock_phrases` | sorted ids of rules that matched |
 | `stock_phrase_counts` | `{rule id: hits}`, sorted by id |
 | `stock_phrase_hits` | total hits |
-| `stock_phrase_matches` | `{matched phrase: count}`, sorted, for the phrase-list rules, so single words grouped in one rule (`robust`, `enhance`) can be counted or dropped one by one |
+| `stock_phrase_matches` | `{matched phrase: count}`, sorted, for the phrase-list rules, so single words grouped in one rule (`robust`, `enhance`) can be counted or dropped one by one. Pattern rules (regular expressions) give no per-match breakdown, only their count in `stock_phrase_counts` |
 | `stock_phrase_categories` | sorted categories matched: `cta`, `placeholder`, `marketing`, `ai-vocabulary`, `significance`, `chat-residue`, `construction` |
 | `copy_word_count` | words in the page's visible text |
 | `em_dash_count` | em dashes (—) in the visible text |
