@@ -5,6 +5,7 @@ Project documents. Present now:
 - [secrets.md](secrets.md): the secret scan and key handling (X1)
 - [record-format.md](record-format.md): the run record format (T0.4)
 - [ledger.md](ledger.md): the cost ledger and budget cap (X3)
+- [runner.md](runner.md): the generation runner and its live check (T0.5)
 
 Added by later tasks in [tasks.md](../tasks.md):
 

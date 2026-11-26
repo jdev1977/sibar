@@ -14,9 +14,11 @@ levels of direction (L0 bare, L1 brief, L2 directed) and run several times.
 - [plan.md](plan.md): the method, project types, deliverables and phases.
 - [tasks.md](tasks.md): the task list, with IDs such as T0.1.
 
-**Status:** early setup (Phase 0). The repository layout and the secret scan are
-in place, and a model list awaits confirmation. The runner, prompts, extractors,
-rubrics and viewer are not built yet, and no results exist.
+**Status:** early setup (Phase 0). The repository layout, the secret scan, the
+model list, the run record format, the cost ledger and the generation runner
+are in place. The runner has been tested only with a fake transport: no
+provider has been called yet (see [docs/runner.md](docs/runner.md)). Prompts,
+extractors, rubrics and viewer are not built yet, and no results exist.
 
 ## Layout
 

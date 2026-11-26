@@ -12,6 +12,18 @@ generation runs against the models under test.
 - `ledger.py` records the cost of every call and enforces a hard budget cap
   (X3); see [docs/ledger.md](../docs/ledger.md). `python -m runner.ledger`
   prints totals by batch and model.
+- The generation runner (T0.5), described in
+  [docs/runner.md](../docs/runner.md); not yet verified against the live APIs:
+  - `run.py`: the command line, `python -m runner.run`;
+  - `loop.py`: the run loop (plan cells, resume, reserve, send, settle, record);
+  - `providers/`: one adapter per provider (Anthropic, OpenAI, Google,
+    DeepSeek) behind one interface;
+  - `transport.py`: HTTPS with the standard library, injectable for tests;
+  - `sse.py`, `retry.py`, `ratelimit.py`, `scrub.py`: streamed events,
+    retries, request rate, key removal;
+  - `files.py`: files extracted from responses;
+  - `prompts.py`: the prompt file loader (format in
+    [prompts/README.md](../prompts/README.md)).
 
 Run output goes to the gitignored `data/`, not here.
 
