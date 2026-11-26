@@ -278,6 +278,13 @@ kinds:
   page's colours, the font services from the faces they supply, the
   libraries from the icon sets among them.
 
+One of these ties is a judgement. Where a brief dictates the icons, only
+the icon sets among a page's `libraries` are decided, yet the whole set is
+closed. Taking out the icon items alone would need the same removal at both
+levels of every comparison and would pool tasks with and without it in one
+row. Little is lost: the main choices in that set, the framework and the CSS
+framework, are variables of their own and stay open, as does `delivery`.
+
 Dependence is followed step by step (`mechanisms` depends on `dark_mode`,
 which depends on `background`). Left open, such a variable would move at L2
 because the brief moved its source, and the move would be read as
@@ -306,7 +313,7 @@ files:
 |---|---|---|
 | palette | none | `dominant_hue`, `background`, `color_classes`, `color_count` |
 | fonts | `primary_font` 3, `heading_font` 1, `system_stack` 1 | `font_sources` |
-| libraries | `libraries` 3, `framework` 5, `css_framework` 5, `delivery` 3 |  |
+| libraries | `libraries` 3, `framework` 5, `css_framework` 5, `delivery` 5 |  |
 | layout | `landmarks` 6, `layout_systems` 6, `grid_columns` 4, `nav_position` 6 |  |
 | corners-shadows | `corner_style` 1, `pill_shapes` 1, `shadow_count` 1, `shadow_kinds` 1, `text_shadow` 2, `backdrop_blur` 3 |  |
 | gradients | `gradient_count` 3, `gradient_types` 3, `gradient_directions` 3, `gradient_text` 3 | `gradient_hues` |
@@ -638,7 +645,11 @@ table:
   font that the table of font categories does not hold) or `default` (the
   page declares nothing, and what shows is the browser's or a framework's).
   Such a run is left out and counted as `no verdict`. It did not disobey; the
-  extractor cannot say;
+  extractor cannot say. An entry of `dictated.yaml` can add values for its
+  own case (`no_verdict` beside `in`): a heading that is `same`, the body's
+  face, gives no verdict where the brief dictates the heading face and leaves
+  the body's open (bakery-landing, todo-app), and is judged where it
+  dictates both;
 - **persistence**, for a variable with one value per run and an `in` list:
   the share of runs at that level that still show the task's **L0 default**.
   It is read only when both hold:
@@ -867,24 +878,46 @@ Let E5 be the number of established defaults in F5: the variables with one
 value per run whose reported top choice has an established majority, plus
 the default items of all set variables. E10 is the same count in F10.
 
-    growth = E10 / E5 - 1          (E5 = 0 and E10 > 0 counts as above any limit)
+    growth = E10 / E5 - 1
+    growth = 0                         when E5 = 0 and E10 = 0
+    growth is above any limit          when E5 = 0 and E10 > 0
 
-**Verdict.**
+**Verdict of the check, 5 runs against 10.**
 
 | Verdict | Condition | What happens |
 |---|---|---|
-| `stable` | score at least **0.90** and at most 1 reversal | 5 runs per cell stand for this model. T1.9 may recommend 5 for the full grid if no model is `unstable: defaults still appearing`. |
-| `unstable: defaults still appearing` | score below 0.90, at most 1 reversal, growth of **0.10** or more | Ten runs report at least a tenth more established defaults than five: more runs are buying defaults. T1.9 recommends 10 runs per cell for the full grid. With the Human's approval of the spend, the check is repeated once, 10 against 20, on the same cells, and read by this same table. |
+| `stable` | score at least **0.90** and at most 1 reversal | 5 runs per cell stand for this model. |
+| `unstable: defaults still appearing` | score below 0.90, at most 1 reversal, growth of **0.10** or more | Ten runs report at least a tenth more established defaults than five: more runs are buying defaults. 10 runs per cell for this model. With the Human's approval of the spend, the check is repeated once, 10 against 20 (below). |
 | `unstable: contested choices` | score below 0.90, at most 1 reversal, growth below 0.10 | Doubling changed more than one reported top choice in ten, but added few established defaults: the changes are claims won and lost among choices near a tie, and leads without a majority. More runs do not settle these (below), so the run count is not raised on their account: 5 runs per cell stand for this model. The variables that changed are marked `contested` in the pilot report and are not called defaults. |
 | `drift suspected` | 2 or more reversals, whatever the score | No recommendation on the run count from this model. Compare run indexes 1 to 5 with 6 to 10 as two groups (the shift per dimension, which should be near 0; the dates; the `model_id_returned` values). If the provider changed the model between the two runs, the model's L0 is run again as a new batch. |
 | `no defaults` | no counted variable | Recorded as such; the fingerprint has no top choices to be stable. |
 | `not run` | a cell is short of usable runs | Named cells are completed first. |
 
+T1.9 recommends 10 runs per cell for the full grid if any model is
+`unstable: defaults still appearing`, and 5 otherwise.
+
+**The repeat, 10 runs against 20.** Only once, only with the Human's
+approval, and only for a model whose first verdict was
+`unstable: defaults still appearing`. The same 12 cells are doubled again
+(120 more runs for the model; a cell needs 8 usable runs among the first ten
+and 16 among the twenty). The score, the reversals and the growth are worked
+out as above with F10 and F20 in the place of F5 and F10, and the limits are
+the same. What follows from them is not, because no third check is made:
+
+| Outcome of the repeat | What happens |
+|---|---|
+| `stable` | 10 runs per cell stand: twenty runs report what ten did. |
+| `unstable: contested choices` | 10 runs per cell stand. The variables that changed are marked `contested` and are not called defaults. |
+| `unstable: defaults still appearing` | 10 runs per cell stand all the same, and there is no further repeat. The variables that gained an established default between 10 and 20 runs are listed in the pilot report as **open at 10 runs**, with the growth, so that the Human can decide whether the full grid is worth more than 10. In the simulation this outcome marks a model of weak defaults: 67% of weak models show it at 10 to 20 runs, 5% of mixed ones and 6% of blends. |
+| `drift suspected`, `no defaults`, `not run` | As in the first table, with run indexes 1 to 10 compared with 11 to 20. |
+
+Without the repeat, 10 runs per cell stand for that model.
+
 With any verdict, the report lists every counted variable that changed: the
 kind of change (new, lost, reversed; for a set, the items gained and
-dropped) and whether the choice had an established majority in F5 and in
-F10. Once the ten runs exist, the pilot's L0 tables are computed from all of
-them, whatever the verdict.
+dropped) and whether the choice had an established majority in each of the
+two tables. The pilot's L0 tables are computed from all the runs that exist,
+ten or twenty, whatever the verdict.
 
 **What the verdict does not cover.** L1 and L2, the per-task tables, the
 provisional variables, and the sensitivity measures. They are covered by
@@ -977,13 +1010,14 @@ What the figures show:
   no defaults at all is sent to 10 runs as well, on a tiny base (8
   established defaults becoming 13, of some 130 possible): with tasks that
   differ, six tasks hold small real majorities that more runs find. The
-  repeat at 10 to 20 is read by the same table, so it stops there unless
-  defaults are still appearing.
+  repeat at 10 to 20 ends the matter whatever it finds, at 10 runs per cell:
+  defaults still appearing there mark a weak model two times in three (67%),
+  and a mixed model or a blend about one time in twenty.
 - **Reversals do not happen by chance.** Without drift, one reversal occurred
   in at most 1.8% of simulated models and two or more in none of 9,500
   (every row above, and the mixed and fairly strong models again with no task
   effect and with a strong one), nor in any of the 5,500 of the second
-simulation. Allowing one keeps the false alarm rare.
+  simulation. Allowing one keeps the false alarm rare.
 - **Reversals do signal drift.** Drift was simulated by letting the added
   runs of a task come, for each variable with a given chance, from a changed
   model (its choices rotated by one place). At a chance of one half, a mixed
@@ -1226,12 +1260,12 @@ Label limits at 60 runs: 37 of 60 is no established majority (lower end
 
 Cell t1 A:
 
-- `corner_style`: four rounded, one pill. Pairs that agree: 4 x 3 / 2 = 6 of
-  10. **C = 3/5.** By the formula: (4 x 3 + 1 x 0) / (5 x 4) = 12/20.
+- `corner_style`: four rounded, one pill. Pairs that agree: 4 x 3 / 2 = 6
+  of 10. **C = 3/5.** By the formula: (4 x 3 + 1 x 0) / (5 x 4) = 12/20.
 - `libraries`, runs 1 to 5: {tailwindcss}, {lucide, tailwindcss},
   {tailwindcss}, {}, {lucide, tailwindcss}. Agreements: (1,2) 1/2; (1,3) 1;
-  (1,4) 0; (1,5) 1/2; (2,3) 1/2; (2,4) 0; (2,5) 1; (3,4) 0; (3,5) 1/2; (4,5)
-  0. Sum 4, over 10 pairs: **C = 2/5.**
+  (1,4) 0; (1,5) 1/2; (2,3) 1/2; (2,4) 0; (2,5) 1; (3,4) 0; (3,5) 1/2;
+  (4,5) 0. Sum 4, over 10 pairs: **C = 2/5.**
 - `gradient_count`: bins `1-2`, `3-5`, `0`, `1-2`, `6+`. One agreeing pair of
   10: **C = 1/10.**
 
@@ -1248,8 +1282,8 @@ All cells:
 | `gradient_count` | 1/10 | 3/10 | 1/10 | none | 1/5 | 1/10 | **3/20 = 0.1500** |
 
 Each variable is the only one of its dimension here, so the dimension values
-are the same. Overall: task t1 (11/20 + 2/5 + 1/5) / 3 = 23/60; task t2 (2/5
-+ 1/2 + 1/10) / 3 = 1/3; **C = (23/60 + 1/3) / 2 = 43/120 = 0.3583.** Task
+are the same. Overall: task t1 (11/20 + 2/5 + 1/5) / 3 = 23/60; task t2
+(2/5 + 1/2 + 1/10) / 3 = 1/3; **C = (23/60 + 1/3) / 2 = 43/120 = 0.3583.** Task
 interval with T = 2: standard deviation 0.0354; 12.706 x 0.0354 / sqrt(2) =
 0.3177; 0.0407 to 0.6760. Two tasks say almost nothing.
 
@@ -1326,7 +1360,9 @@ No verdict: `heading_category` closed with `in: [sans, display]`, and
 `unknown` declared as a `no_verdict` value. One cell of five runs: sans,
 display, unknown, serif, sans. The unknown run is left out; three of the
 other four show an expected value: compliance in the cell **3/4**, not 3/5,
-with one run counted as `no verdict`.
+with one run counted as `no verdict`. If the entry adds `no_verdict: [same]`
+and the cell is sans, same, unknown, serif, same, two runs are judged and
+one of them complies: **1/2**, with three runs counted as `no verdict`.
 
 ### 11. Two models
 
@@ -1369,8 +1405,12 @@ majority): in F5 the choices of v1, v3 and v5 and one default item, **E5 =
 Verdict: **`unstable: contested choices`** (score below 0.90, one reversal,
 growth below 0.10): two defaults came and two went. Had v5 kept an
 established majority in F10, E10 would be 5, growth 1/4, and the verdict
-`unstable: defaults still appearing`. Had v5 instead ended with b on top, there would be 2 reversals
-and the verdict `drift suspected`.
+`unstable: defaults still appearing`. Had v5 instead ended with b on top,
+there would be 2 reversals and the verdict `drift suspected`. With no
+established default in either table (E5 = E10 = 0), growth is 0.
+
+Read as the repeat (the same counts for F10 and F20), the outcome is again
+`unstable: contested choices`, and it means: 10 runs per cell stand.
 
 ### 13. Representative output
 
@@ -1416,8 +1456,8 @@ provisional variables that no entry lists and that are closed all the same:
 |---|---|
 | bakery-landing | `font_sources`, `system_stack` (the heading face is dictated); `mechanisms` (through `dark_mode`) |
 | pricing-page | `mechanisms` |
-| portfolio | `gradient_hues` (the palette); `libraries`, `delivery` (through `icon_libraries`); `mechanisms` |
-| event-page | `gradient_hues`; `libraries`, `delivery`; `mechanisms` |
+| portfolio | `gradient_hues` (the palette); `libraries` (through `icon_libraries`); `mechanisms` |
+| event-page | `gradient_hues`; `libraries`; `mechanisms` |
 | todo-app | `font_sources`, `system_stack`; `mechanisms` |
 | dashboard | `gradient_hues`; `tailwind_breakpoints` (through `css_framework`); `mechanisms` |
 
@@ -1447,6 +1487,8 @@ At L0 and L1 nothing is closed, by an entry or by dependence.
   intermediate values given with them.
 - The stability check is a command that takes a record file and a model and
   prints the score, the four counts, E5, E10 and the growth, the verdict,
-  and the variables that changed with the kind of change.
+  and the variables that changed with the kind of change. It takes the two
+  run counts to compare (5 and 10, or 10 and 20) and says which of the two
+  tables of outcomes applies.
 - T4.1 designs the default score of a real artifact. Nothing here fixes it;
   typicality is its nearest relative and may be reused.

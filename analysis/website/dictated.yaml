@@ -23,7 +23,9 @@
 #     expect     optional, per variable: what a run that followed the brief
 #                shows. {in: [...]} for a variable with one value per run;
 #                {absent: [...]} and/or {present: [...]} for a set. Left out
-#                where the feature vocabulary cannot say it.
+#                where the feature vocabulary cannot say it. Beside `in`,
+#                `no_verdict: [...]` names values that cannot be judged in
+#                this entry's case, in addition to those of features.yaml.
 #     note       why, and what to be careful about
 #   associations   not closed: content at a level that may pull an open
 #                  choice (prompts/website/leak-check.md). Printed beside the
@@ -71,8 +73,10 @@ tasks:
         reason: direction
         quote: "Condensed sans-serif headings, and a monospace face for prices and hours"
         expect:
-          website.fonts.heading_category: {in: [sans, display]}
-        note: The body face is not named, so primary_font stays open.
+          website.fonts.heading_category: {in: [sans, display], no_verdict: [same]}
+        note: >-
+          The body face is not named, so primary_font stays open, and a
+          heading in the body's face (`same`) cannot be judged.
       - closed:
           - website.corners-shadows.corner_style
           - website.corners-shadows.common_radius
@@ -369,10 +373,11 @@ tasks:
         reason: direction
         quote: "Headings in a heavy geometric sans-serif"
         expect:
-          website.fonts.heading_category: {in: [sans, display]}
+          website.fonts.heading_category: {in: [sans, display], no_verdict: [same]}
         note: >-
           A geometric sans is near a common default: expect little movement.
-          The body face is not named, so primary_font stays open.
+          The body face is not named, so primary_font stays open, and a
+          heading in the body's face (`same`) cannot be judged.
       - closed:
           - website.corners-shadows.corner_style
           - website.corners-shadows.common_radius

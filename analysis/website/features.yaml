@@ -38,6 +38,8 @@
 #                   presence they carry, or it draws its values from them.
 #                   When a prompt closes one of them, this one is closed too
 #                   (docs/metrics.md, "Open choices"). Followed step by step.
+#                   `libraries` depends on `icon_libraries` although only its
+#                   icon items are decided: a judgement, explained there.
 #   no_verdict      categorical: values that say the page declared nothing or
 #                   the extractor could not class what it found. They count in
 #                   the frequency table; a run showing one is left out when
@@ -142,7 +144,7 @@ features:
     libraries: {type: set, role: primary, depends_on: [website.icons-emoji.icon_libraries]}
     framework: {type: categorical, role: primary}
     css_framework: {type: categorical, role: primary}
-    delivery: {type: set, empty: not-applicable, role: primary, depends_on: [website.libraries.libraries]}
+    delivery: {type: set, empty: not-applicable, role: primary}
     library_count: {type: number, bins: [0, 1, 2, 4], role: secondary, why: redundant, see: libraries, depends_on: [website.libraries.libraries]}
     cdn_hosts: {type: set, role: secondary, why: raw, see: delivery, depends_on: [website.libraries.delivery, website.fonts.font_sources]}
     tailwind_usage: {type: categorical, role: secondary, why: redundant, see: css_framework, depends_on: [website.libraries.css_framework]}

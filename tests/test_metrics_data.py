@@ -321,7 +321,17 @@ def test_variables_decided_by_a_closed_one_are_closed(dictated, features):
         assert {"website.fonts.font_sources", "website.fonts.system_stack"} <= closed[task]
         assert "website.fonts.primary_font" not in closed[task]
     for task in ("portfolio", "event-page", "dashboard"):   # icons are dictated
-        assert {"website.libraries.libraries", "website.libraries.delivery"} <= closed[task]
+        assert "website.libraries.libraries" in closed[task]
+        assert "website.libraries.framework" in closed[task] or task != "dashboard"
+    for task in ("portfolio", "event-page"):    # the whole set, but not how it arrives
+        assert "website.libraries.delivery" not in closed[task]
+        assert "website.libraries.css_framework" not in closed[task]
+    # a heading in the body's face cannot be judged where only the heading is dictated
+    for task in ("bakery-landing", "todo-app"):
+        expects = [entry["expect"]["website.fonts.heading_category"]
+                   for entry in dictated["tasks"][task]["L2"]
+                   if "website.fonts.heading_category" in entry.get("expect", {})]
+        assert expects == [{"in": ["sans", "display"], "no_verdict": ["same"]}], task
     still_open = {task: sorted(name for name, entry in variables(features).items()
                                if entry["role"] == "primary" and name not in closed[task])
                   for task in tasks}
@@ -339,10 +349,12 @@ def test_expected_values_fit_the_variable(dictated, features):
             declared = known[name]
             assert declared["role"] != "diagnostic", name
             if declared["type"] in SINGLE:
-                assert set(expect) == {"in"} and expect["in"], (task, name)
+                assert {"in"} <= set(expect) <= {"in", "no_verdict"} and expect["in"], (task, name)
                 assert all(isinstance(value, str) for value in expect["in"]), (task, name)
                 # a value that gives no verdict cannot be an expected value
-                assert not set(expect["in"]) & set(declared.get("no_verdict", [])), (task, name)
+                no_verdict = set(declared.get("no_verdict", [])) | set(expect.get("no_verdict", []))
+                assert "no_verdict" not in expect or expect["no_verdict"], (task, name)
+                assert not set(expect["in"]) & no_verdict, (task, name)
                 if declared["type"] == "number":
                     assert set(expect["in"]) <= set(bin_labels(declared["bins"])), (task, name)
                 if declared["type"] == "boolean":
