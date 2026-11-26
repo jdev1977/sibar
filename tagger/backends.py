@@ -29,6 +29,8 @@ Anthropic (batch price: 50% of the standard rates):
 - https://platform.claude.com/docs/en/build-with-claude/structured-outputs
   (``output_config.format``; works with batches; refusals and ``max_tokens``
   stops may not match the schema)
+- https://platform.claude.com/docs/en/build-with-claude/effort
+  (``output_config.effort``; sent only with ``--effort``)
 - https://platform.claude.com/docs/en/about-claude/pricing
 
 OpenAI (batch price: half the standard rates):
