@@ -1,0 +1,64 @@
+# Website task: a personal portfolio.
+# Kind: one person showing their work to win clients. Identity and voice,
+# a gallery of past work, and a way to get in touch.
+# See prompts/website/README.md for the set, the rules and the version rule.
+schema_version: 1
+project_type: website
+task_id: portfolio
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Make a personal portfolio website.
+    B: Can you build a portfolio website for an individual?
+  L1:
+    A: Make a personal portfolio website for a freelance furniture maker who wants to win commissions from homeowners.
+    B: Can you build a portfolio website for an independent furniture maker? The aim is to get homeowners to commission pieces.
+  # L2 direction: cool and gallery-like (pale grey-blue background, charcoal
+  # text, one muted lilac accent, high-contrast didone serif headings,
+  # humanist sans-serif body, asymmetric left-aligned layout, square corners,
+  # no icons).
+  # Points away from two expected defaults: the craft-maker look (earthy wood
+  # tones, warm beige, rustic serif) and the generic portfolio look (centred
+  # hero, dark background, geometric sans, rounded project cards).
+  L2:
+    A: |
+      Make a personal portfolio website for Joss Achterberg, a furniture maker who works alone from a workshop in Fennlow and wants more commissions from homeowners.
+
+      About Joss: makes tables, chairs and cabinets in ash, oak and walnut. Trained as a boat builder and has made furniture for 12 years.
+
+      Selected work, each with a placeholder image, its title, the wood and the year:
+      - "Tideline dining table", ash, 2024
+      - "Low reading chair", walnut, 2023
+      - "Kitchen dresser", oak, 2025
+      - "Stacking stools, set of four", ash, 2022
+      - "Record cabinet", walnut, 2024
+
+      How a commission works:
+      - A conversation about the piece, the room and the budget.
+      - Drawings and a fixed quote within two weeks.
+      - Making, which usually takes 8 to 14 weeks.
+      - Delivery and fitting by Joss.
+
+      Prices start at $1,800 for a chair and $4,500 for a dining table. The waiting list is currently about 3 months.
+
+      Contact: studio@example.com or 555-0163. Workshop visits by appointment only. Include an inquiry form that asks for name, email, the kind of piece, and a rough budget.
+
+      Required sections: introduction, selected work, about, how a commission works, prices and waiting list, contact.
+
+      Tone: quiet and precise, written in the first person as Joss.
+
+      Visual direction: cool and gallery-like. A pale grey-blue background, charcoal text and one muted lilac accent. Headings in a high-contrast didone serif, body text in a humanist sans-serif. An asymmetric, left-aligned layout with plenty of empty space. Images run full width with square corners. No icons.
+    B: |
+      Can you build a portfolio website for me? I'm Joss Achterberg, a furniture maker working alone from a workshop in Fennlow, and I'd like more commissions from homeowners.
+
+      I make tables, chairs and cabinets in ash, oak and walnut. I trained as a boat builder and have been making furniture for 12 years.
+
+      The selected work should show these pieces, each with a placeholder image, its title, the wood and the year: "Tideline dining table" (ash, 2024), "Low reading chair" (walnut, 2023), "Kitchen dresser" (oak, 2025), "Stacking stools, set of four" (ash, 2022) and "Record cabinet" (walnut, 2024).
+
+      A commission goes like this: first we talk about the piece, the room and the budget; then I send drawings and a fixed quote within two weeks; the making usually takes 8 to 14 weeks; and finally I deliver and fit the piece myself. Prices start at $1,800 for a chair and $4,500 for a dining table, and the waiting list is currently about 3 months.
+
+      People can reach me at studio@example.com or 555-0163, and workshop visits are by appointment only. Please add an inquiry form that asks for name, email, the kind of piece and a rough budget.
+
+      The sections I need are an introduction, selected work, about, how a commission works, prices and waiting list, and contact. Write it in the first person, as me, in a quiet and precise voice.
+
+      Visually it should feel cool, like a gallery. The background is a pale grey-blue, the text is charcoal, and a muted lilac is the only accent. For type, a high-contrast didone serif on the headings and a humanist sans-serif for the body. The layout should be asymmetric and aligned left, with lots of empty space; images go full width with square corners; and there are no icons.

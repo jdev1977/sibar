@@ -1,0 +1,54 @@
+# Website task: a pricing page for a software product.
+# Kind: a commercial conversion page. Structured comparison of plans, prices
+# and terms, with calls to sign up and a short FAQ.
+# See prompts/website/README.md for the set, the rules and the version rule.
+schema_version: 1
+project_type: website
+task_id: pricing-page
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Make a pricing page for a software product.
+    B: Can you build a pricing page for a piece of software?
+  L1:
+    A: Make a pricing page for an invoicing tool for freelancers, so they can compare the plans and pick the right one.
+    B: Can you build a pricing page for invoicing software aimed at freelancers? It should help them weigh up the plans and choose one that fits.
+  # L2 direction: an account-book feel (warm paper-cream background, dark green
+  # ink, one book-style serif for all text, plans in one ruled comparison
+  # table, no highlighted plan, no gradients, no rounded corners), plain copy.
+  # Points away from the expected pricing-page default: indigo or violet
+  # gradients, a geometric sans, three rounded cards with soft shadows and a
+  # highlighted "most popular" middle plan, hype copy.
+  L2:
+    A: |
+      Make a pricing page for Billfinch, an invoicing tool for freelancers.
+
+      Plans:
+      - Starter: free forever. Up to 3 clients and 5 invoices a month, PDF invoices, and email support.
+      - Solo: $9 a month, or $90 a year. Unlimited clients and invoices, recurring invoices, automatic payment reminders, and email support.
+      - Studio: $24 a month, or $240 a year. Everything in Solo, plus up to 5 team members, time tracking, invoices in multiple currencies, and priority support.
+
+      Terms for every plan: the paid plans come with a 30-day free trial, Starter needs no credit card, customers can cancel at any time, and Billfinch takes no fee on payments.
+
+      FAQ, with three questions and these answers:
+      - "Can I switch plans later?" Yes, at any time. The price is adjusted for the rest of the billing period.
+      - "What happens to my invoices if I cancel?" You can export all of them as PDF or CSV, and they stay available for 90 days after you cancel.
+      - "Do you take a cut of my payments?" No. Billfinch charges only the plan price.
+
+      Required sections: a short heading and introduction, the plan comparison, the FAQ, and a closing line that invites questions to hello@example.com. Each plan needs a sign-up button: "Start free" for Starter, and "Start 30-day trial" for Solo and Studio.
+
+      Tone: plain and honest. No hype words such as "supercharge" or "seamless".
+
+      Visual direction: an account-book feel. A warm paper-cream background with dark green ink, and one book-style serif for all text. Show the plans in a single comparison table with ruled lines, not as separate cards. Do not mark any plan as "most popular". No gradients and no rounded corners.
+    B: |
+      Can you build a pricing page for Billfinch? It's an invoicing tool for freelancers, and it has three plans.
+
+      Starter is free forever and covers up to 3 clients and 5 invoices a month, with PDF invoices and email support. Solo costs $9 a month, or $90 a year, and gives unlimited clients and invoices, recurring invoices, automatic payment reminders and email support. Studio costs $24 a month, or $240 a year, and has everything in Solo plus up to 5 team members, time tracking, invoices in multiple currencies and priority support.
+
+      Some terms hold across all plans: there's a 30-day free trial on the paid ones, Starter needs no credit card, customers can cancel whenever they like, and Billfinch takes no fee on payments.
+
+      We'd like an FAQ with three questions. "Can I switch plans later?" Yes, whenever you like, with the price adjusted for what's left of the billing period. "What happens to my invoices if I cancel?" They can all be exported as PDF or CSV, and they remain available for 90 days after cancelling. "Do you take a cut of my payments?" No: the plan price is the only thing Billfinch charges.
+
+      The page should open with a short heading and introduction, then compare the plans, then show the FAQ, and finish with a line inviting questions to hello@example.com. Every plan needs its own sign-up button, labelled "Start free" for Starter and "Start 30-day trial" for Solo and Studio.
+
+      Keep the copy plain and honest, without hype words like "supercharge" or "seamless". As for the look, think of an account book: a warm paper-cream page, dark green ink, and a single book-style serif for every bit of text. The plans belong in one comparison table with ruled lines, rather than in separate cards. No plan should be marked "most popular", and there should be neither gradients nor rounded corners.

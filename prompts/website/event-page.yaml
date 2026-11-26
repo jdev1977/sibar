@@ -1,0 +1,66 @@
+# Website task: a page for an event.
+# Kind: a one-off, time-bound page. Date and place, a schedule, rules and a
+# booking form; it is out of date the day after the event.
+# See prompts/website/README.md for the set, the rules and the version rule.
+schema_version: 1
+project_type: website
+task_id: event-page
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Make a web page for an event.
+    B: Can you build an event web page?
+  L1:
+    A: Make a web page for a free one-day repair event where volunteers fix broken household items, aimed at local residents who might bring something in.
+    B: Can you build an event web page for a one-day event where volunteers repair people's broken household items at no charge? It's meant for local residents who may want to bring something along.
+  # L2 direction: a risograph-printed community poster (two inks, fluorescent
+  # pink and teal, on pale yellow paper, slightly misaligned overprinting,
+  # heavy slab serif headings, typewriter-style body, no emoji, handmade).
+  # Points away from the expected community-event default: leafy eco greens,
+  # a rounded geometric sans, rounded cards, emoji or tool icons, a gradient
+  # hero banner.
+  L2:
+    A: |
+      Make a web page for Fix-It Day, a free one-day repair event organized by the Marrowick Tool Share, where volunteers fix broken household items for local residents.
+
+      When and where: Saturday, April 17, 2027, 10am to 4pm, at Marrowick Community Hall, 40 Ferry Road.
+
+      Repair tables:
+      - Small electricals: lamps, toasters, radios
+      - Clothes and textiles
+      - Bikes
+      - Wooden furniture
+      - Phones and laptops (basic fixes only)
+
+      Schedule:
+      - 10am: doors open
+      - 11am: a short talk, "Why things break", by volunteer Rosa Imbert
+      - 1pm: knife and scissor sharpening starts
+      - 3:30pm: last items accepted
+      - 4pm: close
+
+      House rules: one item per person at a time; bring all the parts, cables and chargers; fixes are not guaranteed; no gas appliances or microwaves.
+
+      Booking: visitors can book a 30-minute slot with a form that asks for name, email, the item, what is wrong with it, and which repair table. Walk-ins are welcome when slots are free. Entry is free; donations toward spare parts are welcome.
+
+      Volunteers who want to help can write to volunteers@example.com. Questions: 555-0119.
+
+      Required sections: what the event is, date and place, the repair tables, the schedule, house rules, the booking form, and how to volunteer.
+
+      Tone: welcoming and practical.
+
+      Visual direction: like a risograph-printed community poster. Two inks, fluorescent pink and teal, on pale yellow paper, with slightly misaligned overprinting. Headings in a heavy slab serif, body text in a typewriter-style face. No emoji. It should feel handmade and a little rough.
+    B: |
+      Can you build an event web page for Fix-It Day? It's a free one-day repair event organized by the Marrowick Tool Share, where volunteers fix broken household items for local residents. It takes place on Saturday, April 17, 2027, from 10am to 4pm at Marrowick Community Hall, 40 Ferry Road.
+
+      There will be repair tables for small electricals (lamps, toasters, radios), clothes and textiles, bikes, wooden furniture, and phones and laptops, where only basic fixes are possible.
+
+      The day runs like this: doors open at 10am; at 11am volunteer Rosa Imbert gives a short talk called "Why things break"; knife and scissor sharpening starts at 1pm; the last items are accepted at 3:30pm; and we close at 4pm.
+
+      We ask everyone to bring one item at a time, along with all its parts, cables and chargers. We can't promise that every fix will work, and we don't take gas appliances or microwaves. Those are the house rules.
+
+      People can book a 30-minute slot through a form that asks for their name, email, the item, what's wrong with it and which repair table they need. Walk-ins are welcome whenever slots are free. Entry is free, and donations toward spare parts are welcome. Anyone who'd like to volunteer can write to volunteers@example.com, and questions can go to 555-0119.
+
+      The page should cover what the event is, the date and place, the repair tables, the schedule, the house rules, the booking form and how to volunteer. Keep the tone welcoming and practical.
+
+      For the look, take a community poster printed on a risograph as the model: fluorescent pink and teal as the only two inks, on pale yellow paper, overprinted a little out of register. A heavy slab serif for the headings and a typewriter-style face for the body. Leave out emoji. It should come across as handmade and slightly rough.
