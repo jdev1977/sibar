@@ -814,11 +814,12 @@ show.
   solution there; the gate item does.
 - **Metrics for these types (T1.6, T2.11).** Two things are needed before
   rubric variables can be counted by `analysis/`:
-  1. `features.yaml` has one dimension per extractor, and all tags of a type
-     come from one extractor, `rubric.<type>`. Rubric items carry their own
-     dimension (`variable_declarations` writes it), so `features.yaml` needs
-     a per-variable `dimension` that overrides the extractor's. Without it
-     every rubric item of a type falls into one dimension.
+  1. Done in T2.6: all tags of a type come from one extractor,
+     `rubric.<type>`, so `features.yaml` takes a per-variable `dimension`
+     that overrides the extractor's ([metrics.md](metrics.md), "The
+     variables"). The output of `variable_declarations` can be pasted in as
+     it is. The tagger also stores `status` (and `error`) for the extractor,
+     as every extractor does; declare them under `common`.
   2. The companion entries have to reach `analysis/<type>/dictated.yaml`,
      by merging the files or by reading both. The entry format is the same
      and the variable names are already the full ones.

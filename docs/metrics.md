@@ -190,6 +190,10 @@ edit to `features.yaml` and a new metrics version.
 
 `features.yaml` is the authority; this table is a copy for reading. The
 dimension is the unit of every summary and of the later default score.
+Each extractor has one dimension (`dimensions`); a variable may name its own
+with a `dimension` key, which overrides its extractor's. Rubric tags need
+this: all of them come from one extractor, `rubric.<type>`, and each item
+has its own dimension (`tagger.rubric.variable_declarations` writes it).
 
 | Dimension | Primary variables | Provisional | Secondary (tables only) | Diagnostic |
 |---|---|---|---|---|

@@ -215,6 +215,12 @@ def _variable(name, extractor, feature, raw, dimension, common=False):
         raise SpecError(f"{name}: unknown type {kind!r}")
     if raw.get("role") not in ROLES:
         raise SpecError(f"{name}: unknown role {raw.get('role')!r}")
+    # A variable may name its own dimension, overriding its extractor's: all
+    # tags of a rubric come from one extractor, each item with its dimension.
+    if "dimension" in raw:
+        dimension = raw["dimension"]
+        if not isinstance(dimension, str) or not dimension.strip():
+            raise SpecError(f"{name}: dimension must be a name")
     bins = None
     if kind == "number":
         bins = tuple(raw.get("bins") or ())
