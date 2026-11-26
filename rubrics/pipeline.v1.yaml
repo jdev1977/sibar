@@ -79,7 +79,7 @@ items:
     select: single
     applies_to: {tasks: all, levels: all}
     absent: always-present
-    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own.
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Two complete programs offered as alternatives for the same job differ in design and are several-worked.
     options:
       - id: general-only
         definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
@@ -268,7 +268,7 @@ items:
     applies_to:
       tasks: [csv-to-database, data-validation, image-resize, log-aggregation]
       levels: all
-    guidance: Count only code that tests a single record or file, or catches a failure on it, and then acts on that record or file. A cleaning step applied to all the data, such as dropping every row with a missing value, filling blanks or coercing a column, is not handling of such input. An error that would occur with nothing written for it is not an option; if that is all there is, answer none.
+    guidance: Count what the code does with records or files that fail a test or raise an error, whether it handles them one at a time or selects them with a mask over all the data. Two things are cleaning steps and do not count here, namely dropping or filling missing values across the data, and converting the type of a whole column. An error that would occur with nothing written for it is not an option; if that is all there is, answer none.
     none_example: "Every value is converted with int() and float() directly, with nothing around the conversions."
     options:
       - id: other
@@ -304,7 +304,7 @@ items:
       tasks: [csv-to-database, daily-api-fetch, image-resize]
       levels: all
     absent: always-present
-    guidance: Where a library call decides it, go by the mode the call states, or by the library's default when it states none. A file opened for writing is replaced. A file opened for appending is added to.
+    guidance: Where a library call decides it, go by the mode the call states, or by the library's default for what it leaves unset. If you do not know that default, answer cannot-tell. A file opened for writing is replaced. A file opened for appending is added to.
     task_notes:
       daily-api-fetch: Judge what happens when the same day is fetched twice. A file or a table section for one day that is written afresh when that day is fetched again is replaces.
       image-resize: What is stored is the resized image files. Redoing and overwriting every image is replaces. Leaving images that already exist is skips-or-merges.
@@ -368,7 +368,7 @@ items:
     question: Which cleaning steps does the code apply to the data?
     select: multi
     applies_to: {tasks: [csv-to-database], levels: all}
-    guidance: Count steps applied to the data as a whole. What is done with a single record that fails a test or raises an error is not a cleaning step.
+    guidance: Count steps applied to the data as a whole. Rows that are removed, set aside or reported because they fail a test other than a missing value, and what is done after an error is caught on a record, are not cleaning steps.
     none_example: "The file is read and inserted as it is; 'clean' appears only in a function name."
     options:
       - id: converts-types
@@ -382,7 +382,7 @@ items:
         example: "Emails are lower-cased."
       - id: other
         definition: Another cleaning step that no other option covers.
-        example: "Rows whose total lies far outside the usual range are removed as outliers."
+        example: "Currency symbols and thousands separators are stripped from the amounts."
       - id: parses-dates
         definition: Parses date or time values into one form.
         example: "pd.to_datetime(df['order_date'])."
@@ -439,7 +439,7 @@ items:
     select: single
     applies_to: {tasks: [daily-api-fetch], levels: all}
     absent: none
-    guidance: Where a library's retry setting is used, go by what the response sets. A backoff setting above zero is retries-growing-wait. A retry count with no wait and no backoff set is retries-no-wait.
+    guidance: Where a library's retry setting decides it, go by what the call states, or by the library's default for what it leaves unset. If you do not know that default, answer cannot-tell.
     options:
       - id: none
         definition: No retry. A failed request is not sent again within the run.
@@ -466,7 +466,7 @@ items:
     select: single
     applies_to: {tasks: [daily-api-fetch], levels: all}
     absent: none
-    tie_rule: If the code both finds missing days itself and takes a date as an argument, answer backfills.
+    tie_rule: If more than one applies, answer the first that does in this order, which is backfills, refetches-window, manual-date.
     options:
       - id: backfills
         definition: Finds days that are missing from what is stored, or that follow the last stored day, and fetches them in the same run.
@@ -477,6 +477,12 @@ items:
       - id: none
         definition: Fetches only the day of the run. Nothing is provided for a missed day.
         example: "The date is always today's, set inside the script."
+      - id: other
+        definition: Another single way of dealing with a missed day that no other option covers.
+        example: "A day that fails is written to 'failed_days.txt' for a person to deal with."
+      - id: refetches-window
+        definition: Fetches a fixed span of recent days on every run, whether or not they are already stored.
+        example: "Each run fetches the last 7 days and writes them again."
     cannot_tell:
       when: The dates to fetch come from a helper that the response does not show.
       example: "'for day in days_to_fetch():', where days_to_fetch is not delivered."

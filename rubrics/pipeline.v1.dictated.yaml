@@ -141,7 +141,12 @@ tasks:
         reason: direction
         quote: "If an earlier run failed and left a day missing, the next run fetches that day too."
         expect:
-          rubric.pipeline.gap_recovery: {in: [backfills]}
+          rubric.pipeline.gap_recovery: {in: [backfills, refetches-window]}
+        note: >-
+          A run that fetches a fixed span of recent days again also fetches
+          a day the run before it missed, so refetches-window is counted as
+          following the brief. It does so only inside its span; the tag does
+          not hold the span's length. manual-date and other are not counted.
 
   data-validation:
     prompt_set_version: "1"

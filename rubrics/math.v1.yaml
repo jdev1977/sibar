@@ -85,7 +85,7 @@ items:
       tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]
       levels: all
     absent: always-present
-    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own.
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Two complete programs offered as alternatives for the same job differ in design and are several-worked.
     options:
       - id: general-only
         definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
@@ -372,7 +372,7 @@ items:
         definition: Rounds the payment to cents and adjusts the final payment or the final balance so that the loan ends at zero.
         example: "'The 60th payment is 178.13, a little less than the others, to clear the balance.'"
       - id: not-addressed
-        definition: Says nothing about rounding. Amounts may be shown to two decimals.
+        definition: Adjusts no payment and makes no remark on rounding, whether the payment is rounded to cents, shown to two decimals or left unrounded.
         example: "'Monthly payment: 178.21. Total paid: 10692.60.'"
       - id: noted-only
         definition: Remarks that rounding leaves a small difference, and adjusts no payment.

@@ -342,6 +342,24 @@ T2.8's list in tasks.md does not yet name some of the left column (pronouns,
 position of prose around code, currency). They are listed here so that the
 split is complete; T2.8 decides which to build.
 
+### L2 directions that rubric v1 does not measure
+
+Three things an L2 brief dictates have no rubric item, so the rubric gives
+no compliance figure for them. Each needs an owner outside the rubric; the
+owners below are proposals for the coordinator to confirm.
+
+| Task | L2 direction | Proposed owner | How it can be read |
+|---|---|---|---|
+| log-aggregation | Read the files one line at a time | T2.7 (sandbox), with T2.8 | The sandbox runs the output on a large fixture under its memory limit, which shows the behavior directly. The extractor can list the read calls as a second reading |
+| data-validation | Check every rule on every reading, so a rejected reading lists all its problems | T2.7 (sandbox) | The second sample reading of the brief breaks three rules. The rejects file the output writes shows whether all three are listed |
+| image-resize | Phone photos turned upright; camera and location details removed | T2.7 (sandbox), with T2.8 | Orientation and metadata can be read from the files the output writes for the fixture images. The extractor can record the keywords |
+
+If one of these is wanted as a rubric item later, that is a new rubric
+version: an added item changes what the tagger is asked
+([Versioning](#versioning)). Outputs tagged before it have no answer for the
+new item until they are tagged again, and tables of the two versions are
+not pooled.
+
 ## The items
 
 "Closed at L2" comes from the companion files. An item asked for one task
@@ -376,17 +394,24 @@ image = image-resize, ci = ci-workflow, validation = data-validation.
 | `cleaning_steps` | method | several of 9 | csv | csv |
 | `scheduling` | operation | several of 5 | api | api |
 | `retry_policy` | robustness | one of 4 | api | api |
-| `gap_recovery` | robustness | one of 3 | api | api |
+| `gap_recovery` | robustness | one of 5 | api | api |
 | `log_format_assumed` | assumptions | one of 6 | log | log |
 | `aspect_handling` | method | one of 5 | image | image |
 | `ci_checks` | method | several of 8 | ci | ci |
 | `rule_definition` | method | one of 5 | validation | validation |
 | `failure_signal` | robustness | one of 4 | validation | validation |
 
-`bad_input_handling` counts only code that tests a single record or file, or
-catches a failure on it. A cleaning step applied to all the data (dropping
-every row with a missing value, filling blanks) is `cleaning_steps`. The
-guidance of both items says so.
+Where `bad_input_handling` ends and `cleaning_steps` begins is decided by
+what is done, not by how the code is written. Records that fail a test or
+raise an error belong to `bad_input_handling`, whether the code handles
+them one at a time or selects them with a mask over all the data: a mask
+whose rows are written to a rejects file is `sets-aside`, one whose rows are
+counted and dropped is `skips-and-reports`, and one whose rows are dropped
+with no trace is `skips-silently`. Two things are named as cleaning and
+never count as bad-input handling: dropping or filling missing values
+across the data (`removes-incomplete-rows`, `fills-missing`), and converting
+a whole column's type. The guidance of both items says so, so no code is
+counted under both.
 
 ### Math or science (20 items)
 

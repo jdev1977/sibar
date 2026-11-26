@@ -88,7 +88,7 @@ items:
     select: single
     applies_to: {tasks: all, levels: all}
     absent: always-present
-    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own.
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Two complete programs offered as alternatives for the same job differ in design and are several-worked.
     options:
       - id: general-only
         definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
@@ -413,7 +413,7 @@ items:
         example: "'Two M5 countersunk screws at 40 mm spacing.'"
       - id: other
         definition: Another aspect of making the part that no other option covers.
-        example: "'Order ten at a time, which is the supplier's minimum.'"
+        example: "'Lay the grain of the plywood along the arm of the bracket.'"
       - id: process
         definition: How the part is made or cut.
         example: "'Cut from 3 mm sheet and bend to 90°.'"
