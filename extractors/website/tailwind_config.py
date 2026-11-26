@@ -13,9 +13,10 @@ Nested colour keys are joined with ``-`` (``primary: {500: ...}`` gives
 ``primary-500``; ``DEFAULT`` gives the bare name). A value that is not a
 plain colour is first resolved through the page's custom properties
 (``hsl(var(--primary))`` with ``--primary: 221 83% 53%``); if it still is not
-one it is kept as a known name with no colour. Config objects are parsed by a small bounded reader of object
-literals over the script's code with strings already set aside: keys,
-nested objects, arrays and strings. Anything else (function calls, spreads,
+one it is kept as a known name with no colour. Config objects are parsed by
+a small bounded reader of object literals over the script's code with
+strings already set aside: keys, nested objects, arrays and strings.
+Anything else (function calls, spreads,
 references) is skipped, so the reader never fails on odd configs; it reads
 less.
 """
