@@ -172,6 +172,9 @@ off gets through, so the test would fail if the boundary went.
 | No persistence | Every process is in the job and is killed, and waited for, when the run ends; nothing outside the folder can be written (registry Run keys and the Startup folder included); the folder is then deleted | a detached child does not outlive the run; leaving the job is refused |
 | Other processes | The AppContainer check: other processes of the user grant nothing to the package SID | opening the test process or a bystander for terminate, read memory, duplicate handles, query and set information fails (unsandboxed it works) |
 | Clipboard and UI | A **new desktop** outside the user's interactive window station, and the job's UI restrictions (clipboard, global atoms, other processes' windows, desktop switching, system settings) | no clipboard, no titled windows seen, a blank screen, the user's window station and desktop do not open (without them windows are seen) |
+| Programs started through the shell | Whatever the process starts is in its job, with its token, on its desktop; Windows does not start a browser or a packaged app for it | opening a URL (to 127.0.0.1) and the calculator through the shell starts nothing outside |
+| Crashes | The job ends a crashing process at once, without Windows Error Reporting or a dialog | a thread started at address 0 ends the run with an access violation |
+| The sandbox's helpers | The helper scripts' folder is read and execute only for the sandboxed process | it cannot change or add to them |
 | Cleanup | Profile, desktop, token and folder are removed on close; a crashed run's profile and folder by the next box | nothing is left after a run; leftovers of a dead process are swept |
 
 ### The layers, in order

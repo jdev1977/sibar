@@ -102,16 +102,18 @@ def _problem_text(content):
         import csv
         import io
 
-        rows = csv.DictReader(io.StringIO(content))
+        try:
+            rows = list(csv.DictReader(io.StringIO(content)))
+        except csv.Error:
+            return []
         return [" ".join(str(v) for k, v in row.items()
                          if k not in READING_FIELDS and v is not None)
-                for row in rows if "14:00" in str(row.get("time", ""))
-                or any("14:00" in str(v) for v in row.values())]
+                for row in rows if any("14:00" in str(v) for v in row.values())]
     parts = []
     for line in lines:
         try:
             value = json.loads(line)
-        except ValueError:
+        except (ValueError, RecursionError):  # untrusted
             value = None
         if isinstance(value, dict):
             rest = {key: item for key, item in value.items()
@@ -276,7 +278,7 @@ class DailyApiFetch(Hook):
         for line in data.decode("utf-8", "replace").splitlines():
             try:
                 item = json.loads(line)
-            except ValueError:
+            except (ValueError, RecursionError):  # untrusted
                 continue
             if isinstance(item, dict):
                 query = item.get("query") if isinstance(item.get("query"), dict) else {}
@@ -322,7 +324,7 @@ class ImageResize(Hook):
         data = safe.read_file(box.folder, "out/images.json", 1 << 20)
         try:
             measured = json.loads(data) if data else []
-        except ValueError:
+        except (ValueError, RecursionError):  # untrusted
             measured = []
         prefix = str(box.app) + "\\"
         images_found = []
@@ -372,7 +374,7 @@ def parse_configs(box):
     data = safe.read_file(box.folder, "out/configs.json", 1 << 20)
     try:
         checked = json.loads(data) if data else []
-    except ValueError:
+    except (ValueError, RecursionError):  # untrusted
         return []
     out = []
     for item in checked if isinstance(checked, list) else []:

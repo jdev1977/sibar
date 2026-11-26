@@ -667,3 +667,87 @@ def test_one_box_at_a_time_per_root():
     with Box(limits=SMALL):
         with pytest.raises(SandboxError, match="another sandbox run"):
             Box(limits=SMALL).open()
+
+
+# --- More ways out ------------------------------------------------------------------------
+
+SHELL = """
+import json, os, time
+out = {}
+for target in ("C:\\Windows\\System32\\calc.exe", "http://127.0.0.1:9/MARK"):
+    try:
+        os.startfile(target)
+        out[target] = "asked"
+    except OSError as error:
+        out[target] = error.winerror
+time.sleep(3)
+print(json.dumps(out))
+"""
+
+
+def _processes(mark):
+    """Processes outside this test whose command line has ``mark``, and the
+    ids of any calculator processes."""
+    script = ("$p = Get-CimInstance Win32_Process; "
+              f"$m = @($p | Where-Object {{ $_.CommandLine -like '*{mark}*' -and "
+              "$_.Name -notin @('powershell.exe', 'pwsh.exe') }).Count; "
+              "$c = @($p | Where-Object { $_.Name -in @('calc.exe', 'CalculatorApp.exe') } "
+              "| ForEach-Object { $_.ProcessId }); "
+              "Write-Output ($m.ToString() + ' ' + ($c -join ','))")
+    out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                         capture_output=True, text=True, timeout=60).stdout.split()
+    return int(out[0]), set(out[1].split(",")) if len(out) > 1 else set()
+
+
+def test_programs_started_through_the_shell_stay_inside():
+    # If this boundary failed, a browser would open on 127.0.0.1:9 (nothing
+    # listens there) and a calculator on the user's desktop.
+    mark = f"sibar-probe-{uuid.uuid4().hex[:8]}"
+    _, calculators = _processes(mark)
+    answer, result = probe(SHELL.replace("MARK", mark))
+    marked, after = _processes(mark)
+    assert marked == 0 and after <= calculators, (answer, marked, after - calculators)
+
+
+# A thread that starts at address 0: an access violation outside anything
+# that would catch it (ctypes catches faults in the calls it makes).
+CRASH = """
+import ctypes, time
+kernel = ctypes.WinDLL("kernel32")
+kernel.CreateThread.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p,
+                                ctypes.c_void_p, ctypes.c_ulong, ctypes.c_void_p]
+kernel.CreateThread(None, 0, None, None, 0, None)
+time.sleep(15)
+"""
+
+
+def test_a_crash_ends_the_run_at_once_without_a_dialog():
+    _, result = probe(CRASH, limits=replace(SMALL, seconds=20))
+    assert result.cause is None
+    assert result.exit_code == 0xC0000005  # access violation
+
+
+def test_the_helpers_cannot_be_changed_by_the_output():
+    from sandbox.box import Box
+    from sandbox.run import _install_tools
+
+    code = """
+import json, sys
+a = json.loads(sys.argv[1])
+out = {}
+for label, path in (("change", a["helper"]), ("add", a["new"])):
+    try:
+        with open(path, "a") as handle:
+            handle.write("tampered")
+        out[label] = "written"
+    except OSError as error:
+        out[label] = error.winerror or error.errno
+print(json.dumps(out))
+"""
+    with Box(limits=SMALL) as box:
+        tools = _install_tools(box)
+        before = (tools / "survey.py").read_bytes()
+        answer, _ = run_probe(box, code, {"helper": str(tools / "survey.py"),
+                                          "new": str(tools / "new.py")})
+        assert set(answer.values()) <= {5, 13}, answer  # access denied
+        assert (tools / "survey.py").read_bytes() == before

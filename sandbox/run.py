@@ -80,7 +80,7 @@ def text(data, folder=None, limit=TEXT_LIMIT):
     value = re.sub(r"Failed to find real location of [^\n]*python\.exe\n?", "", value)
     if folder is not None:
         value = value.replace(str(folder), "<folder>")
-        value = value.replace(str(runtime.default_root()), "<root>")
+        value = value.replace(str(Path(folder).parents[1]), "<root>")
     if len(value) > limit:
         half = limit // 2
         value = value[:half] + "\n[...]\n" + value[-half:]
@@ -230,7 +230,7 @@ def _read_json(folder, relative, limit=1 << 20):
         return None
     try:
         value = json.loads(data)
-    except ValueError:
+    except (ValueError, RecursionError):  # written by untrusted code
         return None
     return value if isinstance(value, dict) else None
 
@@ -312,7 +312,10 @@ def run_folder(source, paths=None, settings=Settings(), root=None):
             _run_output(box, tools, survey, paths, settings, environment, detail,
                         hook.arguments if hook else ())
             if hook is not None:
-                detail["task"] = hook.measure(box, detail)
+                try:
+                    detail["task"] = hook.measure(box, detail)
+                except Exception as error:  # the runs' results still stand
+                    detail["task"] = {"error": f"{type(error).__name__}: {error}"[:300]}
     except (SandboxError, runtime.RuntimeMissing, OSError) as error:
         detail.update(result="error", reason=f"{type(error).__name__}: {error}"[:500])
     return detail
