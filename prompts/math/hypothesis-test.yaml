@@ -1,0 +1,54 @@
+# Math task: a hypothesis test on a small sample.
+# Kind: statistics with a choice of test. Which test, which assumptions are
+# checked or stated, one or two sides, the significance level, and how the
+# decision is worded.
+# See prompts/math/README.md for the set, the rules and the version rule.
+# Givens (every level, both wordings): the eight values and the value 50.
+# Checkable: every level. One-sample t test: mean 51.175, sd 0.858,
+# t = 3.87 on 7 degrees of freedom, two-sided p about 0.006. Exact Wilcoxon
+# signed-rank: one negative difference of rank 1, two-sided p = 1/64 =
+# 0.0156. Both reject at the 5% level. At L2 (Wilcoxon, 1% level) the
+# decision is the opposite: not significant.
+schema_version: 1
+project_type: math
+task_id: hypothesis-test
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: 'Test whether the mean of these measurements differs from 50: 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.'
+    B: Can you test whether these measurements have a mean that differs from 50? They are 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.
+  L1:
+    A: 'Test whether the mean of these measurements differs from 50, for a quality-control technician deciding whether a new batch of parts is on target: 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.'
+    B: Can you test whether these measurements have a mean that differs from 50? They are 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5. A quality-control technician took them from a new batch of parts and needs to decide whether the batch is on target.
+  # L2 direction: the exact Wilcoxon signed-rank test, two-sided, at the 1%
+  # level, with the ranks listed by hand, the decision first in one plain
+  # sentence, the exact p-value as a fraction and a decimal.
+  # Points away from the expected default: a one-sample t test at the 5%
+  # level run in code, a normality check, a document that ends with the
+  # conclusion. The decision changes as well (see Checkable above).
+  L2:
+    A: |
+      Test whether the mean of these measurements differs from 50, for a quality-control technician at Pellmore Machine Works deciding whether a new batch of parts is on target: 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.
+
+      Details:
+      - The values are the lengths in millimeters of 8 pins taken from the batch, and the target length is 50 mm.
+      - The technician will not assume that the lengths follow a normal distribution.
+
+      Method and presentation:
+      - Use the exact Wilcoxon signed-rank test, two-sided, at the 1% significance level.
+      - List the differences from 50, their ranks and the two signed-rank sums.
+      - Start with the decision in one plain sentence the technician can act on, then give the working.
+      - Give the exact p-value as a fraction and as a decimal to 4 places.
+    B: |
+      Can you test whether these measurements have a mean that differs from 50? They are 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5. I'm a quality-control technician at Pellmore Machine Works, and I took them from a new batch of parts; I need to decide whether the batch is on target.
+
+      Each number is a pin length in millimeters, from 8 pins sampled out of the batch, and the length we're aiming for is 50 mm. I'm not willing to assume the lengths are normally distributed.
+
+      Please run the exact Wilcoxon signed-rank test, two-sided, with a significance level of 1%. Set out each value's difference from 50, the rank of each difference and both signed-rank sums. Put the decision first, as a single plain sentence I can act on, and the working after it. For the p-value, I'd like the exact figure both as a fraction and as a decimal with 4 places.
+notes: >-
+  Written for T2.1. "Test" and "differs from" are the task as the plan names
+  it (hypothesis test on a small sample). "Differs from" reads as a
+  two-sided question; that is how the question is asked, and both wordings
+  carry it. The values have no units at L0 and L1. At L2 the question still
+  says "mean" while the dictated test is about location (the median under
+  symmetry); whether a model points this out is worth recording.

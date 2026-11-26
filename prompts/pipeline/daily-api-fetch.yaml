@@ -1,0 +1,65 @@
+# Pipeline task: fetch data from an API every day and store it.
+# Kind: scheduled ingestion from a remote service. Scheduling, keys, network
+# failures, gaps after a failed run, and where the results are kept.
+# See prompts/pipeline/README.md for the set, the rules and the version rule.
+# Offline: no task needs the network to be attempted. L0 and L1 outputs are
+# run with the network blocked, so the record shows how they fail; their own
+# tests run as written. The L2 brief names a reserved host
+# (api.example.com) and the exact response, so the sandbox (T2.7) can serve
+# that response from a local stub at that host.
+schema_version: 1
+project_type: pipeline
+task_id: daily-api-fetch
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Write a pipeline that fetches data from an API every day and stores it.
+    B: Can you set up a daily pipeline that pulls data from an API and saves what it gets?
+  L1:
+    A: Write a pipeline that fetches the day's air quality readings from a city's open data API every day and stores them, so a local environmental group can follow pollution levels over time.
+    B: Can you set up a daily pipeline that pulls the day's air quality readings from a city's open data API and saves them? An environmental group in the area wants to watch how pollution levels develop.
+  # L2 direction: run once and exit under the machine's own scheduler, fetch
+  # any day a failed run missed, a fixed retry rule (3 tries, a minute
+  # apart, then an error), one CSV file per month, a re-run that changes
+  # nothing, one log line per run.
+  # Points away from the expected default: a loop or scheduling library that
+  # keeps the program running, no catch-up after a failed day, no retries or
+  # an open-ended retry, everything in one database or one growing file,
+  # progress shown with print statements.
+  # The brief says where the key goes (a header) and not where it comes
+  # from, so key handling stays open at L2.
+  L2:
+    A: |
+      Write a pipeline that fetches the day's air quality readings from the Quellmouth city open data API every day and stores them, so the Quellmouth Clean Air Group can follow pollution levels over time.
+
+      The API:
+      - Request: GET https://api.example.com/v2/air/readings?date=2027-03-02, with the date of the readings wanted.
+      - Every request needs the API key in a header named X-Api-Key. The group will provide the key.
+      - The response is JSON with one entry per station and hour, for example:
+        {"date": "2027-03-02", "readings": [{"station": "north-park", "hour": 0, "pm25": 8.1, "no2": 21.4}, {"station": "north-park", "hour": 1, "pm25": null, "no2": 19.8}]}
+      - A station with a broken sensor reports null for that value.
+      - A day's readings are complete by 5:00am the next day.
+
+      Requirements:
+      - It runs once and then exits. The machine's own scheduler starts it at 6:00am each day, and it fetches the previous day.
+      - If an earlier run failed and left a day missing, the next run fetches that day too.
+      - If a request fails or gets no answer within 30 seconds, try again up to 3 times, a minute apart, and then exit with an error.
+      - Store the readings as one CSV file per month, such as readings-2027-03.csv, with one row per station and hour and the columns date, hour, station, pm25 and no2. Leave a missing value empty.
+      - Fetching the same day twice leaves the files as they were.
+      - Write one line per run to a log file: the time, the days fetched, the number of rows stored and whether the run succeeded.
+    B: |
+      Can you set up a daily pipeline that pulls the day's air quality readings from the Quellmouth city open data API and saves them? We're the Quellmouth Clean Air Group, and we want to watch how pollution levels develop.
+
+      To get a day's data you call GET https://api.example.com/v2/air/readings?date=2027-03-02, filling in whichever date you need. Our API key has to go in a header called X-Api-Key on every call; we'll supply it. What comes back is JSON holding an entry for each station for each hour, like this:
+
+      {"date": "2027-03-02", "readings": [{"station": "north-park", "hour": 0, "pm25": 8.1, "no2": 21.4}, {"station": "north-park", "hour": 1, "pm25": null, "no2": 19.8}]}
+
+      A station whose sensor has broken sends null in place of that value. Everything for a given day is in by 5:00am on the day after.
+
+      It should do one run and stop: the machine's own scheduler will launch it every morning at 6:00am, and it should get the day before. Should an earlier run have failed and left a day out, the next run picks that day up as well. When a call fails or nothing comes back within 30 seconds, it should retry up to 3 times with a minute between tries, then quit with an error.
+
+      Please save the readings as one CSV file for each month, for example readings-2027-03.csv, holding a row for every station and hour with the columns date, hour, station, pm25 and no2, and an empty cell where a value is missing. Getting the same day a second time shouldn't change the files. Every run should also add one line to a log file recording when it ran, which days it fetched, how many rows it stored and whether it worked.
+notes: >-
+  Written for T2.1. "API" is the task as the plan names it ("fetch an API
+  daily and store results"); the service, the storage and the schedule are
+  left open at L0 and L1. The URL uses the reserved example.com domain.

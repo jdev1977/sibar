@@ -1,0 +1,68 @@
+# Pipeline task: a data validation step.
+# Kind: one stage inside a larger pipeline. Where the rules live, how
+# problems are reported, and how the stage tells the next one to stop.
+# See prompts/pipeline/README.md for the set, the rules and the version rule.
+schema_version: 1
+project_type: pipeline
+task_id: data-validation
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Write a data validation step for a pipeline.
+    B: Can you set up a step in a data pipeline that checks whether incoming data is valid?
+  L1:
+    A: Write a data validation step for a pipeline that collects daily readings from weather stations run by volunteers, so that bad readings are caught before they reach the shared dataset.
+    B: Can you set up a step in a data pipeline that checks whether incoming data is valid? The pipeline collects daily readings from weather stations that volunteers run, and bad readings need to be caught before they get into the shared dataset.
+  # L2 direction: the rules kept in a separate file that a coordinator can
+  # edit, every rule checked on every reading so each rejected reading lists
+  # all its problems, warnings as well as rejections, a per-station summary,
+  # an exit code with a threshold that tells the next step whether to go on.
+  # Points away from the expected default: rules written into the code, a
+  # check that stops at the first problem, a validation library's schema
+  # class, one pass or fail for the whole file.
+  L2:
+    A: |
+      Write a data validation step for the pipeline of the Ostley Valley Weather Network, which collects daily readings from weather stations run by volunteers, so that bad readings are caught before they reach the shared dataset.
+
+      Input: one file per station per day, in JSON Lines (one JSON object per line), for example:
+
+      {"station": "OV-014", "time": "2027-03-02T13:00:00Z", "temp_c": 11.4, "humidity_pct": 81, "rain_mm": 0.2, "battery_v": 3.9}
+      {"station": "OV-014", "time": "2027-03-02T14:00:00Z", "temp_c": 61.0, "humidity_pct": 104, "rain_mm": -1, "battery_v": 3.1}
+
+      Rules:
+      - station is "OV-" followed by three digits, and is on the list of registered stations in stations.csv.
+      - time is a UTC time on the hour, within the day the file is named for, and no later than the moment of the check.
+      - temp_c is between -40 and 50.
+      - humidity_pct is a whole number from 0 to 100.
+      - rain_mm is 0 or more and below 150.
+      - battery_v is between 3.0 and 4.3. A value below 3.3 passes but is noted as a warning.
+      - Every field is present, and a station sends at most one reading for each hour.
+
+      Output:
+      - Valid readings go on to the next step unchanged, in the same format.
+      - Each rejected reading goes to a rejects file, together with every rule it broke.
+      - A summary per station: readings checked, passed, rejected and warned.
+      - The exit code is 0 when fewer than 5% of the readings are rejected and 2 otherwise, so the next step can stop.
+
+      Requirements:
+      - Keep the rules in a separate file that the network's coordinator can edit without changing the code.
+      - Check every rule on every reading, so each rejected reading lists all its problems at once.
+    B: |
+      Can you set up a step in our data pipeline that checks whether incoming data is valid? We're the Ostley Valley Weather Network. Our pipeline collects daily readings from weather stations that volunteers run, and bad readings need to be caught before they get into the shared dataset.
+
+      Every station sends a file each day in JSON Lines, meaning a JSON object on each line, like these:
+
+      {"station": "OV-014", "time": "2027-03-02T13:00:00Z", "temp_c": 11.4, "humidity_pct": 81, "rain_mm": 0.2, "battery_v": 3.9}
+      {"station": "OV-014", "time": "2027-03-02T14:00:00Z", "temp_c": 61.0, "humidity_pct": 104, "rain_mm": -1, "battery_v": 3.1}
+
+      Here's what makes a reading valid. Its station is "OV-" plus three digits and appears on the registered list in stations.csv. Its time falls on the hour in UTC, inside the day the file is named for, and isn't later than the moment of checking. temp_c lies between -40 and 50; humidity_pct is a whole number from 0 to 100; rain_mm is at least 0 and under 150; and battery_v lies between 3.0 and 4.3, though anything under 3.3 passes with a warning. All fields have to be there, and a station can send only one reading per hour.
+
+      Readings that pass should flow on to the next step untouched and in the same format. A reading that fails should land in a rejects file, listed with all the rules it broke. For each station I'd like a summary of how many readings were checked, passed, rejected and warned. Please exit with code 0 if under 5% of the readings are rejected, and with 2 if not, so the next step knows to stop.
+
+      Our coordinator needs to be able to change the rules without touching the code, so they should live in a file of their own. And the step should apply every rule to every reading, so a rejected one shows all of its problems together.
+notes: >-
+  Written for T2.1. "Data validation step" is the plan's task; the rules,
+  the input format and the reporting are left open at L0 and L1. The two
+  sample readings give a known result: the first passes; the second breaks
+  three rules (temperature, humidity, rain) and carries one warning
+  (battery).

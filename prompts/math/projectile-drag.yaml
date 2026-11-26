@@ -1,0 +1,58 @@
+# Math task: the range of a projectile with air resistance.
+# Kind: mechanics with a modeling choice. The drag law and its constants
+# are left to the model at L0 and L1, so the assumptions it makes are the
+# main thing measured; closed form against numeric method follows from them.
+# See prompts/math/README.md for the set, the rules and the version rule.
+# Givens (every level, both wordings): 25 m/s, 30°.
+# Checkable: L2 only. At L0 and L1 the answer depends on the drag law and
+# constants the model assumes; record them, and the answer is not graded.
+# At L2 the reference is Heun's method with the stated step and landing
+# rule (T2.3); the exact solution of the same model, about 37 m, is context.
+schema_version: 1
+project_type: math
+task_id: projectile-drag
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Work out the range of a projectile launched at 25 m/s and 30° above the horizontal, taking air resistance into account.
+    B: Can you figure out how far a projectile goes if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included?
+  L1:
+    A: Work out the range of a projectile launched at 25 m/s and 30° above the horizontal, taking air resistance into account, for a first-year physics student who is learning how air resistance affects motion.
+    B: Can you figure out how far a projectile goes if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included? It's for a first-year physics student who is learning what air resistance does to moving objects.
+  # L2 direction: quadratic drag with stated constants, stepped by hand with
+  # Heun's method at a fixed step, a table of the steps, plain paragraphs
+  # with equations on their own lines, 3 significant figures, the no-air
+  # range alongside.
+  # Points away from the expected default: code in a general-purpose
+  # language with an adaptive solver library, a plotted trajectory, a
+  # document with headings, answers to whatever precision the code prints.
+  L2:
+    A: |
+      Work out the range of a projectile launched at 25 m/s and 30° above the horizontal, taking air resistance into account, for a first-year physics student who is learning how air resistance affects motion.
+
+      The projectile is a soccer ball kicked from flat ground:
+      - Mass 0.43 kg and diameter 0.22 m.
+      - Drag force proportional to the square of the speed, with a drag coefficient of 0.25 and an air density of 1.2 kg/m³.
+      - g = 9.81 m/s². Ignore spin and wind.
+
+      Give:
+      - The range, the time of flight and the maximum height.
+      - The range the same kick would have with no air at all.
+
+      Method and presentation:
+      - Step the motion forward by hand with Heun's method (the improved Euler method) and a time step of 0.1 s, and find the landing point by linear interpolation between the last two steps.
+      - Show the steps as a table of time, x, y, horizontal velocity and vertical velocity.
+      - Write the explanation as plain paragraphs addressed to the student, with each equation on its own line.
+      - Give every final answer to 3 significant figures.
+    B: |
+      Can you figure out how far a projectile goes if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included? It's for a first-year physics student who is learning what air resistance does to moving objects.
+
+      Think of it as a soccer ball kicked off flat ground. The ball has a mass of 0.43 kg and measures 0.22 m across. Air pushes back on it with a force that grows as the square of its speed; take 0.25 for the drag coefficient and 1.2 kg/m³ for the density of the air. Use 9.81 m/s² for g, and leave out spin and wind.
+
+      What I need is how far it travels, how long it stays up and how high it climbs, plus how far that same kick would carry if there were no air.
+
+      Please advance the motion by hand using Heun's method (the improved Euler method), 0.1 s at a time, and get the landing spot by interpolating linearly between the final two steps. Lay the steps out as a table with columns for time, x, y and the horizontal and vertical velocity. The explanation should speak to the student in plain paragraphs, putting each equation on a line by itself, and every final answer should have 3 significant figures.
+notes: >-
+  Written for T2.1. "Taking air resistance into account" is the task as the
+  plan names it (projectile with drag); it names no drag law. SI units are
+  the convention of physics and carry no locale.

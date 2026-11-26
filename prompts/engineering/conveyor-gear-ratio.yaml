@@ -1,0 +1,60 @@
+# Engineering task: the gear ratio for a conveyor.
+# Kind: drive selection. Motor speed assumed, number of stages, kind of
+# reduction (gears, belt, chain, a bought gearbox), rounding to real parts.
+# See prompts/engineering/README.md for the set, the rules and the version
+# rule. Outputs are study data, not designs.
+# Givens (every level, both wordings): belt speed 0.4 m/s, drum diameter
+# 150 mm.
+# Units: given in SI. The motor speed is left open at L0 and L1; a typical
+# assumption reveals a mains frequency (about 1450 rpm at 50 Hz, about 1750
+# rpm at 60 Hz), so record the motor speed assumed.
+# Checkable: every level: drum speed 50.9 rpm. The overall ratio depends on
+# the motor speed the model assumes; grade it against that stated speed.
+# At L2: motor 1725 rpm, exact ratio 33.87; tooth counts are open, so check
+# that the stated counts give a belt speed within 2% of 0.4 m/s.
+schema_version: 1
+project_type: engineering
+task_id: conveyor-gear-ratio
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Work out the gear ratio for a conveyor whose belt runs at 0.4 m/s on a drive drum 150 mm in diameter.
+    B: Can you work out what gear ratio a conveyor needs so that its belt moves at 0.4 m/s, driven by a 150 mm diameter drum?
+  L1:
+    A: Work out the gear ratio for a conveyor whose belt runs at 0.4 m/s on a drive drum 150 mm in diameter, for a workshop owner who is building a conveyor to move boxes from a packing bench to the loading door.
+    B: Can you work out what gear ratio a conveyor needs so that its belt moves at 0.4 m/s, driven by a 150 mm diameter drum? The owner of a workshop is building it to carry boxes from the packing bench to the loading door.
+  # L2 direction: a stated motor speed, a two-stage reduction (a toothed
+  # belt, then a roller chain) with tooth counts in a fixed range, a speed
+  # tolerance, a table of tooth counts before the working.
+  # Points away from the expected default: one bought gearbox (often a
+  # worm gearbox) with a catalog ratio, the motor speed assumed silently,
+  # the actual belt speed not worked out.
+  L2:
+    A: |
+      Work out the gear ratio for a conveyor whose belt runs at 0.4 m/s on a drive drum 150 mm in diameter, for a workshop owner who is building a conveyor to move boxes from a packing bench to the loading door.
+
+      Drive details:
+      - The motor is a 4-pole induction motor that turns at 1725 rpm under load.
+      - The reduction has two stages: a toothed belt from the motor, then a roller chain to the drum shaft.
+      - Each pulley and sprocket has between 12 and 72 teeth.
+      - The belt speed may differ from 0.4 m/s by at most 2%.
+
+      Give:
+      - The drum speed and the exact overall ratio.
+      - Tooth counts for both stages, the actual ratio they give, and the belt speed that results.
+      - How the overall ratio is split between the two stages, and why.
+
+      Presentation:
+      - Start with a short table of the chosen tooth counts, then give the working.
+    B: |
+      Can you work out what gear ratio a conveyor needs so that its belt moves at 0.4 m/s, driven by a 150 mm diameter drum? I own a workshop and I'm building it to carry boxes from the packing bench to the loading door.
+
+      It's driven by a 4-pole induction motor running at 1725 rpm when loaded. The speed comes down in two steps: first a toothed belt off the motor, then a roller chain onto the drum shaft. No pulley or sprocket can have fewer than 12 teeth or more than 72, and the belt has to stay within 2% of 0.4 m/s.
+
+      Please tell me the drum's speed and the precise overall ratio; the tooth counts for each stage, the ratio they actually produce and the belt speed that follows; and how you've divided the ratio between the stages, with your reasons.
+
+      A brief table of the tooth counts you've chosen should come first, with the working after it.
+notes: >-
+  Written for T2.1. "Gear ratio" is the task as the plan names it; it does
+  not require gears, and the kind of reduction is a choice being measured.
+  The setting is a small workshop conveyor, which is not safety-critical.

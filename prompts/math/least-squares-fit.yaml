@@ -1,0 +1,57 @@
+# Math task: a least-squares straight line through data points.
+# Kind: data fitting. Formula route, what is reported beyond slope and
+# intercept (errors, R², residuals), precision, and whether a plot or code
+# is offered.
+# See prompts/math/README.md for the set, the rules and the version rule.
+# Givens (every level, both wordings): the seven points.
+# Checkable: every level. Ordinary least squares, y on x: slope 1.9464
+# (109/56), intercept 0.2143 (3/14). L2 adds standard errors, a 95%
+# interval for the slope, residuals, R² and the spring constant from the
+# slope (about 514 N/m).
+schema_version: 1
+project_type: math
+task_id: least-squares-fit
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: 'Fit a straight line to these points by least squares: (1, 2.3), (2, 4.1), (3, 5.8), (4, 8.2), (5, 9.9), (6, 11.6), (7, 14.1).'
+    B: Can you find the least-squares straight line through these points? (1, 2.3), (2, 4.1), (3, 5.8), (4, 8.2), (5, 9.9), (6, 11.6), (7, 14.1).
+  L1:
+    A: 'Fit a straight line to these points by least squares, for a student who measured them in a physics lab and needs the line for a lab report: (1, 2.3), (2, 4.1), (3, 5.8), (4, 8.2), (5, 9.9), (6, 11.6), (7, 14.1).'
+    B: Can you find the least-squares straight line through these points? (1, 2.3), (2, 4.1), (3, 5.8), (4, 8.2), (5, 9.9), (6, 11.6), (7, 14.1). A student measured them in a physics lab and needs the line for their lab report.
+  # L2 direction: centered sums worked by hand in a table, standard errors
+  # and a 95% interval for the slope, every residual listed, a physical
+  # quantity from the slope, 4 significant figures, one sentence per step.
+  # Points away from the expected default: the textbook sums formula or a
+  # library fit in code, slope and intercept with R² only, a scatter plot
+  # with the line drawn, a document with headings.
+  L2:
+    A: |
+      Fit a straight line to these points by least squares, for a student who measured them in a physics lab and needs the line for a lab report: (1, 2.3), (2, 4.1), (3, 5.8), (4, 8.2), (5, 9.9), (6, 11.6), (7, 14.1).
+
+      Details:
+      - x is the load on a spring in newtons, and y is how far the spring stretched, in millimeters.
+      - Each stretch reading has about the same uncertainty, and the loads are known exactly.
+
+      Give:
+      - The slope and intercept, each with its standard error.
+      - A 95% confidence interval for the slope.
+      - The residual of every point, and R².
+      - The spring constant in newtons per meter, worked out from the slope.
+
+      Method and presentation:
+      - Work from centered sums: subtract the means of x and y first, then form Sxx and Sxy.
+      - Show the sums in a table with one row per point.
+      - Give every result to 4 significant figures.
+      - Explain each step to the student in one sentence.
+    B: |
+      Can you find the least-squares straight line through these points? (1, 2.3), (2, 4.1), (3, 5.8), (4, 8.2), (5, 9.9), (6, 11.6), (7, 14.1). A student measured them in a physics lab and needs the line for their lab report.
+
+      The x values are loads hung on a spring, in newtons, and the y values are the spring's stretch in millimeters. The stretch readings all carry roughly equal uncertainty, while the loads have no error.
+
+      What I'm after: the slope and intercept together with the standard error of each, a 95% confidence interval on the slope, every point's residual, R², and the spring's stiffness in newtons per meter, which follows from the slope.
+
+      Please base the working on centered sums, taking the x and y means away first and then building Sxx and Sxy. Set the sums out in a table, one row for each point. Every result should have 4 significant figures, and each step should come with a single sentence of explanation for the student.
+notes: >-
+  Written for T2.1. "Straight line" and "least squares" are the task as the
+  plan names it (least-squares fit). The points have no units at L0 and L1.

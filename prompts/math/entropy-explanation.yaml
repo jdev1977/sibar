@@ -1,0 +1,54 @@
+# Math task: explain entropy to a student.
+# Kind: a conceptual explanation with no single answer. Framing, analogies
+# and examples, structure and headings, length, and whether formulas appear.
+# See prompts/math/README.md for the set, the rules and the version rule.
+# Givens: none.
+# Checkable: no level. This is the set's one explanation task; it is scored
+# by rubric only. (The counts in the L2 example, 10 and 28 ways, are stated
+# in the brief rather than asked for.)
+schema_version: 1
+project_type: math
+task_id: entropy-explanation
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Explain entropy.
+    B: Can you explain what entropy is?
+  L1:
+    A: Explain entropy to a teenager who has just started chemistry, so they can follow the word when it comes up in class.
+    B: Can you explain what entropy is to a teenager who's new to chemistry? They keep running into the word at school and want to know what it means.
+  # L2 direction: entropy as the number of ways energy can be shared among
+  # particles, built on one counting example (3 atoms and packets of
+  # energy), about 300 words of plain paragraphs in the second person,
+  # ending with one question for the reader.
+  # Points away from the expected default: an everyday picture of tidiness
+  # and untidiness, several unrelated examples, a document with headings
+  # and bullet points, a formula with a logarithm, a closing summary.
+  L2:
+    A: |
+      Explain entropy to a teenager who has just started chemistry, so they can follow the word when it comes up in class.
+
+      About the reader:
+      - Maya is 15. She knows that matter is made of atoms and that heat is a form of energy, and she has not met calculus.
+
+      Content:
+      - Explain entropy as the number of ways energy can be shared out among particles.
+      - Build the whole explanation on one example: 3 atoms sharing 3 packets of energy, which can be arranged in 10 ways, and then the same 3 atoms sharing 6 packets, which can be arranged in 28 ways.
+      - Use the example to show why energy tends to spread out by itself.
+
+      Form:
+      - About 300 words of plain paragraphs, in a friendly, direct voice that speaks to Maya as "you".
+      - End with one question Maya can answer to test her understanding.
+    B: |
+      Can you explain what entropy is to a teenager who's new to chemistry? She's called Maya, and she keeps running into the word at school and wants to know what it means.
+
+      Maya is 15. She already knows matter is built from atoms and heat is one kind of energy, but calculus is new to her.
+
+      Please present entropy as a count of the ways energy can be spread across particles. Base everything on a single example: 3 atoms with 3 packets of energy among them, which gives 10 possible arrangements, then those 3 atoms with 6 packets, which gives 28. Let the example show why energy spreads itself out without help.
+
+      I'm hoping for roughly 300 words in plain paragraphs, warm and direct, talking to Maya as "you", and finishing with a single question she can answer to test what she's understood.
+notes: >-
+  Written for T2.1. L0 is the bare word, as short as the plan's website
+  example. The plan's task says "to a student"; the audience is added at L1,
+  as L1 adds audience for every task. "Teenager" names an age without a
+  school system, so it carries no locale.

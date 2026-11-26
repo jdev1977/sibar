@@ -1,0 +1,58 @@
+# Math task: the pH curve of a weak acid titrated with a strong base.
+# Kind: chemistry with regions that invite shortcuts. Approximations used
+# in each region, the constants assumed, which points are reported, and
+# whether the curve is drawn, tabulated or described.
+# See prompts/math/README.md for the set, the rules and the version rule.
+# Givens (every level, both wordings): 25.0 mL of 0.100 M acetic acid,
+# 0.100 M sodium hydroxide.
+# Checkable: every level, with standard constants (Ka about 1.8e-5 or
+# 1.75e-5, Kw 1.0e-14, 25 °C): equivalence at 25.0 mL; initial pH about
+# 2.87; pH at half-equivalence about 4.74 to 4.76; pH at equivalence about
+# 8.72. L2 fixes the constants and adds a list of points.
+schema_version: 1
+project_type: math
+task_id: titration-curve
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Work out the pH curve for titrating 25.0 mL of 0.100 M acetic acid with 0.100 M sodium hydroxide.
+    B: Can you figure out the pH curve you get when 0.100 M sodium hydroxide is added to 25.0 mL of 0.100 M acetic acid?
+  L1:
+    A: Work out the pH curve for titrating 25.0 mL of 0.100 M acetic acid with 0.100 M sodium hydroxide, for a chemistry student who is about to do this titration in a lab class and wants to know what to expect.
+    B: Can you figure out the pH curve you get when 0.100 M sodium hydroxide is added to 25.0 mL of 0.100 M acetic acid? A chemistry student is going to run this titration in a lab session shortly and would like to know beforehand what will happen.
+  # L2 direction: one exact charge-balance equation solved numerically for
+  # every point, a fixed list of volumes, a table of volume and pH to 2
+  # decimal places, the shape of the curve described in a paragraph.
+  # Points away from the expected default: a separate shortcut formula for
+  # each region (including the buffer equation), a plotted curve drawn by
+  # code, a document with a heading for each region.
+  L2:
+    A: |
+      Work out the pH curve for titrating 25.0 mL of 0.100 M acetic acid with 0.100 M sodium hydroxide, for a chemistry student who is about to do this titration in a lab class and wants to know what to expect.
+
+      Conditions:
+      - The temperature is 25 °C, with Ka = 1.8 × 10^-5 for acetic acid and Kw = 1.0 × 10^-14.
+      - Treat activities as equal to concentrations, and the volumes as additive.
+
+      Give:
+      - The pH after 0, 5.0, 10.0, 12.5, 20.0, 24.0, 25.0, 26.0, 30.0, 40.0 and 50.0 mL of base have been added.
+      - The volume and pH at the equivalence point, and the pH at the half-equivalence point.
+
+      Method and presentation:
+      - Use one exact charge-balance equation for every point, solved numerically, so that a single method covers the whole curve.
+      - Present the results as a table of volume and pH, with each pH to 2 decimal places.
+      - After the table, describe the shape of the curve in one short paragraph: where it is flat, where it rises steeply and why.
+    B: |
+      Can you figure out the pH curve you get when 0.100 M sodium hydroxide is added to 25.0 mL of 0.100 M acetic acid? A chemistry student is going to run this titration in a lab session shortly and would like to know beforehand what will happen.
+
+      Assume 25 °C, Ka = 1.8 × 10^-5 for acetic acid and Kw = 1.0 × 10^-14. You can take activities to be the same as concentrations and assume the volumes simply add up.
+
+      I need the pH once 0, 5.0, 10.0, 12.5, 20.0, 24.0, 25.0, 26.0, 30.0, 40.0 and 50.0 mL of base are in, along with where the equivalence point falls (its volume and pH) and the pH at half-equivalence.
+
+      Please solve a single exact charge-balance equation numerically at every point, so one method handles the entire curve. Put the results in a volume-and-pH table, giving each pH to 2 decimal places, and below it write one short paragraph on how the curve is shaped: the flat stretches, the steep rise, and the reasons for them.
+notes: >-
+  Written for T2.1. "pH curve" is the task as the plan names it (titration
+  pH curve). It may suggest a drawn curve; it is the same at every level
+  and in both wordings, and whether the curve is drawn, tabulated or
+  described is recorded. Molar concentrations and milliliters are the
+  convention of chemistry and carry no locale.

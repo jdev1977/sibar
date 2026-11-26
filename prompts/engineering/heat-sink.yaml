@@ -1,0 +1,61 @@
+# Engineering task: size a heat sink.
+# Kind: thermal sizing. Interface material assumed, natural or forced air,
+# a bought part or a worked size, margin left, how the heat path is shown.
+# See prompts/engineering/README.md for the set, the rules and the version
+# rule. Outputs are study data, not designs.
+# Givens (every level, both wordings): 20 W, junction-to-case 1.0 °C/W,
+# maximum junction temperature 125 °C, air at 40 °C.
+# Units: watts and degrees Celsius, the convention of electronics in every
+# locale; the unit system is not a choice in this task.
+# Checkable: every level: total resistance allowed from junction to air
+# 4.25 °C/W; case to air at most 3.25 °C/W. The heat sink's own limit
+# depends on the interface the model assumes; grade it against that.
+# At L2: plate at most 2.95 °C/W, total area of both faces at least
+# 0.0339 m², square side 130.2 mm rounded up to 135 mm, junction about
+# 121 °C with that plate.
+schema_version: 1
+project_type: engineering
+task_id: heat-sink
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Size a heat sink for a component that dissipates 20 W, with a junction-to-case thermal resistance of 1.0 °C/W, a maximum junction temperature of 125 °C and surrounding air at 40 °C.
+    B: Can you size a heat sink for a part that gives off 20 W of heat? Its junction can reach 125 °C at most, its junction-to-case thermal resistance is 1.0 °C/W, and the air around it is at 40 °C.
+  L1:
+    A: Size a heat sink for a component that dissipates 20 W, with a junction-to-case thermal resistance of 1.0 °C/W, a maximum junction temperature of 125 °C and surrounding air at 40 °C, for a hobbyist building an audio amplifier at home whose output transistor has to cope with long listening sessions.
+    B: Can you size a heat sink for a part that gives off 20 W of heat? Its junction can reach 125 °C at most, its junction-to-case thermal resistance is 1.0 °C/W, and the air around it is at 40 °C. The part is the output transistor of an audio amplifier that a hobbyist is building at home, and it has to cope with long listening sessions.
+  # L2 direction: a flat vertical copper plate cooled by still air on both
+  # faces, a stated thermal pad, a stated combined surface coefficient, the
+  # heat path set out as a chain of resistances before any arithmetic, 3
+  # significant figures.
+  # Points away from the expected default: an extruded aluminum finned
+  # heat sink picked from a catalog by its rating, a thin layer of thermal
+  # paste, a fan suggested as a fallback.
+  L2:
+    A: |
+      Size a heat sink for a component that dissipates 20 W, with a junction-to-case thermal resistance of 1.0 °C/W, a maximum junction temperature of 125 °C and surrounding air at 40 °C, for a hobbyist building an audio amplifier at home whose output transistor has to cope with long listening sessions.
+
+      Mounting details:
+      - The heat sink is a flat, vertical copper plate, 3 mm thick, cooled by still air on both faces.
+      - A thermal pad between the transistor and the plate adds 0.3 °C/W.
+      - Assume a combined convection and radiation coefficient of 10 W/m²·°C on each face, and treat the plate as being at one uniform temperature.
+
+      Give:
+      - The total thermal resistance allowed from junction to air, and the part of it left for the plate.
+      - The plate area needed, and the side of the smallest square plate, rounded up to the next 5 mm.
+      - The junction temperature with that plate.
+
+      Method and presentation:
+      - Set out the heat path as a chain of thermal resistances, one line each, before any arithmetic.
+      - Give every result to 3 significant figures.
+    B: |
+      Can you size a heat sink for a part that gives off 20 W of heat? Its junction can reach 125 °C at most, its junction-to-case thermal resistance is 1.0 °C/W, and the air around it is at 40 °C. The part is the output transistor of an audio amplifier I'm building at home, and it has to cope with long listening sessions.
+
+      What I have in mind is a flat copper plate 3 mm thick, standing upright, with still air cooling both of its faces. Between the transistor and the plate sits a thermal pad worth another 0.3 °C/W. Take the convection and radiation together as 10 W/m²·°C on each face, and assume the whole plate is at a single temperature.
+
+      I'd like to know the total junction-to-air thermal resistance I can allow and how much of it is left over for the plate, how much plate area that takes, the side of the smallest square plate rounded up to the next 5 mm, and what the junction temperature would be with it.
+
+      Please lay out the heat path first as a chain of thermal resistances, one per line, before doing any arithmetic, and round every result to 3 significant figures.
+notes: >-
+  Written for T2.1. The L1 setting is a hobby amplifier, which is not
+  safety-critical; "long listening sessions" says the load is steady.

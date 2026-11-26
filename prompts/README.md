@@ -11,6 +11,10 @@ Filled by these tasks in [tasks.md](../tasks.md):
   The leak-check rules for every type are in
   [docs/leak-check.md](../docs/leak-check.md).
 - T2.1, T2.2: pipeline, math or science, and engineering prompts and leak check
+  ([pipeline/](pipeline/README.md), [math/](math/README.md),
+  [engineering/](engineering/README.md)). The math and engineering READMEs
+  set the rule for "givens", the numbers a checkable question carries at
+  every level.
 - W2.x.1, W2.x.2: Wave 2 prompts and leak check
 - W3.x: Wave 3 prompts
 

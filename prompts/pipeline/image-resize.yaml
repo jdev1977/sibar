@@ -1,0 +1,56 @@
+# Pipeline task: resize a batch of images.
+# Kind: file-by-file batch processing of binary data. Libraries, image
+# orientation and metadata, re-runs, parallel work, and partial failure.
+# See prompts/pipeline/README.md for the set, the rules and the version rule.
+# Offline: the sandbox (T2.7) supplies a folder of generated test images
+# that matches the L2 description. Most languages need an imaging library
+# for this task, so whether a run succeeds offline depends on which
+# libraries the sandbox provides; T2.7 records that choice.
+schema_version: 1
+project_type: pipeline
+task_id: image-resize
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Write code that resizes a batch of images.
+    B: Can you set up a way to resize a whole batch of images at once?
+  L1:
+    A: Write code that resizes a batch of product photos for a pottery studio's website, so the photos load quickly for its customers.
+    B: Can you set up a way to resize a whole batch of product photos at once? They're for a pottery studio's website, and they need to load quickly for its customers.
+  # L2 direction: every processor core used, photos already done skipped so
+  # a re-run is quick, a dry-run option, phone photos turned upright,
+  # camera and location details removed, a failure that leaves the other
+  # photos unaffected, a printed summary with reasons.
+  # Points away from the expected default: one loop over the files in a
+  # single process, every photo redone on each run, sideways phone photos
+  # left sideways, metadata kept, the run stopped by the first bad file.
+  L2:
+    A: |
+      Write code that resizes a batch of product photos for the Saltmarsh Pottery website, so the photos load quickly for its customers.
+
+      Input: a folder of photos from the studio's camera and phone, named like mug-blue-01.jpg or vase-tall-03.png. Some are 6000 pixels wide or more, some are already smaller than the target, some phone photos are stored sideways with a flag that says how to turn them, and some PNG files have transparent backgrounds.
+
+      Output, in a separate folder:
+      - Each photo scaled so its longer side is 1600 pixels, keeping its proportions. A photo that is already smaller keeps its size.
+      - Phone photos turned the right way up.
+      - Saved as JPEG at quality 85, under the same name with a .jpg ending. Transparent areas become white.
+      - Camera and location details removed from the files.
+
+      Requirements:
+      - Use every processor core, so a folder of 2,000 photos finishes quickly.
+      - Skip a photo whose output is already newer than the input, so a second run handles only new photos.
+      - Offer a dry-run option that lists what would happen and changes nothing.
+      - A photo that fails leaves the others unaffected.
+      - At the end, print how many photos were resized, skipped and failed, with the reason for each failure.
+    B: |
+      Can you set up a way to resize a whole batch of product photos at once? They're for our Saltmarsh Pottery website, and they need to load quickly for our customers.
+
+      The photos sit in one folder and were taken on the studio's camera and phone; their names look like mug-blue-01.jpg or vase-tall-03.png. A few are at least 6000 pixels wide, a few are under the target size already, some phone shots are saved on their side with a flag saying which way to rotate them, and some PNG files have see-through backgrounds.
+
+      Every photo should end up with its longer side at 1600 pixels and its proportions unchanged, except that one already below that size stays as it is. Phone shots should be rotated upright. Please write the results to a different folder as JPEG at quality 85, keeping each name but ending it in .jpg, filling see-through areas with white, and stripping out camera and location details.
+
+      It ought to keep every processor core busy, so 2,000 photos get done quickly. When a photo's output is newer than its input, leave it alone, so running it again deals only with new photos. A dry-run option would help too: it lists what it would do and touches nothing. One photo failing shouldn't stop the rest, and when it's done it should report how many photos were resized, skipped and failed, giving the reason for every failure.
+notes: >-
+  Written for T2.1. "Images" is the plan's subject; the noun "code" (A) and
+  "a way" (B) leave open whether the result is one script, several modules
+  or a command-line tool.

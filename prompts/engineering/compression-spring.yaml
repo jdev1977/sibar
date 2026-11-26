@@ -1,0 +1,59 @@
+# Engineering task: design a compression spring.
+# Kind: a small mechanical part from formulas. Force and size assumed,
+# wire material, end type, stress correction, fatigue, presentation.
+# See prompts/engineering/README.md for the set, the rules and the version
+# rule. Outputs are study data, not designs.
+# Givens: none. Units: left open at L0 and L1, so the unit system, the size
+# and the force are all choices being measured.
+# Checkable: L2 only. Spring rate 1.2 lbf over 0.20 in = 6.0 lbf/in. Wire
+# diameter, coil diameter and coils are open; check that the rate and
+# stresses the model states follow from its own numbers.
+# L2 gives US customary units, pointing away from the expected metric
+# default.
+schema_version: 1
+project_type: engineering
+task_id: compression-spring
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Design a compression spring.
+    B: Can you design a compression spring for me?
+  L1:
+    A: Design a compression spring for the push button on a home-built electronics project, so the button springs back after each press.
+    B: Can you design a compression spring for me? It's for a push button in an electronics project someone is building at home, and its job is to return the button every time it's pressed.
+  # L2 direction: US customary units, type 302 stainless steel wire with
+  # stated properties, a hole the spring must fit, a number of presses it
+  # must survive, an allowable stress as a share of tensile strength, a
+  # table of the design values before the working.
+  # Points away from the expected default: metric units, carbon spring wire,
+  # no size limit, fatigue not considered.
+  L2:
+    A: |
+      Design a compression spring for the push button on a home-built electronics project, so the button springs back after each press.
+
+      Requirements:
+      - Free length 0.75 in. When it is pressed in to a length of 0.55 in, it pushes back with 1.2 lbf.
+      - It sits in a hole 0.30 in across, so its outside diameter is at most 0.27 in.
+      - The project is a garden weather station, so the wire is type 302 stainless steel, with a shear modulus of 10.0 million psi and a tensile strength of 280,000 psi.
+      - Keep the shear stress at the working length below 45% of the tensile strength.
+      - It must last for 100,000 presses.
+
+      Give:
+      - The spring rate.
+      - The wire diameter, mean coil diameter, number of active and total coils, and solid length, and the rate those give.
+      - The shear stress at 0.55 in and at solid length, against the allowable.
+      - Whether it will last for 100,000 presses, and why.
+
+      Presentation:
+      - Start with one table of the design values, then give the working.
+    B: |
+      Can you design a compression spring for me? It's for a push button in an electronics project I'm building at home, and its job is to return the button every time it's pressed.
+
+      Unloaded it should stand 0.75 in tall, and squeezed down to 0.55 in it should push back with 1.2 lbf. It fits in a hole 0.30 in wide, which limits its outside diameter to 0.27 in. Because the project is a garden weather station, the wire will be type 302 stainless steel; take its shear modulus as 10.0 million psi and its tensile strength as 280,000 psi. At the working length the shear stress must stay under 45% of that tensile strength, and the spring needs to survive 100,000 presses.
+
+      Please give me the rate it needs; the wire diameter, mean coil diameter, active and total coil counts and solid length, with the rate they produce; the shear stress at 0.55 in and when fully compressed, set against the allowable; and whether it will survive 100,000 presses, with the reasons.
+
+      A single table of the design values should come first, then the working.
+notes: >-
+  Written for T2.1. L0 is the bare part name. The L1 setting is a push
+  button on a hobby project, which is not safety-critical.
