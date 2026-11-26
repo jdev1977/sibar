@@ -143,6 +143,22 @@ def test_the_gate_stops_on_no_solution_and_on_cannot_tell(rubrics):
         rubric.stops_at_gate("not-applicable")
 
 
+def test_the_cleaning_boundary_reads_the_same_in_all_three_places(rubrics):
+    """docs/rubrics.md, the guidance of cleaning_steps and the csv-to-database
+    note of bad_input_handling give one rule, word for word."""
+    pipeline = rubrics["pipeline"]
+    rule = pipeline.item("cleaning_steps").guidance
+    assert rule.startswith("Three things are cleaning steps")
+    assert pipeline.item("bad_input_handling").task_notes["csv-to-database"] == rule
+    text = (ROOT / "docs" / "rubrics.md").read_text(encoding="utf-8")
+    assert rule in " ".join(text.replace("\n> ", " ").split())
+    # The cases the rule names are options of the items.
+    assert {"removes-duplicates", "removes-incomplete-rows", "fills-missing",
+            "converts-types"} <= set(pipeline.item("cleaning_steps").option_ids)
+    assert {"sets-aside", "skips-silently", "skips-and-reports", "repairs"} <= set(
+        pipeline.item("bad_input_handling").option_ids)
+
+
 def test_shared_items_read_the_same_in_every_rubric(rubrics):
     def facing(item):
         """Everything a tagger is told about an item, examples aside."""

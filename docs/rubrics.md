@@ -402,16 +402,35 @@ image = image-resize, ci = ci-workflow, validation = data-validation.
 | `failure_signal` | robustness | one of 4 | validation | validation |
 
 Where `bad_input_handling` ends and `cleaning_steps` begins is decided by
-what is done, not by how the code is written. Records that fail a test or
-raise an error belong to `bad_input_handling`, whether the code handles
-them one at a time or selects them with a mask over all the data: a mask
-whose rows are written to a rejects file is `sets-aside`, one whose rows are
-counted and dropped is `skips-and-reports`, and one whose rows are dropped
-with no trace is `skips-silently`. Two things are named as cleaning and
-never count as bad-input handling: dropping or filling missing values
-across the data (`removes-incomplete-rows`, `fills-missing`), and converting
-a whole column's type. The guidance of both items says so, so no code is
-counted under both.
+what is wrong with a row and where the row goes, not by whether the code
+uses a loop or a mask. Both items carry this rule, word for word (the
+guidance of `cleaning_steps`, and the csv-to-database note of
+`bad_input_handling`; a test checks the three copies):
+
+> Three things are cleaning steps and are never bad-input handling. They are
+> removing repeated rows, dropping or filling rows with a missing value
+> where the rows go to no separate place (with or without a count), and
+> converting the type of a whole column. Rows written to a separate place
+> are always bad-input handling (sets-aside), whatever they failed. Rows
+> removed, reported or repaired because they fail any other test or raise an
+> error are bad-input handling and never a cleaning step.
+
+The exception is for csv-to-database only, the one task with both items. In
+the other tasks every record that is left out counts as bad-input handling.
+What the rule gives for five common cases:
+
+| Code | `cleaning_steps` | `bad_input_handling` |
+|---|---|---|
+| `df.drop_duplicates()` | `removes-duplicates` | nothing from this |
+| `df.dropna()`, silent | `removes-incomplete-rows` | nothing from this |
+| `df.dropna()` with the number of dropped rows printed | `removes-incomplete-rows` | nothing from this: the rows go to no separate place |
+| A mask for a missing `order_id`, its rows written to `rejects.csv` | nothing from this | `sets-aside` |
+| `if bad: continue`, where `bad` is a failed test other than a missing value or a repeat (a quantity of 0, an unparseable date) | nothing from this | `skips-silently` |
+| `if bad: continue`, where `bad` is a missing value | `removes-incomplete-rows` | nothing from this |
+
+The printed count of dropped missing-value rows is the one fact this rule
+lets go: it is cleaning only, so that a count printed beside a general
+summary does not have to be told apart from a report of rejected rows.
 
 ### Math or science (20 items)
 

@@ -79,7 +79,7 @@ items:
     select: single
     applies_to: {tasks: all, levels: all}
     absent: always-present
-    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Two complete programs offered as alternatives for the same job differ in design and are several-worked.
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Where the programs themselves are the solution (a pipeline, a tool, a configuration), two complete programs offered as alternatives are several-worked, and this sentence wins over the first. Where programs only compute a number, a decision or a design, two of them for the same inputs are one solution.
     options:
       - id: general-only
         definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
@@ -268,7 +268,9 @@ items:
     applies_to:
       tasks: [csv-to-database, data-validation, image-resize, log-aggregation]
       levels: all
-    guidance: Count what the code does with records or files that fail a test or raise an error, whether it handles them one at a time or selects them with a mask over all the data. Two things are cleaning steps and do not count here, namely dropping or filling missing values across the data, and converting the type of a whole column. An error that would occur with nothing written for it is not an option; if that is all there is, answer none.
+    guidance: Count what the code does with records or files that fail a test or raise an error, whether it handles them one at a time or selects them with a mask over all the data. An error that would occur with nothing written for it is not an option; if that is all there is, answer none.
+    task_notes:
+      csv-to-database: Three things are cleaning steps and are never bad-input handling. They are removing repeated rows, dropping or filling rows with a missing value where the rows go to no separate place (with or without a count), and converting the type of a whole column. Rows written to a separate place are always bad-input handling (sets-aside), whatever they failed. Rows removed, reported or repaired because they fail any other test or raise an error are bad-input handling and never a cleaning step.
     none_example: "Every value is converted with int() and float() directly, with nothing around the conversions."
     options:
       - id: other
@@ -368,7 +370,7 @@ items:
     question: Which cleaning steps does the code apply to the data?
     select: multi
     applies_to: {tasks: [csv-to-database], levels: all}
-    guidance: Count steps applied to the data as a whole. Rows that are removed, set aside or reported because they fail a test other than a missing value, and what is done after an error is caught on a record, are not cleaning steps.
+    guidance: Three things are cleaning steps and are never bad-input handling. They are removing repeated rows, dropping or filling rows with a missing value where the rows go to no separate place (with or without a count), and converting the type of a whole column. Rows written to a separate place are always bad-input handling (sets-aside), whatever they failed. Rows removed, reported or repaired because they fail any other test or raise an error are bad-input handling and never a cleaning step.
     none_example: "The file is read and inserted as it is; 'clean' appears only in a function name."
     options:
       - id: converts-types

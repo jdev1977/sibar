@@ -88,7 +88,7 @@ items:
     select: single
     applies_to: {tasks: all, levels: all}
     absent: always-present
-    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Two complete programs offered as alternatives for the same job differ in design and are several-worked.
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Where the programs themselves are the solution (a pipeline, a tool, a configuration), two complete programs offered as alternatives are several-worked, and this sentence wins over the first. Where programs only compute a number, a decision or a design, two of them for the same inputs are one solution.
     options:
       - id: general-only
         definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).

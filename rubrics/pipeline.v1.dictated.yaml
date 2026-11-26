@@ -62,9 +62,13 @@ tasks:
           rubric.pipeline.cleaning_steps:
             present: [trims-whitespace, normalises-case, parses-dates, converts-types, removes-duplicates]
         note: >-
-          Prices stored as whole cents are a type conversion. A row without an
-          order_id goes to the rejects file, which is bad_input_handling, not
-          removes-incomplete-rows.
+          Prices stored as whole cents are a type conversion. Dropping a row
+          that repeats an earlier one is removes-duplicates, which is always
+          a cleaning step. A row without an order_id goes to the rejects
+          file: rows written to a separate place are always
+          bad_input_handling (sets-aside), so removes-incomplete-rows is not
+          expected. This follows the rule the two items share (the guidance
+          of cleaning_steps).
       - closed: [rubric.pipeline.bad_input_handling]
         reason: direction
         quote: "to a rejects file, with the reason next to it"
