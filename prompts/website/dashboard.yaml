@@ -11,19 +11,19 @@ prompts:
     A: Make a dashboard web page.
     B: Can you build a web page that works as a dashboard?
   L1:
-    A: Make a dashboard web page for the volunteers at a food bank, so they can see at a glance how the day's distribution is going.
-    B: Can you build a web page that works as a dashboard for a food bank? Its volunteers want a quick overview of how the day's distribution is going.
+    A: Make a dashboard web page for the volunteers at a food bank, so they can see how the day's distribution is going.
+    B: Can you build a web page that works as a dashboard for a food bank? Its volunteers want to know how the day's distribution is going.
   # L2 direction: light and editorial, like a printed report (warm white
-  # background, dark grey text, serif numbers with old-style figures, charts
-  # in one oxblood red with greys, hairline rules instead of boxes or cards,
-  # no icons, no rounded corners). Also one realistic constraint: it must work
-  # with no internet connection.
+  # background, dark gray text, serif numbers with old-style figures, charts
+  # in one oxblood red with grays, hairline rules as the only dividers,
+  # labels in words only, square corners). Also one realistic constraint: it
+  # must work with no internet connection.
   # Points away from the expected dashboard default: a dark theme in slate or
   # navy, bright blue, green and violet accents, rounded KPI cards with icons,
   # a chart library loaded from the web.
   L2:
     A: |
-      Make a dashboard web page for the volunteers at Ostrey Food Bank, so they can see at a glance how today's distribution is going.
+      Make a dashboard web page for the volunteers at Ostrey Food Bank, so they can see how today's distribution is going.
 
       It must work on the old laptop at the front desk, which is often offline, so it cannot rely on an internet connection. Use the sample figures below for now; the page will be connected to live data later.
 
@@ -52,11 +52,11 @@ prompts:
 
       Required sections: header, key figures, households per hour, stock levels with the low ones flagged, notes.
 
-      Tone: plain labels, no jargon.
+      Tone: plain labels in everyday words.
 
-      Visual direction: light and editorial, like a printed report. A warm white background with dark grey text. Numbers set in a serif with old-style figures. Charts in a single oxblood red with greys, drawn as simple bars. Separate the areas with thin hairline rules, with no boxes or cards. No icons and no rounded corners.
+      Visual direction: light and editorial, like a printed report. A warm white background with dark gray text. Numbers set in a serif with old-style figures. Charts in a single oxblood red with grays, drawn as simple bars. Separate the areas with thin hairline rules alone, and keep every corner square. Labels are words only.
     B: |
-      Can you build a web page that works as a dashboard for Ostrey Food Bank? Our volunteers want to see at a glance how today's distribution is going.
+      Can you build a web page that works as a dashboard for Ostrey Food Bank? Our volunteers want to see how today's distribution is going.
 
       It has to run on the old laptop at the front desk, which is often offline, so it can't depend on an internet connection. For now, use the sample figures below; we'll connect it to live data later.
 
@@ -68,6 +68,14 @@ prompts:
 
       Today's notes: chiller 2 is running warm, so dairy goes in chiller 1; and a donation pickup van arrives at 3:30pm and needs two volunteers to unload it.
 
-      So the page needs the header, the key figures, households per hour, the stock levels with the low ones flagged, and the notes. Use plain labels without jargon.
+      So the page needs the header, the key figures, households per hour, the stock levels with the low ones flagged, and the notes. Keep the labels plain, in everyday words.
 
-      As for the look, it should be light and editorial, in the manner of a printed report. Text in dark grey over a warm white background. Numbers in a serif, using old-style figures. Charts as plain bars in one oxblood red, plus greys. Thin hairline rules to divide the areas rather than boxes or cards, and no icons or rounded corners anywhere.
+      As for the look, it should be light and editorial, in the manner of a printed report. Text in dark gray over a warm white background. Numbers in a serif, using old-style figures. Charts as plain bars in one oxblood red, plus grays. Thin hairline rules, and nothing else, to divide the areas; square corners wherever a corner appears; and labels in words alone.
+notes: >-
+  Leak check (T1.2), logged in leak-check.md. L0 pass. L1 A and B rewritten:
+  "at a glance" and "a quick overview" describe how the page should read, which
+  is a layout direction. L2 A and B rewritten: "at a glance" removed to match
+  L1, the tone and visual lines now state what is wanted instead of naming
+  what to avoid, and "grey" is spelled "gray" like the rest of the set. Kept:
+  "cannot rely on an internet connection" (a need, and it names no
+  technology).

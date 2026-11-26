@@ -1,8 +1,9 @@
-"""The website prompt set in prompts/website/ (T1.1). No network.
+"""The website prompt set in prompts/website/ (T1.1, T1.2). No network.
 
 The checks are mechanical and cannot prove that a prompt carries no hint: the
-human-written rules are in prompts/website/README.md, and T1.2 reviews each
-prompt by reading it.
+rules are in docs/leak-check.md, and the T1.2 leak check read each prompt (its
+log is prompts/website/leak-check.md). The word lists here pin what that check
+decided, so a later edit cannot quietly undo it.
 """
 
 import hashlib
@@ -27,12 +28,12 @@ FOLDER = ROOT / "prompts" / "website"
 # prompts/website/README.md is to raise it in the same change, and a reviewer
 # checks that both values changed together. The test prints the new values.
 EXPECTED = {
-    "bakery-landing": ("1", "191c1714178e13cb"),
-    "dashboard": ("1", "f96bdc5e739fd123"),
-    "event-page": ("1", "b921700e205e3928"),
-    "portfolio": ("1", "7e9cdc05dcc1c314"),
-    "pricing-page": ("1", "88540755bbdae07b"),
-    "todo-app": ("1", "6c29324b0f1086af"),
+    "bakery-landing": ("1", "1e314bcd3421b4c3"),
+    "dashboard": ("1", "11bfefd004088148"),
+    "event-page": ("1", "b67708948325cfa9"),
+    "portfolio": ("1", "02febb80532ee023"),
+    "pricing-page": ("1", "349aef827233aede"),
+    "todo-app": ("1", "dab31ae22594d6a6"),
 }
 
 # Words that every prompt of a task uses, so the levels ask for the same thing.
@@ -59,7 +60,9 @@ NAMES = {
 }
 
 # L0 and L1 must not name or imply a look, a component or a technology. A
-# plural or "-es" form of each word is caught too.
+# plural or "-es" form of each word is caught too. The last line holds words
+# that say how a page should read or that share a root with a page pattern
+# (T1.2): "at a glance", "a quick overview", "compare the plans".
 STYLE_WORDS = """
     style styled stylish aesthetic look feel vibe theme design designed
     modern minimal minimalist clean sleek simple elegant beautiful stunning
@@ -75,6 +78,7 @@ STYLE_WORDS = """
     banner card button modal tab carousel slider accordion table form section
     widget icon emoji logo brand branding image photo picture illustration
     animation animated chart graph responsive mobile desktop
+    glance overview compare comparison gallery showcase landing
 """.split()
 
 # No prompt at any level asks for a format or a technology. "single" alone is
@@ -89,7 +93,7 @@ TECH_WORDS = """
 # Colour and type words, compared between the two L2 wordings.
 LOOK_WORDS = """
     black white grey gray red orange yellow green blue purple violet indigo
-    pink brown beige cream teal lilac charcoal oxblood navy gold silver
+    pink brown beige cream teal cyan lilac charcoal oxblood navy gold silver
     serif sans slab monospace typewriter condensed didone humanist geometric
     grotesque script gradient shadow rounded square light dark
 """.split()
@@ -103,8 +107,29 @@ def word_pattern(words):
                       re.IGNORECASE)
 
 
+# An L2 brief says what it wants and never names the common default it moves
+# away from, not even to forbid it (T1.2; docs/leak-check.md). A named default
+# that then shows up in an output could have come from the prompt.
+NAMED_DEFAULT_WORDS = """
+    gradient shadow rounded emoji icon hero pill badge card glassmorphism
+    hype jargon pun
+""".split()
+NAMED_DEFAULT_PHRASES = ("most popular", "dark mode", "dark theme",
+                         "exclamation mark", "supercharge", "seamless")
+# Page content that holds a listed word without naming a component.
+ALLOWED_CONTENT = ("credit card",)
+
+# The set uses US spelling throughout, so no prompt hints at another locale.
+BRITISH_WORDS = """
+    grey colour colourful centre centred neighbourhood organise organised
+    favourite enquiry catalogue programme whilst labelled cancelled
+    cancelling
+""".split()
+
 STYLE = word_pattern(STYLE_WORDS)
 TECH = word_pattern(TECH_WORDS)
+NAMED_DEFAULT = word_pattern(NAMED_DEFAULT_WORDS)
+BRITISH = word_pattern(BRITISH_WORDS)
 NUMBER = re.compile(r"\d+(?:[.,:]\d+)*")
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 PHONE = re.compile(r"\d{3}-\d{4}")
@@ -143,6 +168,15 @@ def words(text):
 def look_words(text):
     found = set(words(text.replace("-", " ")))
     return {w for w in LOOK_WORDS if w in found or w + "s" in found}
+
+
+def named_defaults(text):
+    """Common defaults that an L2 text names, as words and stock phrases."""
+    lowered = text.lower().replace("-", " ")
+    for content in ALLOWED_CONTENT:
+        lowered = lowered.replace(content, " ")
+    return NAMED_DEFAULT.findall(lowered) + [
+        phrase for phrase in NAMED_DEFAULT_PHRASES if phrase in lowered]
 
 
 def mid_sentence_names(text):
@@ -224,6 +258,28 @@ def test_l0_and_l1_hold_no_invented_details(item):
     assert QUOTED.findall(text) == []
 
 
+@pytest.mark.parametrize("item", texts(("L2",)), ids=text_id)
+def test_l2_names_no_default_to_forbid_it(item):
+    assert named_defaults(item[3]) == []
+
+
+@pytest.mark.parametrize("item", texts(), ids=text_id)
+def test_every_prompt_uses_us_spelling(item):
+    assert BRITISH.findall(item[3]) == []
+
+
+@pytest.mark.parametrize("item", texts(), ids=text_id)
+def test_each_wording_keeps_its_voice_at_every_level(item):
+    """A is a command and B a request, the same way in every task, so the
+    pair differs in one fixed bundle of mood, verb, length and voice."""
+    _, level, wording, text = item
+    opening = {"A": "Make ", "B": "Can you build "}[wording]
+    assert text.startswith(opening)
+    assert ("?" in text.splitlines()[0]) == (wording == "B")
+    pleases = len(re.findall(r"\bplease\b", text, re.IGNORECASE))
+    assert pleases == (1 if (level, wording) == ("L2", "B") else 0)
+
+
 @pytest.mark.parametrize("task_id", sorted(EXPECTED))
 @pytest.mark.parametrize("wording", WORDINGS)
 def test_each_level_is_longer_than_the_last(task_id, wording):
@@ -298,6 +354,10 @@ def test_the_two_l2_wordings_carry_the_same_facts(task_id):
     "Make a card-based pricing page.",
     "Make a two-column portfolio.",
     "Make a mobile-friendly event page.",
+    "Make a dashboard they can read at a glance.",
+    "Make a page that gives a quick overview.",
+    "Make a pricing page so they can compare the plans.",
+    "Make a landing page for a bakery.",
 ])
 def test_the_style_check_catches_a_hint(text):
     assert STYLE.findall(text)
@@ -323,6 +383,35 @@ def test_the_technology_check_catches_a_request(text):
 ])
 def test_the_checks_pass_ordinary_words_and_compounds(text):
     assert STYLE.findall(text) == [] and TECH.findall(text) == []
+
+
+@pytest.mark.parametrize("text", [
+    "No gradients and no rounded corners.",
+    "Show the plans in a table, not as separate cards.",
+    'Do not mark any plan as "most popular".',
+    'No hype words such as "supercharge" or "seamless".',
+    "No emoji. No icons.",
+    "Short sentences, no exclamation marks, no puns.",
+    "Plain labels, no jargon.",
+    "A light page with a dark-mode toggle.",
+])
+def test_the_named_default_check_catches_a_ban(text):
+    assert named_defaults(text)
+
+
+@pytest.mark.parametrize("text", [
+    "Starter needs no credit card.",
+    "Flat, solid color and square corners throughout.",
+    "Links and labels are words only.",
+    "A pre-order form with name, email and pickup day.",
+])
+def test_the_named_default_check_passes_content_and_positive_direction(text):
+    assert named_defaults(text) == []
+
+
+def test_the_spelling_check_catches_british_spelling():
+    assert BRITISH.findall("A pale grey-blue page in the town centre.")
+    assert BRITISH.findall("A pale gray-blue page in the town center.") == []
 
 
 def test_single_alone_is_not_a_technology():

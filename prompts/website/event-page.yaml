@@ -15,7 +15,8 @@ prompts:
     B: Can you build an event web page for a one-day event where volunteers repair people's broken household items at no charge? It's meant for local residents who may want to bring something along.
   # L2 direction: a risograph-printed community poster (two inks, fluorescent
   # pink and teal, on pale yellow paper, slightly misaligned overprinting,
-  # heavy slab serif headings, typewriter-style body, no emoji, handmade).
+  # heavy slab serif headings, typewriter-style body, headings and labels in
+  # words only, handmade).
   # Points away from the expected community-event default: leafy eco greens,
   # a rounded geometric sans, rounded cards, emoji or tool icons, a gradient
   # hero banner.
@@ -49,7 +50,7 @@ prompts:
 
       Tone: welcoming and practical.
 
-      Visual direction: like a risograph-printed community poster. Two inks, fluorescent pink and teal, on pale yellow paper, with slightly misaligned overprinting. Headings in a heavy slab serif, body text in a typewriter-style face. No emoji. It should feel handmade and a little rough.
+      Visual direction: like a risograph-printed community poster. Two inks, fluorescent pink and teal, on pale yellow paper, with slightly misaligned overprinting. Headings in a heavy slab serif, body text in a typewriter-style face. Headings and labels are words only. It should feel handmade and a little rough.
     B: |
       Can you build an event web page for Fix-It Day? It's a free one-day repair event organized by the Marrowick Tool Share, where volunteers fix broken household items for local residents. It takes place on Saturday, April 17, 2027, from 10am to 4pm at Marrowick Community Hall, 40 Ferry Road.
 
@@ -61,6 +62,13 @@ prompts:
 
       People can book a 30-minute slot through a form that asks for their name, email, the item, what's wrong with it and which repair table they need. Walk-ins are welcome whenever slots are free. Entry is free, and donations toward spare parts are welcome. Anyone who'd like to volunteer can write to volunteers@example.com, and questions can go to 555-0119.
 
-      The page should cover what the event is, the date and place, the repair tables, the schedule, the house rules, the booking form and how to volunteer. Keep the tone welcoming and practical.
+      The page should cover what the event is, the date and place, the repair tables, the schedule, the house rules, the booking form and how to volunteer. Please keep the tone welcoming and practical.
 
-      For the look, take a community poster printed on a risograph as the model: fluorescent pink and teal as the only two inks, on pale yellow paper, overprinted a little out of register. A heavy slab serif for the headings and a typewriter-style face for the body. Leave out emoji. It should come across as handmade and slightly rough.
+      For the look, take a community poster printed on a risograph as the model: fluorescent pink and teal as the only two inks, on pale yellow paper, overprinted a little out of register. A heavy slab serif for the headings and a typewriter-style face for the body. Keep headings and labels to words alone. It should come across as handmade and slightly rough.
+notes: >-
+  Leak check (T1.2), logged in leak-check.md. L0 and L1 pass: "web page" is
+  the task itself, and "free", "one-day" and "repair" describe the event.
+  L2 A and B rewritten: one visual line now states what is wanted instead of
+  naming what to avoid, and B has the one "please" every L2 B has. The house
+  rules name things the event refuses; that is page content. Teal is next to
+  the expected green default, but it is one of two inks beside pink on yellow.

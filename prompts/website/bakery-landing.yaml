@@ -14,8 +14,8 @@ prompts:
     A: Make a website for a neighborhood sourdough bakery that takes weekend pre-orders.
     B: Can you build a website for a local sourdough bakery? It takes pre-orders for the weekend from people in the neighborhood.
   # L2 direction: stark, newsprint-like graphic look (black on off-white, one
-  # signal-orange accent, condensed sans-serif headings, monospace prices,
-  # square corners, thin rules, no shadows or gradients) and dry, plain copy.
+  # cyan accent, condensed sans-serif headings, monospace prices, square
+  # corners, thin rules, flat solid color) and dry, literal copy.
   # Points away from the expected bakery default: warm cream and brown tones,
   # a script or display serif, rounded cards with soft shadows, cheerful copy.
   L2:
@@ -37,9 +37,9 @@ prompts:
 
       Required sections: a short introduction, the full product list with prices, how pre-ordering works, a pre-order form (name, email, pickup day, items and quantities), opening hours, and contact details.
 
-      Tone: plain and matter-of-fact. Short sentences, no exclamation marks, no puns.
+      Tone: plain and matter-of-fact. Short, literal sentences that end in a period.
 
-      Visual direction: a stark, newsprint-like look. Black text on an off-white background, with signal orange as the only accent. Condensed sans-serif headings, and a monospace face for prices and hours. Square corners, thin black rules between sections, no shadows and no gradients.
+      Visual direction: a stark, newsprint-like look. Black text on an off-white background, with cyan as the only accent. Condensed sans-serif headings, and a monospace face for prices and hours. Square corners, thin black rules between sections, and flat, solid color throughout, like ink on paper.
     B: |
       Can you build a website for our bakery? We're the Wrenmoor Bread Room, a sourdough bakery on Tanner Street in Wrenmoor. It's owned by Priya Halvorsen and Dev Okafor, who opened it in 2019, and we take pre-orders for weekend pickup.
 
@@ -49,4 +49,11 @@ prompts:
 
       The site needs a short introduction, the full product list with prices, an explanation of how pre-ordering works, a pre-order form that asks for name, email, pickup day, and items with quantities, our opening hours, and our contact details.
 
-      Please keep the writing plain and matter-of-fact: short sentences, with no exclamation marks and no puns. For the look, we want something stark and newsprint-like: black text on an off-white background, and signal orange as the one accent. Headings in a condensed sans-serif, prices and hours in a monospace face. Square corners, thin black rules between sections, and no shadows or gradients.
+      Please keep the writing plain and matter-of-fact: short sentences that mean exactly what they say and end in a period. For the look, we want something stark and newsprint-like: black text on an off-white background, and cyan as the one accent. Headings in a condensed sans-serif, prices and hours in a monospace face. Square corners, thin black rules between sections, and every color flat and solid, like ink on paper.
+notes: >-
+  Leak check (T1.2), logged in leak-check.md. L0 and L1 pass: "sourdough",
+  "neighborhood" and "pre-orders" are the plan's own L1 example and describe
+  the business, not the site. L2 A and B rewritten: the one accent moved from
+  orange (the same hue as the expected brown and amber default) to cyan, and
+  the tone and visual lines now state what is wanted instead of naming what to
+  avoid. Still close to the expected default: the off-white background.

@@ -8,6 +8,8 @@ Project documents. Present now:
 - [runner.md](runner.md): the generation runner and its live check (T0.5)
 - [terms/](terms/README.md): what each provider's terms allow for storing,
   sharing and publishing outputs, and the decisions left to the Human (T0.7)
+- [leak-check.md](leak-check.md): the rules for checking prompts for leaks,
+  written in T1.2 and reused by T2.2 and the Wave 2 leak checks
 
 Added by later tasks in [tasks.md](../tasks.md):
 
