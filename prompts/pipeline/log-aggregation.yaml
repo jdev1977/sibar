@@ -1,0 +1,67 @@
+# Pipeline task: parse log files and aggregate the entries.
+# Kind: text parsing and summary statistics over a large input. Line format,
+# malformed lines, memory use, and the shape of the report.
+# See prompts/pipeline/README.md for the set, the rules and the version rule.
+schema_version: 1
+project_type: pipeline
+task_id: log-aggregation
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Write a pipeline that parses log files and aggregates the entries.
+    B: Can you set up a pipeline that reads through log files and adds up what they record?
+  L1:
+    A: Write a pipeline that parses the access logs of a small website and aggregates the entries, so the site's owner can see which pages people visit most and when the site has problems.
+    B: Can you set up a pipeline that reads through the access logs of a small website and adds up what they record? The owner of the site wants to know which pages get the most visits and when things go wrong.
+  # L2 direction: an invented line format (not a well-known server format),
+  # compressed and plain files read alike, one line at a time, a small
+  # package with separate parts and a command-line entry point, tests built
+  # on the sample lines, malformed lines counted and shown.
+  # Points away from the expected default: one script that reads a whole
+  # file into memory, a regular expression for a well-known server log
+  # format, malformed lines skipped without a count, no tests.
+  L2:
+    A: |
+      Write a pipeline that parses the access logs of the Fernhollow Recipes website and aggregates the entries, so the site's owner can see which pages people visit most and when the site has problems.
+
+      Input: log files in one folder. Older files are gzip-compressed, such as access-2027-03-01.log.gz, and the current one is plain text, access.log. Each line is one request:
+
+      2027-03-02T14:05:31Z GET /recipes/lentil-soup 200 15320 0.042 ip=203.0.113.7
+      2027-03-02T14:05:33Z GET /search?q=bread 200 8811 0.310 ip=198.51.100.23
+      2027-03-02T14:06:02Z POST /comments 500 312 1.204 ip=203.0.113.7
+      2027-03-02T14:06:10Z GET /favicon.ico 404 0 0.003 ip=192.0.2.44
+      2027-03-02 14:06:11 GET /recipes/oat-cakes 200
+
+      The fields are: the time in UTC, the method, the path, the status code, the response size in bytes, the response time in seconds and the client address. Any line in another shape, like the last one, counts as malformed.
+
+      Output, for a time range given when it is run:
+      - Per hour: the number of requests, the number with a status of 500 or above, and the median and 95th percentile response time.
+      - The 10 most requested paths, ignoring anything after a "?".
+      - The number of malformed lines, with the first 5 of them.
+      Write the hourly figures to a CSV file and print the rest as a readable report.
+
+      Requirements:
+      - Read the files one line at a time, so a 10 GB log works on a laptop with little memory.
+      - Organize the code as a small package with separate parts for parsing, aggregating and reporting, and a command-line entry point.
+      - Include tests for the parser, built on the sample lines above.
+    B: |
+      Can you set up a pipeline that reads through the access logs of the Fernhollow Recipes website and adds up what they record? I run the site, and I want to know which pages get the most visits and when things go wrong.
+
+      All the logs sit in one folder. The older ones are gzip-compressed, like access-2027-03-01.log.gz, while the current one, access.log, is plain text. Every line records a single request, like so:
+
+      2027-03-02T14:05:31Z GET /recipes/lentil-soup 200 15320 0.042 ip=203.0.113.7
+      2027-03-02T14:05:33Z GET /search?q=bread 200 8811 0.310 ip=198.51.100.23
+      2027-03-02T14:06:02Z POST /comments 500 312 1.204 ip=203.0.113.7
+      2027-03-02T14:06:10Z GET /favicon.ico 404 0 0.003 ip=192.0.2.44
+      2027-03-02 14:06:11 GET /recipes/oat-cakes 200
+
+      Reading left to right, each line holds the UTC time, the method, the path, the status code, how many bytes were sent back, how many seconds the response took, and the client's address. Lines with a different layout, such as the final one above, count as malformed.
+
+      For any time window I pass in when I run it, I'd like hour-by-hour figures: requests, how many came back with status 500 or higher, and the median and 95th percentile response times. Beyond that, I want the 10 paths requested most often, treating everything after a "?" as irrelevant, and a count of malformed lines with the first 5 shown. Please put the hourly figures in a CSV file and print everything else as a report that's easy to read.
+
+      Because it has to cope with a 10 GB log on a laptop short on memory, it should go through the files line by line. I'd like the code laid out as a small package, with parsing, aggregating and reporting kept apart, plus an entry point for the command line. It should also come with tests for the parser that use the sample lines above.
+notes: >-
+  Written for T2.1. The addresses in the sample lines are from the ranges
+  reserved for documentation (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24).
+  The sample lines give a known result: four well-formed requests, one with
+  a status of 500 or above, and one malformed line.

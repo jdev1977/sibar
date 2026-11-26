@@ -1,0 +1,64 @@
+# Engineering task: pipe pressure drop and pump choice.
+# Kind: fluid sizing. Friction method, pipe material (roughness) assumed,
+# fittings counted or not, water temperature, kind of pump, margin added.
+# See prompts/engineering/README.md for the set, the rules and the version
+# rule. Outputs are study data, not designs.
+# Givens (every level, both wordings): 1.5 L/s of water, 6 m of lift, 35 m
+# of pipe, 40 mm inside diameter.
+# Units: given in SI, so the unit system is closed for this task.
+# Checkable: every level: velocity 1.19 m/s; Reynolds number about 4.8e4
+# near 20 °C (turbulent); static head 6 m. Friction loss for 35 m of
+# straight pipe (Colebrook) is about 1.35 to 1.6 m of water: 1.34 m smooth
+# to 1.56 m commercial steel at 20 °C, 1.31 to 1.59 m over 15 to 25 °C;
+# grade it against the roughness and temperature the model states.
+# At L2 (Hazen-Williams, C 140, 43 m equivalent length): friction about
+# 1.84 m, total head about 7.84 m, hydraulic power about 115 W, electrical
+# about 288 W, about 24 A at 12 V.
+schema_version: 1
+project_type: engineering
+task_id: pipe-and-pump
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Work out the pressure drop in a pipe that carries 1.5 L/s of water up 6 m over a length of 35 m, with an inside diameter of 40 mm, and choose a pump for it.
+    B: Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to suit?
+  L1:
+    A: Work out the pressure drop in a pipe that carries 1.5 L/s of water up 6 m over a length of 35 m, with an inside diameter of 40 mm, and choose a pump for it, for a community garden that wants to move water from its pond up to a storage tank at the top of the plot.
+    B: Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to suit? A community garden wants to move water from its pond up to a storage tank at the top of the plot.
+  # L2 direction: polyethylene pipe with the Hazen-Williams equation and a
+  # stated coefficient, fittings as an equivalent length, a pump run from a
+  # solar-charged 12 V battery with a stated efficiency, pressures in kPa as
+  # well as meters of water, the answers in a table first.
+  # Points away from the expected default: the Darcy friction factor from
+  # a chart or an implicit equation, plastic or steel pipe assumed, minor
+  # losses estimated loosely, a mains-powered centrifugal pump with a
+  # margin added.
+  L2:
+    A: |
+      Work out the pressure drop in a pipe that carries 1.5 L/s of water up 6 m over a length of 35 m, with an inside diameter of 40 mm, and choose a pump for it, for the Wickley Lane Community Garden, which wants to move water from its pond up to a storage tank at the top of the plot.
+
+      System details:
+      - The pipe is black polyethylene. Use the Hazen-Williams equation with C = 140.
+      - The fittings (a strainer, 4 elbows and a check valve) add the equivalent of 8 m of extra pipe.
+      - The water is at 15 °C, and the pond and the tank are both open to the air.
+      - The pump runs from a 12 V battery charged by solar panels, and its wire-to-water efficiency is 40%.
+
+      Give:
+      - The flow velocity, the friction loss and the total head the pump must deliver.
+      - The hydraulic power, the electrical power drawn and the current from the battery.
+      - The kind of pump that suits this duty, and why.
+
+      Presentation:
+      - Put the answers in a table first, with each pressure in kPa as well as in meters of water, then give the working.
+    B: |
+      Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to suit? We're the Wickley Lane Community Garden, and we want to move water from our pond up to a storage tank at the top of the plot.
+
+      The pipe will be black polyethylene, and the friction should come from the Hazen-Williams equation with C = 140. A strainer, 4 elbows and a check valve make up the fittings, which count as another 8 m of pipe. The water temperature is 15 °C, and both the pond and the tank are open to the atmosphere. Power comes from a 12 V battery that solar panels keep charged, and the pump turns 40% of the electrical power it draws into power in the water.
+
+      I need the flow speed, the friction loss and the total head the pump has to supply; the hydraulic power, the electrical power it draws and the current taken from the battery; and what type of pump fits this job, with the reasons.
+
+      Please lead with a table of the answers, showing every pressure in both kPa and meters of water, and put the working after it.
+notes: >-
+  Written for T2.1. The givens state no pipe material, fittings or water
+  temperature; those are assumptions being measured. The setting is a
+  garden water supply, which is not safety-critical.

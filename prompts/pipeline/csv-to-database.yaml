@@ -1,0 +1,75 @@
+# Pipeline task: clean a CSV file and load it into a database.
+# Kind: batch extract, clean and load. Parsing messy values, choosing a
+# storage, deciding what to do with bad rows, and making a re-run safe.
+# See prompts/pipeline/README.md for the set, the rules and the version rule.
+schema_version: 1
+project_type: pipeline
+task_id: csv-to-database
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Write a pipeline that cleans a CSV file and loads it into a database.
+    B: Can you set up a pipeline that takes a CSV file, tidies up the data and puts it into a database?
+  L1:
+    A: Write a pipeline that cleans a CSV file of orders, exported from a small business that sells online, and loads it into a database, so the owner can look up past orders.
+    B: Can you set up a pipeline that takes the CSV file of orders a small business exports from its online sales, tidies up the data and puts it into a database? The owner wants to be able to look up past orders.
+  # L2 direction: the language's standard library only, a test for each
+  # cleaning rule, rejected rows kept in a separate file with a reason, a
+  # re-run that adds nothing, a printed summary.
+  # Points away from the expected default: a data-frame library, a single
+  # script with no tests, bad rows dropped silently or the run stopped,
+  # duplicates added again on a re-run.
+  # Close to the expected default: "no separate server to install" is a real
+  # need (the sandbox is offline) and points toward an embedded database,
+  # which is the likely default storage. Do not read storage as a persisting
+  # default for this task.
+  L2:
+    A: |
+      Write a pipeline that cleans a CSV file of orders exported from Brindlecote Tea, a small business that sells loose-leaf tea online, and loads it into a database, so the owner can look up past orders.
+
+      Input: one CSV file per monthly export, named like orders-2027-03.csv. It is UTF-8 and comma-separated, with a header row and these columns: order_id, order_date, customer_email, product, quantity, unit_price. Some sample rows:
+
+      order_id,order_date,customer_email,product,quantity,unit_price
+      1001,2027-03-02, Ana.Ruiz@Example.com ,Smoky Lapsang 100 g,2,$12.50
+      1002,03/02/2027,ben.okoro@example.com,Jasmine Pearls 50 g,1,9
+      1002,03/02/2027,ben.okoro@example.com,Jasmine Pearls 50 g,1,9
+      ,"Mar 3, 2027",cleo@example.com,Assam Breakfast 250 g,1,14.00
+      1004,2027-03-04,dan@example.com,Sencha 100 g,0,$11.00
+      1005,"Mar 4, 2027",EVA@example.com,Rooibos Vanilla 100 g,3,7.25
+
+      Cleaning rules:
+      - Trim the spaces around every value.
+      - Store email addresses in lower case.
+      - Dates arrive as 2027-03-02, 03/02/2027 (month first) or Mar 2, 2027. Store every date in the form 2027-03-02.
+      - Prices arrive as $12.50, 12.5 or 9. Store every price as a whole number of cents, such as 1250.
+      - Drop a row that repeats an earlier row exactly.
+      - Send a row with no order_id, or with a quantity that is not a whole number above zero, to a rejects file, with the reason next to it.
+
+      Requirements:
+      - The database runs on the owner's laptop, with no separate server to install.
+      - Loading the same file a second time adds nothing new.
+      - Use only the language's standard library: nothing else is installed on that laptop.
+      - Include a test for each cleaning rule.
+      - At the end, print how many rows were read, loaded and rejected.
+    B: |
+      Can you set up a pipeline that takes the CSV file of orders we export from Brindlecote Tea, our small business selling loose-leaf tea online, tidies up the data and puts it into a database? I want to be able to look up past orders.
+
+      We export one CSV file a month, named like orders-2027-03.csv. It's UTF-8 and comma-separated, with a header row, and the columns are order_id, order_date, customer_email, product, quantity and unit_price. Here are some sample rows:
+
+      order_id,order_date,customer_email,product,quantity,unit_price
+      1001,2027-03-02, Ana.Ruiz@Example.com ,Smoky Lapsang 100 g,2,$12.50
+      1002,03/02/2027,ben.okoro@example.com,Jasmine Pearls 50 g,1,9
+      1002,03/02/2027,ben.okoro@example.com,Jasmine Pearls 50 g,1,9
+      ,"Mar 3, 2027",cleo@example.com,Assam Breakfast 250 g,1,14.00
+      1004,2027-03-04,dan@example.com,Sencha 100 g,0,$11.00
+      1005,"Mar 4, 2027",EVA@example.com,Rooibos Vanilla 100 g,3,7.25
+
+      The values need tidying in a few ways. The spaces around any value should be trimmed, and email addresses stored in lower case. Dates arrive as 2027-03-02, 03/02/2027 (month first) or Mar 2, 2027, and I'd like every date stored in the form 2027-03-02. Prices arrive as $12.50, 12.5 or 9, and should be stored as a whole number of cents, such as 1250. If a row repeats an earlier row exactly, drop it. If a row has no order_id, or its quantity isn't a whole number above zero, please put it in a rejects file with the reason next to it.
+
+      The database has to run on my laptop without a separate server to install, and loading the same file a second time shouldn't add anything new. Nothing but the language's standard library is installed on that laptop, so the pipeline can use only that. I'd like a test for each cleaning rule, and at the end it should print how many rows were read, loaded and rejected.
+notes: >-
+  Written for T2.1. "CSV file" and "database" are the task as the plan names
+  it (CSV to cleaned table to database): the input format is given, the
+  storage is left open. The sample rows give the checker a known result: of
+  six data rows, one is a repeat, two are rejected (no order_id; quantity 0)
+  and three are loaded.

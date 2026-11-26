@@ -1,0 +1,64 @@
+# Engineering task: size a cantilever beam with a load at its tip.
+# Kind: structural sizing. Material, section shape, safety factor, which
+# checks are made (stress, deflection), standards cited, self-weight.
+# See prompts/engineering/README.md for the set, the rules and the version
+# rule. Outputs are study data, not designs.
+# Givens (every level, both wordings): 1.5 m, 4 kN at the free end.
+# Units: given in SI, so the unit system is closed for this task.
+# Checkable: every level, from statics alone: support reaction 4 kN, maximum
+# shear 4 kN, maximum bending moment 6 kN·m at the fixed end. The section
+# chosen depends on open choices (material, safety factor, limits) and is
+# not graded at L0 and L1.
+# At L2: allowable stress 92 MPa, section modulus at least 65.2e3 mm³,
+# second moment of area at least 4.35e6 mm⁴; deflection governs; 51 mm by
+# 102 mm, giving about 67.8 MPa and 14.5 mm.
+schema_version: 1
+project_type: engineering
+task_id: cantilever-beam
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Size a cantilever beam 1.5 m long that carries a load of 4 kN at its free end.
+    B: Can you size a beam that is fixed at one end, reaches out 1.5 m and holds 4 kN at its tip?
+  L1:
+    A: Size a cantilever beam 1.5 m long that carries a load of 4 kN at its free end, for an engineering student who is practicing beam problems before an exam.
+    B: Can you size a beam that is fixed at one end, reaches out 1.5 m and holds 4 kN at its tip? It's for an engineering student working through practice problems before an exam.
+  # L2 direction: a solid rectangular aluminum bar with depth twice the
+  # width, a safety factor of 3 on yield, a tip deflection limit, sizes in
+  # whole millimeters, elementary formulas with their textbook source, a
+  # one-line answer and a table of checks before the working.
+  # Points away from the expected default: a rolled steel I-section picked
+  # from a design standard's tables, a safety factor near 1.5, a stress
+  # check alone, the working first and the answer last.
+  L2:
+    A: |
+      Size a cantilever beam 1.5 m long that carries a load of 4 kN at its free end, for an engineering student who is practicing beam problems before an exam.
+
+      Assumptions set by the problem:
+      - The beam is a solid rectangular bar of 6061-T6 aluminum, with a Young's modulus of 68.9 GPa and a yield strength of 276 MPa.
+      - Its depth is twice its width, and the load acts along the depth.
+      - Use a safety factor of 3 on yield for the bending stress.
+      - The tip may deflect at most 15 mm.
+      - Ignore the beam's own weight.
+
+      Give:
+      - The required section modulus and second moment of area.
+      - The smallest width and depth, in whole millimeters, that meet both limits, and which limit governs.
+      - The bending stress and tip deflection for that size.
+
+      Method and presentation:
+      - Use elementary beam formulas, and name the textbook source of each one.
+      - Start with a one-line answer, then a table of the checks with the limit, the value and the margin, then the working.
+    B: |
+      Can you size a beam that is fixed at one end, reaches out 1.5 m and holds 4 kN at its tip? It's for an engineering student working through practice problems before an exam.
+
+      Here is what the problem lets you assume. The bar is solid and rectangular, made of 6061-T6 aluminum, whose Young's modulus is 68.9 GPa and whose yield strength is 276 MPa. Its cross-section is twice as deep as it is wide, with the load pushing in the deep direction. Bending stress gets a safety factor of 3 against yield, and the tip can move no more than 15 mm. Leave the bar's self-weight out.
+
+      I need the section modulus and the second moment of area it calls for, the narrowest and shallowest cross-section in whole millimeters that satisfies both limits, which of the two limits decides the size, and the bending stress and tip deflection that size gives.
+
+      Please stick to elementary beam formulas and cite the textbook each one comes from. Lead with a one-line answer, follow it with a table of the checks listing limit, value and margin, and end with the working.
+notes: >-
+  Written for T2.1. "Cantilever" (A) and "fixed at one end" (B) say the same
+  thing. The givens state no material, section shape or safety factor; those
+  are the choices being measured. The setting is coursework, so nothing in
+  the prompt invites real-world use.

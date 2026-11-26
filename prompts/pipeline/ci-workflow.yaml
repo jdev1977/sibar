@@ -1,0 +1,55 @@
+# Pipeline task: a continuous integration workflow for a small package.
+# Kind: configuration for a build service rather than a program. Service,
+# triggers, versions and systems tested, quality gates, speed.
+# See prompts/pipeline/README.md for the set, the rules and the version rule.
+# Offline: a workflow cannot run without its build service. The sandbox
+# (T2.7) checks that the configuration parses, and runs the commands it
+# names against a fixture package that matches the L2 description. At L0
+# and L1 the package is unknown, so only parsing (and any package code the
+# model writes) can be checked.
+schema_version: 1
+project_type: pipeline
+task_id: ci-workflow
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Write a continuous integration workflow for a small software package.
+    B: Can you set up a workflow that runs continuous integration for a little software package?
+  L1:
+    A: Write a continuous integration workflow for a small open-source software package maintained by a few volunteers, so that every proposed change is checked before it is merged.
+    B: Can you set up a workflow that runs continuous integration for a little open-source software package? A few volunteers maintain it, and they want each change people propose to be checked before it goes in.
+  # L2 direction: the package is a Go library (its language is content of
+  # the brief, as it would be in a real request), tested on three operating
+  # systems and two language releases, formatting and vet checks, a
+  # coverage gate, a tag check against the changelog, a time limit and
+  # cancellation of superseded runs.
+  # Points away from the expected default: a package in the most common
+  # scripting language, tested on one operating system, with no coverage
+  # gate and no release check.
+  # The build service is left open at L2 as well.
+  L2:
+    A: |
+      Write a continuous integration workflow for tallyfold, a small open-source software package maintained by a few volunteers, so that every proposed change is checked before it is merged.
+
+      About the package:
+      - A library written in Go, with no third-party dependencies. Its tests sit next to the code in the usual Go way.
+      - It must work on Linux, macOS and Windows.
+      - The main branch is called main. Releases are marked with version tags such as v1.4.0, and each release has an entry in the changelog, CHANGELOG.md.
+
+      The workflow should:
+      - Run on every change proposed to the main branch and on every push to it.
+      - Run the tests on Linux, macOS and Windows, each with the two most recent Go releases.
+      - Fail if any file is not formatted with the language's own formatter, or if its built-in vet check reports a problem.
+      - Measure test coverage and fail if it falls below 80%.
+      - On a version tag, also check that the changelog has an entry for that version, and fail if it is missing.
+      - Finish within 10 minutes, and cancel an older run on the same branch when a newer one starts.
+    B: |
+      Can you set up a workflow that runs continuous integration for tallyfold, a little open-source software package? A few of us volunteers maintain it, and we want each change people propose to be checked before it goes in.
+
+      It's a Go library that depends on nothing outside the standard library, and its tests live beside the code, as is usual in Go. It has to run on Linux, macOS and Windows. Our default branch is named main; we mark releases with tags like v1.4.0, and every release gets an entry in CHANGELOG.md, the changelog.
+
+      The checks should kick in whenever someone proposes a change to main and whenever anyone pushes to it. They need to run the test suite on Linux, macOS and Windows, each against the two latest Go releases. Please have them fail when a file hasn't been through the language's own formatter or when its built-in vet check finds something. Coverage should be measured too, with a failure if it drops under 80%. When a version tag comes in, they should confirm the changelog has an entry for that version and fail if there isn't one. A whole run should take no more than 10 minutes, and starting a newer run on a branch should cancel any older one still going there.
+notes: >-
+  Written for T2.1. "Continuous integration" is the plan's task; the build
+  service, the package's language and the steps are left open at L0 and L1.
+  "Small" describes the package (the subject), not the workflow.

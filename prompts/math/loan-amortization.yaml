@@ -1,0 +1,59 @@
+# Math task: how a loan is paid off (loan amortization).
+# Kind: finance arithmetic with a standard answer. Formula or month-by-month
+# working, rounding, how much of the schedule is shown, currency assumed.
+# See prompts/math/README.md for the set, the rules and the version rule.
+# Givens (every level, both wordings): 9000, 7%, 5 years, equal monthly
+# payments. No currency symbol at L0 and L1, so the currency stays open.
+# Checkable: every level. Standard assumption: a nominal annual rate
+# charged monthly (7%/12 a month), first payment one month after the start.
+# Monthly payment 178.21; total interest about 1692.65. L2 adds the cent
+# rounding rule, so its final payment and total interest are exact.
+schema_version: 1
+project_type: math
+task_id: loan-amortization
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Work out how a loan of 9000 at 7% annual interest is paid off in equal monthly payments over 5 years.
+    B: Can you figure out how a 9000 loan with an annual interest rate of 7% gets paid off over 5 years in equal monthly payments?
+  L1:
+    A: Work out how a loan of 9000 at 7% annual interest is paid off in equal monthly payments over 5 years, for a first-time car buyer who wants to know whether they can afford it.
+    B: Can you figure out how a 9000 loan with an annual interest rate of 7% gets paid off over 5 years in equal monthly payments? It's for someone buying their first car who is trying to decide if they can afford it.
+  # L2 direction: the payment found by building the balance month by month
+  # and solving for a zero end balance, with a stated check; payments
+  # rounded to the cent with the last payment absorbing the difference; a
+  # full dated schedule; a two-sentence answer before the schedule and the
+  # working.
+  # Points away from the expected default: the annuity formula quoted and
+  # applied, a schedule shown only for the first and last few months, a
+  # document that opens with headings and formulas.
+  L2:
+    A: |
+      Work out how a loan of $9000 at 7% annual interest is paid off in equal monthly payments over 5 years, for a first-time car buyer who wants to know whether they can afford it.
+
+      Details:
+      - Interest is charged each month at one twelfth of the annual rate, on the balance still owed.
+      - The loan starts on March 1, 2027, and the first payment is due one month later, on April 1, 2027.
+      - Each payment is rounded to the cent. The last payment absorbs the rounding difference, so the balance ends at exactly zero.
+
+      Give:
+      - The monthly payment and the final payment.
+      - The total interest paid over the loan.
+      - The full schedule, one row per month, with the date, the payment, the interest part, the principal part and the balance left.
+
+      Method and presentation:
+      - Find the payment by building the balance month by month and choosing the payment that brings it to zero, and say how you checked it.
+      - Open with a two-sentence answer the buyer can read on its own, then the schedule, then the working.
+    B: |
+      Can you figure out how a $9000 loan with an annual interest rate of 7% gets paid off over 5 years in equal monthly payments? It's for someone buying their first car who is trying to decide if they can afford it.
+
+      Every month the lender adds a twelfth of the yearly rate to whatever is still owed. The loan begins on March 1, 2027, so the first payment falls a month later, on April 1, 2027. Round every payment to the nearest cent and let the final one make up the difference, so that nothing at all remains to pay at the end.
+
+      I'd like to know what the regular payment is and what the last one comes to, how much interest gets paid in total, and the whole month-by-month schedule: for each month, its date, the amount paid, how much of it is interest, how much goes to the principal, and what is still owed afterward.
+
+      Please arrive at the payment by tracking the balance through the months and picking the payment that takes it to zero, and explain how you made sure it's right. Begin with two sentences that answer the question for the buyer on their own, follow with the schedule, and put the working last.
+notes: >-
+  Written for T2.1. The numbers are written without a thousands separator,
+  so that no separator style hints at a locale. "Paid off in equal monthly
+  payments" is needed for a single answer; it says nothing about how the
+  payments are shown.
