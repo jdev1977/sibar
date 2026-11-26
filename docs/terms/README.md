@@ -130,8 +130,8 @@ Data handling
 - [ ] Account settings for T5.1: training opt-out on or off; temporary or
   incognito chats; no thumbs-up or thumbs-down ratings or other feedback
   (Claude.ai counts ratings as Feedback used for training even after opting
-  out; Gemini Apps uses chats for training, with the setting off, "unless you
-  provide feedback").
+  out; Gemini Apps, with the setting off, does not train on future chats
+  "unless you provide feedback").
 - [ ] Whether sibar's own tagger or scoring (T2.5, T4) may be run on T5.1
   outputs from Gemini Apps and Claude.ai, given their consumer training rules,
   and whether those outputs may be published.
