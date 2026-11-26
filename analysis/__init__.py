@@ -3,5 +3,5 @@ sensitivity, intervals, the stability check and representative outputs.
 
 Generic code lives here; what a project type's features mean lives in its
 data files, ``analysis/<type>/features.yaml`` and ``dictated.yaml``.
-Usage: docs/analysis.md.
+Usage: analysis/README.md.
 """

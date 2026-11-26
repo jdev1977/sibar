@@ -375,7 +375,18 @@ def test_stability_short_cells_and_bad_pairs(spec):
     assert "--runs 20" in repeat["selection"]["runner_command"]
 
 
-def test_select_files_reads_and_names_files(spec, grid_file):
+def test_select_files_reads_and_names_files(spec, grid_file, tmp_path):
     selection = select_files([grid_file], spec, ["b1"])
     assert selection.files == (str(grid_file),)
     assert tables.Grid(selection.runs, spec).models == ["m1", "m2"]
+    copy = tmp_path / "copy.jsonl"
+    copy.write_bytes(grid_file.read_bytes())
+    with pytest.raises(Refused, match="is in both"):
+        select_files([grid_file, copy], spec, ["b1"])
+
+
+def test_t_quantiles_beyond_the_table():
+    from analysis.stats import T975, _t_cdf_upper_half, t975
+    for df, value in T975.items():            # the method agrees with the table
+        assert abs(_t_cdf_upper_half(value, df) - 0.475) < 0.0002, df
+    assert t975(12) == 2.179 and t975(20) == 2.086 and t975(5) == 2.571

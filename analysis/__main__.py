@@ -5,7 +5,7 @@
         [--compare 5,10]
 
 Both write JSON and Markdown under data/analysis/ (gitignored) unless --out
-names another folder. See docs/analysis.md.
+names another folder. See analysis/README.md.
 """
 
 import argparse

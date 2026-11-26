@@ -228,7 +228,7 @@ def parse_time(text):
 
 def load_records(paths):
     """Records of the files, in file order; refuses a file with bad lines."""
-    records, notes = [], []
+    records, notes, seen = [], [], {}
     for path in paths:
         try:
             found = read_records(path)
@@ -241,6 +241,10 @@ def load_records(paths):
         if found.truncated_tail is not None:
             notes.append(f"{path}: an unfinished last line (interrupted write) "
                          "was ignored")
+        for record in found.records:
+            first = seen.setdefault(record["record_id"], path)
+            if first != path:
+                raise Refused(f"record {record['record_id']} is in both {first} and {path}")
         records.extend(found.records)
     return records, notes
 
