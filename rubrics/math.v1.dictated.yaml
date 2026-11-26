@@ -1,0 +1,202 @@
+# Which rubric items each math or science prompt takes out of the model's
+# hands (T2.4). Companion of math.v1.yaml; checked by tagger/rubric.py.
+#
+# Same idea and same entry format as analysis/website/dictated.yaml, whose
+# rules are in docs/metrics.md, "Open choices". An item is OPEN in a cell
+# unless an entry here closes it for that task and level. Only open items
+# count toward a default. The variable name of an item is
+# rubric.math.<item id>, as the tags are stored (docs/record-format.md).
+#
+#   closed   the items an entry closes
+#   reason   direction   the brief names the method or form wanted
+#            content     the brief supplies the content that decides the answer
+#            constraint  the brief states a technical need
+#   quote    words of wording A at that level (one text or a list); a check
+#            that the entry still matches the prompt
+#   expect   optional, per item: what a run that followed the brief shows.
+#            {in: [...]} for a single-select item; {present: [...]} and/or
+#            {absent: [...]} for a multi-select item
+#   note     why, and what to be careful about
+#   associations   not closed: wording that may pull an open choice
+#            (prompts/math/leak-check.md). Read the share beside it.
+#
+# L0 and L1 close nothing. Read from prompts/math/leak-check.md, "What each
+# L2 dictates" and "Choices not to read as defaults", and from the L2 texts.
+# Every L2 with givens states its assumptions, so assumptions_stated is
+# closed there (docs/leak-check.md, rule 15) and read at L0 and L1 only.
+#
+# This file changes how tags are counted, not how they are made: changing an
+# entry needs no new rubric version and no new tagging. When the type's
+# features.yaml exists, its metrics_version covers these entries.
+schema_version: 1
+project_type: math
+rubric: math.v1
+
+tasks:
+  entropy-explanation:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.math.entropy_framings]
+        reason: direction
+        quote: "Explain entropy as the number of ways energy can be shared out among particles."
+        expect:
+          rubric.math.entropy_framings: {present: [microstates]}
+        note: >-
+          The brief names no framing to leave out, so only the presence of the
+          counting framing is judged. Whether disorder still appears is the
+          share to read beside it.
+      - closed: [rubric.math.entropy_examples]
+        reason: direction
+        quote: "Build the whole explanation on one example"
+        expect:
+          rubric.math.entropy_examples:
+            present: [counting-model]
+            absent: [breaking, heat-flow, messy-room, mixing, other, shuffled-objects]
+      - closed: [rubric.math.closing]
+        reason: direction
+        quote: "End with one question Maya can answer to test her understanding."
+        expect:
+          rubric.math.closing: {in: [question]}
+
+  hypothesis-test:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.math.test_used, rubric.math.significance_level]
+        reason: direction
+        quote: "Use the exact Wilcoxon signed-rank test, two-sided, at the 1% significance level."
+        expect:
+          rubric.math.test_used: {in: [signed-rank]}
+          rubric.math.significance_level: {in: [one-percent]}
+      - closed: [rubric.math.normality_treatment, rubric.math.assumptions_stated]
+        reason: content
+        quote: "The technician assumes only that the lengths are spread symmetrically about their center."
+        note: >-
+          The brief gives the one assumption the dictated test needs and names
+          no distribution. No value is expected.
+      - closed: [rubric.math.answer_position]
+        reason: direction
+        quote: "Start with the decision in one plain sentence the technician can act on, then give the working."
+        expect:
+          rubric.math.answer_position: {in: [before-working]}
+    associations:
+      L0:
+        - variables: [rubric.math.test_used]
+          quote: "the mean of these measurements differs from 50"
+          note: >-
+            The question is about a mean and is two-sided at every level
+            (docs/leak-check.md, rule 9). Read the test as a choice among
+            tests of a mean.
+
+  least-squares-fit:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.math.fit_route]
+        reason: direction
+        quote: "Work from centered sums: subtract the means of x and y first, then form Sxx and Sxy."
+        expect:
+          rubric.math.fit_route: {in: [centered-sums]}
+      - closed: [rubric.math.fit_extras]
+        reason: content
+        quote:
+          - "The slope and intercept, each with its standard error."
+          - "The residual of every point, and R²."
+        expect:
+          rubric.math.fit_extras: {present: [goodness-of-fit, residuals, uncertainties]}
+      - closed: [rubric.math.assumptions_stated]
+        reason: content
+        quote: "Each stretch reading has about the same uncertainty, and the loads are known exactly."
+
+  loan-amortization:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.math.method_family]
+        reason: direction
+        quote: "Find the payment by building the balance month by month and choosing the payment that brings it to zero"
+        expect:
+          rubric.math.method_family: {in: [stepwise]}
+      - closed: [rubric.math.answer_check]
+        reason: direction
+        quote: "and say how you checked it"
+        expect:
+          rubric.math.answer_check: {in: [plausibility, recomputed]}
+      - closed: [rubric.math.answer_position]
+        reason: direction
+        quote: "Open with a two-sentence answer the buyer can read on its own"
+        expect:
+          rubric.math.answer_position: {in: [before-working]}
+      - closed: [rubric.math.schedule_extent]
+        reason: direction
+        quote: "The full schedule, one row per month"
+        expect:
+          rubric.math.schedule_extent: {in: [full]}
+      - closed: [rubric.math.assumptions_stated]
+        reason: content
+        quote: "Interest is charged each month at one twelfth of the annual rate"
+      - closed: [rubric.math.payment_rounding]
+        reason: direction
+        quote: "Each payment is rounded to the cent. The last payment absorbs the rounding difference, so the balance ends at exactly zero."
+        expect:
+          rubric.math.payment_rounding: {in: [last-payment-adjusted]}
+
+  projectile-drag:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.math.drag_model]
+        reason: content
+        quote: "Drag force proportional to the square of the speed"
+        expect:
+          rubric.math.drag_model: {in: [quadratic]}
+        note: >-
+          Equal to the expected default (docs/leak-check.md, rule 14): no
+          real object at this speed follows another law. Compliance can be
+          read; persistence cannot. The drag law is measured at L0 and L1.
+      - closed: [rubric.math.assumptions_stated, rubric.math.result_form]
+        reason: content
+        quote: "The projectile is a soccer ball kicked from flat ground:"
+        note: >-
+          The brief gives the object and its constants, so one worked case is
+          what it asks for. No value is expected for result_form: the range
+          with no air, which the brief also asks for, may be read as a second
+          case.
+      - closed: [rubric.math.method_family, rubric.math.computation_medium]
+        reason: direction
+        quote: "Step the motion forward by hand with Heun's method"
+        expect:
+          rubric.math.method_family: {in: [stepwise]}
+          rubric.math.computation_medium: {in: [worked-in-text]}
+      - closed: [rubric.math.answer_check]
+        reason: content
+        quote: "The range the same kick would have with no air at all."
+        note: >-
+          The brief asks for the value that a plausibility check would
+          compare with. No value is expected.
+
+  titration-curve:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.math.method_family]
+        reason: direction
+        quote: "Use one exact charge-balance equation for every point, solved numerically"
+        expect:
+          rubric.math.method_family: {in: [stepwise]}
+      - closed: [rubric.math.curve_presentation]
+        reason: direction
+        quote:
+          - "Present the results as a table of volume and pH"
+          - "describe the shape of the curve in one short paragraph"
+        expect:
+          rubric.math.curve_presentation: {present: [table, described]}
+        note: >-
+          The brief does not rule out a drawn curve or code for one, so only
+          the table and the description are judged.
+      - closed: [rubric.math.assumptions_stated]
+        reason: content
+        quote: "Treat activities as equal to concentrations, and the volumes as additive."
+    associations:
+      L0:
+        - variables: [rubric.math.curve_presentation]
+          quote: "pH curve"
+          note: >-
+            "Curve" leans toward a drawn curve at every level
+            (docs/leak-check.md, rule 8). Read the share of drawn and
+            plot-code as the default for a request that says "curve".

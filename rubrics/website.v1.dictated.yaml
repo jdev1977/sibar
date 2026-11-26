@@ -1,0 +1,125 @@
+# Which rubric items each website prompt takes out of the model's hands
+# (T2.4). Companion of website.v1.yaml; checked by tagger/rubric.py.
+#
+# Same idea and same entry format as analysis/website/dictated.yaml, which
+# holds the entries for the website extractors and whose rules are in
+# docs/metrics.md, "Open choices". An item is OPEN in a cell unless an entry
+# here closes it for that task and level. The variable name of an item is
+# rubric.website.<item id>, as the tags are stored (docs/record-format.md).
+#
+#   closed   the items an entry closes
+#   reason   direction   the brief names the look, tone or wording
+#            content     the brief supplies the content that decides the answer
+#            constraint  the brief states a technical need
+#   quote    words of wording A at that level (one text or a list)
+#   expect   optional, per item: {in: [...]} for a single-select item;
+#            {present: [...]} and/or {absent: [...]} for a multi-select item
+#   note     why, and what to be careful about
+#
+# L0 and L1 close nothing. Every L2 gives the name of its subject, and five
+# of the six list their required sections, which decides whether people and
+# contact details appear.
+#
+# Changing an entry needs no new rubric version and no new tagging. When
+# these entries are merged into analysis/website/dictated.yaml, raise
+# metrics_version there.
+schema_version: 1
+project_type: website
+rubric: website.v1
+
+tasks:
+  bakery-landing:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.website.name_given]
+        reason: content
+        quote: "the Wrenmoor Bread Room"
+        expect:
+          rubric.website.name_given: {in: [specific-name]}
+      - closed: [rubric.website.people_presented]
+        reason: content
+        quote:
+          - "Owners: Priya Halvorsen and Dev Okafor"
+          - "Required sections:"
+      - closed: [rubric.website.contact_details]
+        reason: content
+        quote: "Contact: orders@example.com, 555-0147."
+        expect:
+          rubric.website.contact_details: {in: [filled-in]}
+
+  dashboard:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.website.name_given]
+        reason: content
+        quote: "Ostrey Food Bank"
+        expect:
+          rubric.website.name_given: {in: [specific-name]}
+      - closed: [rubric.website.people_presented, rubric.website.contact_details]
+        reason: content
+        quote: "Required sections: header, key figures, households per hour, stock levels with the low ones flagged, notes."
+        note: The brief lists the sections; none holds people or contact details.
+
+  event-page:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.website.name_given]
+        reason: content
+        quote: "Fix-It Day"
+        expect:
+          rubric.website.name_given: {in: [specific-name]}
+      - closed: [rubric.website.people_presented]
+        reason: content
+        quote:
+          - "by volunteer Rosa Imbert"
+          - "Required sections:"
+      - closed: [rubric.website.contact_details]
+        reason: content
+        quote: "Volunteers who want to help can write to volunteers@example.com. Questions: 555-0119."
+        expect:
+          rubric.website.contact_details: {in: [filled-in]}
+
+  portfolio:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.website.name_given]
+        reason: content
+        quote: "Joss Achterberg"
+        expect:
+          rubric.website.name_given: {in: [specific-name]}
+      - closed: [rubric.website.people_presented]
+        reason: content
+        quote:
+          - "written in the first person as Joss"
+          - "Required sections:"
+      - closed: [rubric.website.contact_details]
+        reason: content
+        quote: "Contact: studio@example.com or 555-0163."
+        expect:
+          rubric.website.contact_details: {in: [filled-in]}
+
+  pricing-page:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.website.name_given]
+        reason: content
+        quote: "Billfinch"
+        expect:
+          rubric.website.name_given: {in: [specific-name]}
+      - closed: [rubric.website.people_presented]
+        reason: content
+        quote: "Required sections:"
+      - closed: [rubric.website.contact_details]
+        reason: content
+        quote: "a closing line that invites questions to hello@example.com"
+        expect:
+          rubric.website.contact_details: {in: [filled-in]}
+
+  todo-app:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.website.name_given]
+        reason: content
+        quote: "called Term Planner"
+        expect:
+          rubric.website.name_given: {in: [specific-name]}

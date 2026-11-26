@@ -1,0 +1,628 @@
+# Rubric for math and science outputs, version 1 (T2.4).
+# Format, reasons and calibration plan: docs/rubrics.md. Checked by
+# tagger/rubric.py (python -m pytest tests/test_rubrics.py).
+# What each prompt dictates is in math.v1.dictated.yaml.
+#
+# Whether an answer is right is the answer checker's job (T2.10, against
+# checker/references/math/). No item here asks it.
+#
+# Any change to an item, an option, a definition, an instruction or what an
+# item applies to is a new version: copy this file to math.v2.yaml and change
+# the copy. Examples may be corrected in place before the first paid tagging
+# run only.
+schema_version: 1
+project_type: math
+rubric_version: "1"
+
+# The prompt texts the items and their task lists were read against.
+prompt_set_versions:
+  entropy-explanation: "1"
+  hypothesis-test: "1"
+  least-squares-fit: "1"
+  loan-amortization: "1"
+  projectile-drag: "1"
+  titration-curve: "1"
+
+# Given to the tagger before the items, word for word.
+instructions:
+  - Read the whole response, with every file and code block, before you answer.
+  - Answer from the response alone. You are not shown the prompt or told which model wrote the response, and no item needs either.
+  - Record what the response does, not whether it is right. Code with a bug still does what it is written to do, and a formula applied to the wrong number is still the formula that was used.
+  - Count only what the response delivers. Something it only suggests as a possible addition is not delivered.
+  - A single-select item takes exactly one answer. Where two options fit, follow the item's tie rule. If it has none and you cannot decide, answer cannot-tell.
+  - A multi-select item takes every option that applies. Answer none when you looked and no option applies.
+  - An item's "not present" option (or none) means you looked and the response does not have it. cannot-tell means the response has it, or may have it, but does not show enough to choose. not-applicable is only for the case the item names.
+  - The length, layout and confidence of a response do not change any answer.
+
+# The first item asked. With one of the no_solution answers there is nothing
+# to read: no other item is asked, and the run counts as an outcome without a
+# solution (docs/metrics.md, "Which runs count"). A cannot-tell at the gate
+# stops the same way, and the run is left out as unread.
+gate:
+  item: response_mode
+  no_solution: [asks-first, declines]
+
+dimensions:
+  response: How the request is taken up, and in how many solutions
+  tone: How the response opens and closes
+  structure: Where the result sits and in what form it is shown
+  method: How the numbers are reached
+  assumptions: What the response takes for granted and whether it says so
+  checks: Whether the result is verified, and what is reported beside it
+  explanation: How an idea is described and which pictures carry it
+
+items:
+  - id: response_mode
+    dimension: response
+    question: What does the response do with the request?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: A solution is any attempt at the thing asked for, complete or not.
+    options:
+      - id: answers
+        definition: Delivers a solution and asks the user for no information.
+        example: "A worked solution that ends with a range of 41 m. It asks nothing."
+      - id: answers-and-asks
+        definition: Delivers a solution and also asks the user for information about what they have, need or mean. An offer to do more work is not such a question.
+        example: "A solution with assumed drag constants, then 'What object is it, so I can use its real drag coefficient?'"
+      - id: asks-first
+        definition: Asks the user for information and delivers no solution.
+        example: "'I need the mass, size and drag coefficient of the projectile before I can compute this.' No calculation follows."
+      - id: declines
+        definition: Says it will not or cannot do the task and delivers no solution.
+        example: "'I'm not able to work this out.' Nothing else is delivered."
+    cannot_tell:
+      when: The response is empty, or its text has nothing to do with the request.
+      example: "The whole response is the word 'undefined'."
+    not_applicable: never
+
+  - id: result_form
+    dimension: response
+    question: How many worked solutions does the response deliver?
+    select: single
+    applies_to:
+      tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]
+      levels: all
+    absent: always-present
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Where the programs themselves are the solution (a pipeline, a tool, a configuration), two complete programs offered as alternatives are several-worked, and this sentence wins over the first. Where programs only compute a number, a decision or a design, two of them computing the same thing from the same inputs are one solution.
+    options:
+      - id: general-only
+        definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
+        example: "The equations of motion with drag are derived and left in symbols, with no number for the range."
+      - id: one-worked
+        definition: Carries one solution through to its end result.
+        example: "One set of drag constants is assumed and the range is computed for it."
+      - id: several-worked
+        definition: Carries two or more alternatives that differ in their inputs or their design through to end results of their own.
+        example: "The range is computed for a tennis ball and again for a steel ball."
+    cannot_tell:
+      when: The response stops part-way, so its complete solutions cannot be counted.
+      example: "The response ends in the middle of the second equation."
+    not_applicable: never
+
+  - id: opening
+    dimension: tone
+    question: What is the first thing in the response?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: Judge the first sentence, heading or block only, whatever follows it.
+    tie_rule: If the first sentence holds a word of agreement, greeting, praise or enthusiasm, answer acknowledgement, whatever else that sentence does. A first-person statement of what the response will do is announcement, also when it lays out steps. Assumptions, a plan or background given with no such statement are framing.
+    options:
+      - id: acknowledgement
+        definition: A reply to the user before any content, such as agreement, a greeting, praise or enthusiasm.
+        example: "'Great question! Let's work through it.'"
+      - id: announcement
+        definition: A statement of what the response will deliver or do, or a restatement of the task.
+        example: "'I'll calculate the monthly payment and then show how the balance falls.'"
+      - id: content
+        definition: The solution itself, such as code, a file, a result, a first step (a list of the given values counts) or a heading that names the solution or its first part.
+        example: "The response starts with 'Given: P = 9000, r = 7%, n = 60'."
+      - id: framing
+        definition: Assumptions, a plan or background set out before the solution starts.
+        example: "'Approach: we treat drag as proportional to v² and integrate numerically.' The working follows."
+      - id: question
+        definition: A question to the user.
+        example: "'What kind of projectile is this?'"
+    cannot_tell:
+      when: The first lines cannot be read as language or code.
+      example: "The response starts with a run of garbled characters."
+    not_applicable: never
+
+  - id: closing
+    dimension: tone
+    question: What is the last thing in the response?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: Judge the last sentence, list or block only.
+    tie_rule: A last line that states a result or a conclusion of the working is content, unless it sits under a label such as Summary, Recap or Key points. A passage that names a limit of what was delivered is caveat, also when it says how to lift the limit. A passage that only proposes additions is extension-ideas.
+    options:
+      - id: caveat
+        definition: A warning, a limitation or advice to verify.
+        example: "'Keep in mind that real drag depends on spin and wind, so treat this as an estimate.'"
+      - id: content
+        definition: The solution itself. The response stops after its last piece of code, result, step or file.
+        example: "The response ends with the last row of the amortization table."
+      - id: extension-ideas
+        definition: Suggestions for further features, improvements or next steps the user could take.
+        example: "'You could extend this by trying other launch angles or adding wind.'"
+      - id: offer
+        definition: An offer or invitation to do more or to change something, also when it is phrased as a question.
+        example: "'Would you like me to plot the trajectory as well?'"
+      - id: question
+        definition: A question to the reader that is not an offer, such as a request for information or a question to think about.
+        example: "'Can you say why the curve is flat near the half-equivalence point?'"
+      - id: recap
+        definition: A passage that repeats what the response already gave, under a label such as Summary, Recap, Conclusion or Key points, or as a closing list of what was delivered.
+        example: "'To sum up: the payment is 178.21 a month and the interest comes to 1692.65, as found above.'"
+      - id: sign-off
+        definition: A closing pleasantry with no content, such as a wish, thanks or a hope that the answer is of use.
+        example: "'Good luck with the lab report!'"
+    cannot_tell:
+      when: The response stops in the middle of a sentence or a code block.
+      example: "The last line is 'so the range is approx'."
+    not_applicable: never
+
+  - id: assumptions_stated
+    dimension: assumptions
+    question: Does the response say which assumptions it made?
+    select: single
+    order: scale
+    applies_to:
+      tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]
+      levels: all
+    absent: none
+    tie_rule: If both an in-passing statement and a labelled list occur, answer listed.
+    guidance: An assumption is anything the response marks as assumed, chosen or taken for granted for lack of information, whether an input value, a condition or a simplification of the method. A value or a method used with no such marking is not a stated assumption.
+    options:
+      - id: none
+        definition: States no assumption.
+        example: "A drag coefficient of 0.47 appears in the first equation with no remark."
+      - id: in-passing
+        definition: Marks one or more things as assumed or chosen for lack of information, inside the prose, the working or a code comment, with no list or section set apart for assumptions.
+        example: "'Taking the projectile to be a smooth sphere, we get...'"
+      - id: listed
+        definition: Sets assumptions apart under a label or heading that names them as assumptions.
+        example: "'Assumptions: (1) quadratic drag, (2) no wind, (3) flat ground.'"
+    cannot_tell:
+      when: A label announces assumptions and the text under it is missing.
+      example: "'Assumptions:' is followed directly by the first equation, with no entries."
+    not_applicable: never
+
+  - id: answer_position
+    dimension: structure
+    question: Where does the main result first appear, relative to the working?
+    select: single
+    applies_to:
+      tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]
+      levels: all
+    absent: no-final-result
+    guidance: The main result is the quantity or decision the response presents as its answer. The working is the derivation, the steps or the code that leads to it.
+    options:
+      - id: after-working
+        definition: The working comes first and the main result appears only after it.
+        example: "Six steps of derivation, then 'Range ≈ 41 m'."
+      - id: before-working
+        definition: The main result is stated before any working.
+        example: "'The range is about 41 m. Here is how to get it.' The derivation follows."
+      - id: no-final-result
+        definition: The response has working and never states a main result.
+        example: "A simulation script is given with the line 'run it to see the range'."
+      - id: no-working
+        definition: The main result is stated and no working is shown.
+        example: "'The monthly payment is 178.21.' Nothing supports it."
+    cannot_tell:
+      when: The response stops before its working ends.
+      example: "The derivation breaks off at step 3 of 5."
+    not_applicable: never
+
+  - id: computation_medium
+    dimension: method
+    question: Where do the response's numbers come from?
+    select: single
+    applies_to:
+      tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]
+      levels: all
+    absent: no-numbers
+    tie_rule: If the text carries out the arithmetic that leads to the results, answer worked-in-text even when code is given too.
+    options:
+      - id: code-not-run
+        definition: Code is given to compute the results, and the response states no results from it.
+        example: "A script ends with print(range_m); the text says 'running this gives the range'."
+      - id: code-with-results
+        definition: Code is given to compute the results, and the response states results as its output.
+        example: "A script, then 'Output: range = 41.3 m'."
+      - id: no-numbers
+        definition: The response gives no numeric result.
+        example: "The answer is a formula for the payment in terms of P, r and n."
+      - id: stated-only
+        definition: Results are stated with no arithmetic and no code behind them.
+        example: "'t = 3.87, p = 0.006', with no steps."
+      - id: worked-in-text
+        definition: The arithmetic is carried out in the text, in equations, substitutions or tables of steps.
+        example: "'M = 9000 × 0.005833 / (1 − 1.005833^−60) = 178.21'."
+    cannot_tell:
+      when: The response attributes its numbers to something it does not show.
+      example: "'From my spreadsheet the total interest is 1692.65.'"
+    not_applicable: never
+
+  - id: answer_check
+    dimension: checks
+    question: Does the response verify its own result?
+    select: single
+    order: scale
+    applies_to:
+      tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]
+      levels: all
+    absent: none
+    tie_rule: If both kinds of check occur, answer recomputed.
+    options:
+      - id: none
+        definition: Verifies no result.
+        example: "The range is stated and the response ends."
+      - id: plausibility
+        definition: Compares a result with an expected size, a limiting case or a known value, or says with a stated reason that it is reasonable, without computing it again.
+        example: "'This is less than the 55 m it would travel with no air, as expected.'"
+      - id: recomputed
+        definition: Reaches a result a second way and compares the two, by another method, by substitution back into the starting equation, or by totals that must agree.
+        example: "The payment from the formula is confirmed by running the balance down to zero over 60 months."
+    cannot_tell:
+      when: The response says a check was made and shows nothing of it.
+      example: "'I verified this result.' No detail is given."
+    not_applicable: never
+
+  - id: method_family
+    dimension: method
+    question: How does the response get from its starting equations to its numbers?
+    select: single
+    applies_to:
+      tasks: [loan-amortization, projectile-drag, titration-curve]
+      levels: all
+    absent: not-shown
+    guidance: Go by the method the response uses, or the one it sets out if it computes nothing.
+    tie_rule: Answer both only when each route is carried through to numbers. A route that is only named does not count.
+    task_notes:
+      loan-amortization: Judge how the monthly payment is found. A schedule built from a payment that is already known is not stepwise.
+      projectile-drag: Judge how the range is found.
+      titration-curve: Judge how the pH values are found. Solving one quadratic by its formula is closed-form. Solving an equation numerically is stepwise.
+    options:
+      - id: both
+        definition: Each of the two routes is carried through for the same result.
+        example: "The payment is found from the annuity formula and again by trial on a month-by-month balance."
+      - id: closed-form
+        definition: By substituting into explicit formulas that give each result in one evaluation.
+        example: "pH = pKa + log([A−]/[HA]) is evaluated at each volume."
+      - id: not-shown
+        definition: Results are stated and no route to them is shown.
+        example: "'The range is 38 m.' No method is given."
+      - id: stepwise
+        definition: By repeating a calculation step by step or until it converges, as in time-stepping, a month-by-month recurrence, iteration, root finding or simulation.
+        example: "Velocity and position are updated every 0.01 s until the height returns to zero."
+    cannot_tell:
+      when: The numbers come from a solver or library call whose method the response does not say.
+      example: "'range = solve(model)', from a module that is not shown."
+    not_applicable: never
+
+  - id: drag_model
+    dimension: assumptions
+    question: Which law does the response use for the air resistance force?
+    select: single
+    applies_to: {tasks: [projectile-drag], levels: all}
+    absent: none
+    tie_rule: Answer both only when the problem is worked under each law. A law that is only mentioned does not count.
+    options:
+      - id: both
+        definition: Works the problem under a linear law and under a quadratic law.
+        example: "Part 1 uses F = −kv; part 2 uses F = −cv²."
+      - id: linear
+        definition: A force proportional to the speed.
+        example: "'F_drag = −b·v', with b = 0.05 kg/s."
+      - id: none
+        definition: No drag force enters the calculation.
+        example: "The range is computed as v² sin(2θ)/g, with a remark that air would shorten it."
+      - id: other
+        definition: Another law, or a drag term whose form is left unspecified.
+        example: "'Let the drag be some function f(v)'; no form is chosen."
+      - id: quadratic
+        definition: A force proportional to the square of the speed.
+        example: "'F = ½ ρ C_d A v²'."
+    cannot_tell:
+      when: A drag constant is used and the response never shows how the force depends on the speed.
+      example: "'With k = 0.1 the range comes to 40 m.'"
+    not_applicable: never
+
+  - id: schedule_extent
+    dimension: structure
+    question: How much of the repayment schedule does the response show?
+    select: single
+    order: scale
+    applies_to: {tasks: [loan-amortization], levels: all}
+    absent: none
+    tie_rule: If more than one applies, answer the one that comes later in the list as the file gives it (none, summary-periods, excerpt, full).
+    guidance: Count rows shown in the response. A schedule that code would print does not count.
+    options:
+      - id: none
+        definition: Shows no schedule rows.
+        example: "The payment and the total interest are given, with no table."
+      - id: summary-periods
+        definition: Rows for years or other periods longer than a month, and no monthly rows.
+        example: "A five-row table, one row per year, with the interest and principal paid."
+      - id: excerpt
+        definition: Monthly rows for some months only.
+        example: "Months 1 to 3 and month 60 are shown, with '...' between."
+      - id: full
+        definition: A monthly row for every month of the loan.
+        example: "A 60-row table from month 1 to month 60."
+    cannot_tell:
+      when: A table starts and the response stops inside it.
+      example: "The table ends at month 23 in the middle of a row."
+    not_applicable: never
+
+  - id: payment_rounding
+    dimension: assumptions
+    question: How does the response deal with rounding the payments to whole cents?
+    select: single
+    applies_to: {tasks: [loan-amortization], levels: all}
+    absent: not-addressed
+    tie_rule: If a payment or the final balance is adjusted for rounding, answer last-payment-adjusted, whatever else is said.
+    options:
+      - id: last-payment-adjusted
+        definition: Rounds the payment to cents and adjusts the final payment or the final balance so that the loan ends at zero.
+        example: "'The 60th payment is 178.13, a little less than the others, to clear the balance.'"
+      - id: not-addressed
+        definition: Adjusts no payment and makes no remark on rounding, whether the payment is rounded to cents, shown to two decimals or left unrounded.
+        example: "'Monthly payment: 178.21. Total paid: 10692.60.'"
+      - id: noted-only
+        definition: Remarks that rounding leaves a small difference, and adjusts no payment.
+        example: "'Totals may be off by a few cents because of rounding.'"
+    cannot_tell:
+      when: A final payment differs from the others and the response does not say why.
+      example: "The last row of the table shows 178.13 with no remark."
+    not_applicable: never
+
+  - id: curve_presentation
+    dimension: structure
+    question: In which forms does the response present the pH curve?
+    select: multi
+    applies_to: {tasks: [titration-curve], levels: all}
+    none_example: "Only the pH at the equivalence point is computed."
+    options:
+      - id: described
+        definition: A description in words of how the pH changes along the titration.
+        example: "'The pH rises slowly through the buffer region, jumps near 25 mL and levels off above 12.'"
+      - id: drawn
+        definition: A picture of the curve in the response itself, as an image, vector graphics or a sketch made of text characters.
+        example: "A text sketch with pH on the vertical axis and '*' marks along an S shape."
+      - id: other
+        definition: Another form that no other option covers.
+        example: "A single formula that gives the pH as a function of the volume added."
+      - id: plot-code
+        definition: Code that draws the curve.
+        example: "A script that ends with plt.plot(volumes, ph)."
+      - id: table
+        definition: A table or list of pH values at several volumes.
+        example: "A table with rows for 0, 12.5, 25 and 30 mL."
+    cannot_tell:
+      when: The response refers to a figure or table that is not in it.
+      example: "'As the graph below shows', and nothing follows."
+    not_applicable: never
+
+  - id: test_used
+    dimension: method
+    question: Which test does the response base its conclusion on?
+    select: single
+    applies_to: {tasks: [hypothesis-test], levels: all}
+    absent: no-test
+    tie_rule: A second test that is only mentioned, or run beside the main one and not used for the conclusion, does not make the answer several.
+    options:
+      - id: no-test
+        definition: Draws its conclusion with no statistical test.
+        example: "'The mean is 51.2, which is above 50, so it differs.'"
+      - id: one-sample-t
+        definition: A one-sample t test, or a t-based confidence interval used as the test.
+        example: "'t = (51.175 − 50)/(0.858/√8) = 3.87 with 7 degrees of freedom.'"
+      - id: other
+        definition: A single procedure of another kind.
+        example: "A Bayesian estimate of the mean with a credible interval."
+      - id: resampling
+        definition: A bootstrap or permutation procedure.
+        example: "10,000 bootstrap resamples of the mean give an interval that excludes 50."
+      - id: several
+        definition: Bases its conclusion on two or more tests.
+        example: "A t test and a signed-rank test are both run, and the conclusion cites both."
+      - id: sign-test
+        definition: The sign test, which counts values above and below the reference value.
+        example: "Seven of eight values lie above 50, and the binomial probability of that is computed."
+      - id: signed-rank
+        definition: The Wilcoxon signed-rank test.
+        example: "The differences are ranked and the smaller rank sum, 1, is compared with a table."
+      - id: z-test
+        definition: A test with the normal distribution as its reference.
+        example: "'z = 3.87, and the normal table gives p = 0.0001.'"
+    cannot_tell:
+      when: A test statistic is given and the response does not say or show which test it belongs to.
+      example: "'The test statistic is 3.87, so we reject.'"
+    not_applicable: never
+
+  - id: significance_level
+    dimension: assumptions
+    question: Which significance level does the response use for its decision?
+    select: single
+    applies_to: {tasks: [hypothesis-test], levels: all}
+    absent: none
+    tie_rule: Answer several only when a decision is given at each level. A confidence interval beside a decision at the same level is that one level.
+    options:
+      - id: five-percent
+        definition: A level of 0.05, or a 95% confidence level.
+        example: "'At α = 0.05 we reject the null hypothesis.'"
+      - id: none
+        definition: States no level. A p-value or a statistic is given without a threshold.
+        example: "'p = 0.006, which is strong evidence against a mean of 50.'"
+      - id: one-percent
+        definition: A level of 0.01, or a 99% confidence level.
+        example: "'Since p < 0.01, the result is significant at the 1% level.'"
+      - id: other
+        definition: Another single level.
+        example: "'Using α = 0.10, the mean differs from 50.'"
+      - id: several
+        definition: Gives its decision at two or more levels.
+        example: "'The difference is significant at 5% and at 1%.'"
+    cannot_tell:
+      when: A critical value is used and the response does not give the level it belongs to.
+      example: "'The critical value is 2.365, so we reject.'"
+    not_applicable: never
+
+  - id: normality_treatment
+    dimension: assumptions
+    question: What does the response do about the assumption that the data come from a normal distribution?
+    select: single
+    applies_to: {tasks: [hypothesis-test], levels: all}
+    absent: not-mentioned
+    tie_rule: If it is both named as an assumption and examined, answer checked.
+    options:
+      - id: checked
+        definition: Examines it with a test, a plot or a remark on the data values.
+        example: "'A Shapiro-Wilk test gives p = 0.9, so normality is plausible.'"
+      - id: not-mentioned
+        definition: Says nothing about it.
+        example: "The t test is run with no word about the distribution of the data."
+      - id: set-aside
+        definition: Says the method it uses does not need it.
+        example: "'The signed-rank test makes no normality assumption.'"
+      - id: stated
+        definition: Names it as an assumption and does not examine it.
+        example: "'We assume the measurements are normally distributed.'"
+    cannot_tell:
+      when: The response says the distribution was checked and gives no result of the check.
+      example: "'After checking normality, we proceed.'"
+    not_applicable: never
+
+  - id: fit_route
+    dimension: method
+    question: How does the response compute the slope and intercept?
+    select: single
+    applies_to: {tasks: [least-squares-fit], levels: all}
+    absent: not-shown
+    tie_rule: Answer several only when the slope and intercept are computed by two or more routes. Code that only repeats the formulas of the hand calculation is the same route.
+    options:
+      - id: centered-sums
+        definition: From sums of deviations from the means (Sxx and Sxy).
+        example: "'Sxy = Σ(x − 4)(y − 8) = 54.5 and Sxx = 28, so the slope is 1.946.'"
+      - id: library-call
+        definition: By a fitting function of a software library, in code.
+        example: "'slope, intercept = np.polyfit(x, y, 1)'."
+      - id: matrix
+        definition: From the normal equations in matrix form, solved in the text.
+        example: "'(XᵀX)β = Xᵀy with XᵀX = [[7, 28], [28, 140]]'."
+      - id: not-shown
+        definition: States them with no computation.
+        example: "'The line is y = 1.946x + 0.214.' No computation is given."
+      - id: raw-sums
+        definition: From the sums Σx, Σy, Σxy and Σx² put into the slope and intercept formulas.
+        example: "'m = (7·278.5 − 28·56)/(7·140 − 28²)'."
+      - id: several
+        definition: By two or more of these routes.
+        example: "The slope is worked from raw sums and then confirmed with a library call."
+    cannot_tell:
+      when: The slope and intercept come from code that the response does not show.
+      example: "'Running my fitting script gives a slope of 1.946.'"
+    not_applicable: never
+
+  - id: fit_extras
+    dimension: checks
+    question: Which results does the response give beyond the slope and intercept?
+    select: multi
+    applies_to: {tasks: [least-squares-fit], levels: all}
+    none_example: "'y = 1.946x + 0.214' is the whole result."
+    options:
+      - id: fitted-values
+        definition: The fitted y at each x.
+        example: "A column headed 'ŷ' lists 2.16, 4.11, 6.05 and so on."
+      - id: goodness-of-fit
+        definition: R², a correlation coefficient or another single measure of fit.
+        example: "'R² = 0.998'."
+      - id: other
+        definition: Another result that no other option covers.
+        example: "'At x = 10 the line predicts y = 19.7.'"
+      - id: plot
+        definition: A plot of the points and the line, or code that draws one.
+        example: "A script ends with plt.scatter(x, y) and plt.plot(x, fit)."
+      - id: residuals
+        definition: The residual of each point, or a residual sum or standard deviation.
+        example: "'Residuals: 0.14, −0.01, −0.25, ...'"
+      - id: uncertainties
+        definition: Standard errors or confidence intervals of the slope or the intercept.
+        example: "'slope = 1.946 ± 0.038'."
+    cannot_tell:
+      when: The response refers to further results that are not in it.
+      example: "'See the residual table below', and no table follows."
+    not_applicable: never
+
+  - id: entropy_framings
+    dimension: explanation
+    question: Which ways of describing entropy does the response use?
+    select: multi
+    applies_to: {tasks: [entropy-explanation], levels: all}
+    none_example: "'Entropy is a thermodynamic property with units of J/K.' No further description is given."
+    options:
+      - id: disorder
+        definition: As disorder, messiness or randomness.
+        example: "'Entropy is a measure of how disordered a system is.'"
+      - id: energy-spreading
+        definition: As energy spreading out or becoming less concentrated.
+        example: "'Entropy tracks how spread out the energy is.'"
+      - id: heat-over-temperature
+        definition: As heat transferred divided by temperature.
+        example: "'ΔS = q/T for a reversible process.'"
+      - id: information
+        definition: As missing information or uncertainty about the exact state.
+        example: "'It measures how much we don't know about where each molecule is.'"
+      - id: microstates
+        definition: As a count of the microscopic arrangements that fit what is observed.
+        example: "'S = k ln W, where W is the number of ways to arrange the particles.'"
+      - id: other
+        definition: Another way of describing it that no other option covers.
+        example: "'Entropy is what gives time its direction.'"
+      - id: unavailable-energy
+        definition: As energy that cannot be turned into work.
+        example: "'Entropy measures the energy that is no longer available to do work.'"
+    cannot_tell:
+      when: The explanation stops before it says what entropy is.
+      example: "The response stops at 'To understand entropy, first consider'."
+    not_applicable: never
+
+  - id: entropy_examples
+    dimension: explanation
+    question: Which pictures or examples does the response use?
+    select: multi
+    applies_to: {tasks: [entropy-explanation], levels: all}
+    guidance: One passage can count for two options, such as coins that are tossed and whose outcomes are counted.
+    none_example: "The explanation uses definitions and formulas only."
+    options:
+      - id: breaking
+        definition: Something that breaks or decays and does not reassemble.
+        example: "'A dropped egg never un-breaks.'"
+      - id: counting-model
+        definition: A worked count of arrangements, with numbers for how many ways each state can occur.
+        example: "'Two atoms sharing 3 energy units can do so in 4 ways.'"
+      - id: heat-flow
+        definition: Hot and cold evening out.
+        example: "'An ice cube melts in a warm drink.'"
+      - id: messy-room
+        definition: A room, a desk or a house getting untidy.
+        example: "'Your bedroom gets messy by itself but never tidies itself.'"
+      - id: mixing
+        definition: Substances mixing or spreading through a space.
+        example: "'A drop of ink spreads through a glass of water.'"
+      - id: other
+        definition: Another picture or example that no other option covers.
+        example: "'A steam engine can never turn all of its heat into motion.'"
+      - id: shuffled-objects
+        definition: Cards, dice, coins or sorted objects that get shuffled or tossed.
+        example: "'A new deck of cards is in order; shuffle it and it almost never comes back.'"
+    cannot_tell:
+      when: The response refers to an example it does not give.
+      example: "'Think of the example from before', with no example in the response."
+    not_applicable: never

@@ -1,0 +1,650 @@
+# Rubric for pipeline outputs, version 1 (T2.4).
+# Format, reasons and calibration plan: docs/rubrics.md. Checked by
+# tagger/rubric.py (python -m pytest tests/test_rubrics.py).
+# What each prompt dictates is in pipeline.v1.dictated.yaml.
+#
+# Any change to an item, an option, a definition, an instruction or what an
+# item applies to is a new version: copy this file to pipeline.v2.yaml and
+# change the copy. Examples may be corrected in place before the first paid
+# tagging run only.
+schema_version: 1
+project_type: pipeline
+rubric_version: "1"
+
+# The prompt texts the items and their task lists were read against.
+prompt_set_versions:
+  ci-workflow: "1"
+  csv-to-database: "1"
+  daily-api-fetch: "1"
+  data-validation: "1"
+  image-resize: "1"
+  log-aggregation: "1"
+
+# Given to the tagger before the items, word for word.
+instructions:
+  - Read the whole response, with every file and code block, before you answer.
+  - Answer from the response alone. You are not shown the prompt or told which model wrote the response, and no item needs either.
+  - Record what the response does, not whether it is right. Code with a bug still does what it is written to do, and a formula applied to the wrong number is still the formula that was used.
+  - Count only what the response delivers. Something it only suggests as a possible addition is not delivered.
+  - A single-select item takes exactly one answer. Where two options fit, follow the item's tie rule. If it has none and you cannot decide, answer cannot-tell.
+  - A multi-select item takes every option that applies. Answer none when you looked and no option applies.
+  - An item's "not present" option (or none) means you looked and the response does not have it. cannot-tell means the response has it, or may have it, but does not show enough to choose. not-applicable is only for the case the item names.
+  - The length, layout and confidence of a response do not change any answer.
+
+# The first item asked. With one of the no_solution answers there is nothing
+# to read: no other item is asked, and the run counts as an outcome without a
+# solution (docs/metrics.md, "Which runs count"). A cannot-tell at the gate
+# stops the same way, and the run is left out as unread.
+gate:
+  item: response_mode
+  no_solution: [asks-first, declines]
+
+dimensions:
+  response: How the request is taken up, and in how many solutions
+  tone: How the response opens and closes
+  assumptions: What the response takes for granted and whether it says so
+  robustness: What the code does when input or a service fails, or a run repeats
+  operation: How the result is stored, scheduled and handed to the user
+  method: What the code does to the data
+
+items:
+  - id: response_mode
+    dimension: response
+    question: What does the response do with the request?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: A solution is any attempt at the thing asked for, complete or not.
+    options:
+      - id: answers
+        definition: Delivers a solution and asks the user for no information.
+        example: "A complete script, then a paragraph on how it works. It asks nothing."
+      - id: answers-and-asks
+        definition: Delivers a solution and also asks the user for information about what they have, need or mean. An offer to do more work is not such a question.
+        example: "A script is given, followed by 'Which database do you use? I assumed SQLite.'"
+      - id: asks-first
+        definition: Asks the user for information and delivers no solution.
+        example: "'Before I write this: what columns does the CSV have, and which database should it load into?' No code follows."
+      - id: declines
+        definition: Says it will not or cannot do the task and delivers no solution.
+        example: "'I can't help with building this.' Nothing else is delivered."
+    cannot_tell:
+      when: The response is empty, or its text has nothing to do with the request.
+      example: "The whole response is the word 'undefined'."
+    not_applicable: never
+
+  - id: result_form
+    dimension: response
+    question: How many worked solutions does the response deliver?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own. Where the programs themselves are the solution (a pipeline, a tool, a configuration), two complete programs offered as alternatives are several-worked, and this sentence wins over the first. Where programs only compute a number, a decision or a design, two of them computing the same thing from the same inputs are one solution.
+    options:
+      - id: general-only
+        definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
+        example: "A numbered outline (read the file, clean it, load it) with two one-line snippets and no complete program."
+      - id: one-worked
+        definition: Carries one solution through to its end result.
+        example: "One script that reads, cleans and loads the file."
+      - id: several-worked
+        definition: Carries two or more alternatives that differ in their inputs or their design through to end results of their own.
+        example: "A version that loads into SQLite and a second complete version that loads into PostgreSQL."
+    cannot_tell:
+      when: The response stops part-way, so its complete solutions cannot be counted.
+      example: "The response ends in the middle of the first function."
+    not_applicable: never
+
+  - id: opening
+    dimension: tone
+    question: What is the first thing in the response?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: Judge the first sentence, heading or block only, whatever follows it.
+    tie_rule: If the first sentence holds a word of agreement, greeting, praise or enthusiasm, answer acknowledgement, whatever else that sentence does. A first-person statement of what the response will do is announcement, also when it lays out steps. Assumptions, a plan or background given with no such statement are framing.
+    options:
+      - id: acknowledgement
+        definition: A reply to the user before any content, such as agreement, a greeting, praise or enthusiasm.
+        example: "'Sure! Here's a pipeline that does that.'"
+      - id: announcement
+        definition: A statement of what the response will deliver or do, or a restatement of the task.
+        example: "'Here is a pipeline that cleans the CSV and loads it into SQLite.'"
+      - id: content
+        definition: The solution itself, such as code, a file, a result, a first step (a list of the given values counts) or a heading that names the solution or its first part.
+        example: "The response starts with the heading '# pipeline.py' and a code block."
+      - id: framing
+        definition: Assumptions, a plan or background set out before the solution starts.
+        example: "'Assumptions: the file has a header row and fits in memory.' The code comes after."
+      - id: question
+        definition: A question to the user.
+        example: "'Which database are you loading into?'"
+    cannot_tell:
+      when: The first lines cannot be read as language or code.
+      example: "The response starts with a run of garbled characters."
+    not_applicable: never
+
+  - id: closing
+    dimension: tone
+    question: What is the last thing in the response?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: Judge the last sentence, list or block only.
+    tie_rule: A last line that states a result or a conclusion of the working is content, unless it sits under a label such as Summary, Recap or Key points. A passage that names a limit of what was delivered is caveat, also when it says how to lift the limit. A passage that only proposes additions is extension-ideas.
+    options:
+      - id: caveat
+        definition: A warning, a limitation or advice to verify.
+        example: "'Note: this reads the whole file into memory, so it will not suit very large files.'"
+      - id: content
+        definition: The solution itself. The response stops after its last piece of code, result, step or file.
+        example: "The response ends with the last line of the final code block."
+      - id: extension-ideas
+        definition: Suggestions for further features, improvements or next steps the user could take.
+        example: "'Possible next steps: add logging, schedule it with cron, add tests.'"
+      - id: offer
+        definition: An offer or invitation to do more or to change something, also when it is phrased as a question.
+        example: "'Let me know if you'd like me to adapt this for PostgreSQL.'"
+      - id: question
+        definition: A question to the reader that is not an offer, such as a request for information or a question to think about.
+        example: "'What does your CSV look like?'"
+      - id: recap
+        definition: A passage that repeats what the response already gave, under a label such as Summary, Recap, Conclusion or Key points, or as a closing list of what was delivered.
+        example: "'In summary, the script reads the file, cleans five columns and loads one table.'"
+      - id: sign-off
+        definition: A closing pleasantry with no content, such as a wish, thanks or a hope that the answer is of use.
+        example: "'Hope this helps!'"
+    cannot_tell:
+      when: The response stops in the middle of a sentence or a code block.
+      example: "The last line is 'def load_rows(conn, ro'."
+    not_applicable: never
+
+  - id: assumptions_stated
+    dimension: assumptions
+    question: Does the response say which assumptions it made?
+    select: single
+    order: scale
+    applies_to: {tasks: all, levels: all}
+    absent: none
+    tie_rule: If both an in-passing statement and a labelled list occur, answer listed.
+    guidance: An assumption is anything the response marks as assumed, chosen or taken for granted for lack of information, whether an input value, a condition or a simplification of the method. A value or a method used with no such marking is not a stated assumption.
+    options:
+      - id: none
+        definition: States no assumption.
+        example: "The script expects columns 'name' and 'email' and says nowhere that it assumed them."
+      - id: in-passing
+        definition: Marks one or more things as assumed or chosen for lack of information, inside the prose, the working or a code comment, with no list or section set apart for assumptions.
+        example: "A comment reads '# assuming the first row is a header'."
+      - id: listed
+        definition: Sets assumptions apart under a label or heading that names them as assumptions.
+        example: "A section headed 'Assumptions' lists three points about the file and the database."
+    cannot_tell:
+      when: A label announces assumptions and the text under it is missing.
+      example: "'Assumptions:' is followed directly by the code, with no entries."
+    not_applicable: never
+
+  - id: usage_docs
+    dimension: operation
+    question: How does the response tell the user to run what it delivers?
+    select: single
+    order: scale
+    applies_to: {tasks: all, levels: all}
+    absent: none
+    tie_rule: If more than one applies, answer the one that comes later in the list as the file gives it (none, command, setup-and-run, readme-file).
+    options:
+      - id: none
+        definition: Gives no instruction for running it.
+        example: "Only the script is given."
+      - id: command
+        definition: Shows a command, a call or a file location that is enough to run it, with no installation or setup steps.
+        example: "After the code, 'Run it with python pipeline.py orders.csv'."
+      - id: setup-and-run
+        definition: Gives steps to install dependencies or prepare the environment together with how to run it, inside the reply.
+        example: "A 'Setup' section, with a virtual environment to create, a package to install and the run command."
+      - id: readme-file
+        definition: Delivers a separate README or documentation file that holds the instructions.
+        example: "The files delivered are pipeline.py and README.md; the README holds the install and run steps."
+    cannot_tell:
+      when: The response points to instructions it does not include.
+      example: "'See INSTALL.md for how to run it', and no such file is delivered."
+    not_applicable: never
+
+  - id: sample_data
+    dimension: assumptions
+    question: Does the response supply input data of its own for trying the code?
+    select: single
+    applies_to:
+      tasks: [csv-to-database, daily-api-fetch, data-validation, image-resize, log-aggregation]
+      levels: all
+    absent: none
+    tie_rule: If data is both shown and created by code, answer generated.
+    guidance: Data that appears only inside test code does not count.
+    options:
+      - id: generated
+        definition: Delivers code or a command that creates sample input.
+        example: "A helper 'make_sample.py' writes a 20-row orders.csv to try the pipeline on."
+      - id: none
+        definition: Supplies no input data.
+        example: "The code reads a path the user passes in; no data is included."
+      - id: shown
+        definition: Shows sample input in the reply or as a delivered data file (rows, lines, a response body), with no code that creates it.
+        example: "'Example input:' followed by four CSV rows."
+    cannot_tell:
+      when: The response refers to sample data it says is included, and the data is not there.
+      example: "'See the attached sample.csv', with no such file in the response."
+    not_applicable: never
+
+  - id: input_assumption
+    dimension: assumptions
+    question: Where do the field names that the code works on come from?
+    select: single
+    applies_to:
+      tasks: [csv-to-database, daily-api-fetch, data-validation, log-aggregation]
+      levels: all
+    absent: always-present
+    tie_rule: If any processing rule names a field in the code, answer written-into-code.
+    guidance: Field names are column names, JSON keys or the named parts of a log line.
+    options:
+      - id: field-agnostic
+        definition: The code names no particular field. It works on whatever fields the input has.
+        example: "The script strips spaces and drops empty rows for every column, naming none."
+      - id: from-settings
+        definition: The code reads the field names, or the rules for them, from outside itself, such as a configuration file, arguments or environment variables.
+        example: "Column names and their types are read from 'schema.yaml'."
+      - id: written-into-code
+        definition: The code refers to particular field names in its own text (in statements, constants or a schema).
+        example: "The code lower-cases df['email'] and parses df['order_date']."
+    cannot_tell:
+      when: The field handling sits in a helper or module that the response does not show.
+      example: "'from cleaning import clean_rows', and cleaning.py is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response is an outline in prose."
+
+  - id: bad_input_handling
+    dimension: robustness
+    question: What does the code do with an input record or file that it cannot process or that fails its checks?
+    select: multi
+    applies_to:
+      tasks: [csv-to-database, data-validation, image-resize, log-aggregation]
+      levels: all
+    guidance: Count what the code does with records or files that fail a test or raise an error, whether it handles them one at a time or selects them with a mask over all the data. An error that would occur with nothing written for it is not an option; if that is all there is, answer none.
+    task_notes:
+      csv-to-database: Rows written to a separate place are always bad-input handling (sets-aside) and never a cleaning step, whatever they failed, repeats included. Where the rows go to no separate place, three things are cleaning steps and are never bad-input handling. They are removing repeated rows, dropping or filling rows with a missing value (with or without a count), and converting the type of a whole column. Rows removed, reported or repaired because they fail any other test or raise an error are bad-input handling and never a cleaning step.
+    none_example: "Every value is converted with int() and float() directly, with nothing around the conversions."
+    options:
+      - id: other
+        definition: Another action on such a record or file that no other option covers.
+        example: "A row that fails is sent to a person by email for a decision."
+      - id: repairs
+        definition: After a failed check or a caught error, changes the value so that the record can be kept.
+        example: "'except ValueError: quantity = 0' keeps the row with a quantity of 0."
+      - id: sets-aside
+        definition: Writes the record or file to a separate place (a rejects file, table or folder).
+        example: "Rows that fail are appended to 'rejected.csv'."
+      - id: skips-and-reports
+        definition: Leaves the record out and says so, with a log line, a printed message or a count of such records.
+        example: "A malformed line is skipped, 'skipped line 42' is logged and a total is printed at the end."
+      - id: skips-silently
+        definition: Leaves the record out with no log line, message or count.
+        example: "'except ValueError: continue', with no message and no counter."
+      - id: stops-run
+        definition: Ends the run with an error or a failure status because of such a record.
+        example: "'raise ValueError' on the first row with an empty id."
+    cannot_tell:
+      when: Such input is passed to a helper that the response does not show.
+      example: "Bad rows go to handle_bad_row(), which is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response is a prose outline of the steps."
+
+  - id: rerun_behavior
+    dimension: robustness
+    question: What happens to what an earlier run stored when the same input is processed again?
+    select: single
+    applies_to:
+      tasks: [csv-to-database, daily-api-fetch, image-resize]
+      levels: all
+    absent: always-present
+    guidance: Where a library call decides it, go by the mode the call states, or by the library's default for what it leaves unset. If you do not know that default, answer cannot-tell. A file opened for writing is replaced. A file opened for appending is added to.
+    task_notes:
+      daily-api-fetch: Judge what happens when the same day is fetched twice. A file or a table section for one day that is written afresh when that day is fetched again is replaces.
+      image-resize: What is stored is the resized image files. Redoing and overwriting every image is replaces. Leaving images that already exist is skips-or-merges.
+    options:
+      - id: adds-again
+        definition: The same data is stored a second time (plain inserts or appends, with nothing that detects a repeat).
+        example: "Rows are written with plain INSERT statements into a table that has no key."
+      - id: replaces
+        definition: Earlier output is removed or overwritten wholesale and written afresh.
+        example: "The table is dropped and created again at the start of each run."
+      - id: skips-or-merges
+        definition: Stored items are recognised and left alone or updated in place (a key with insert-or-ignore or upsert, an existence check, a record of what was done).
+        example: "'INSERT OR IGNORE' into a table whose primary key is order_id."
+      - id: stops-on-repeat
+        definition: A repeat is refused. A unique key or an existence test makes the second write fail, and the run ends there.
+        example: "Plain INSERT statements into a table whose primary key is order_id, with nothing that handles a key conflict."
+    cannot_tell:
+      when: The storing step is a call whose behaviour on a repeat the response does not show.
+      example: "'db.save(rows)', where db is a class that is not delivered."
+    not_applicable:
+      when: The code stores nothing. It only prints or returns its results.
+      example: "The script prints the cleaned rows to the screen and writes nowhere."
+
+  - id: storage_kind
+    dimension: operation
+    question: Where does the code keep the data it stores?
+    select: single
+    applies_to:
+      tasks: [csv-to-database, daily-api-fetch]
+      levels: all
+    absent: always-present
+    tie_rule: Where the storage depends on a setting, go by the value the code uses when nothing is set. Answer several only when two or more kinds each hold stored data in the same run.
+    options:
+      - id: embedded-database
+        definition: A database that runs inside the program from a local file, with no server (such as SQLite or DuckDB).
+        example: "sqlite3.connect('orders.db')."
+      - id: flat-files
+        definition: Files written directly on local disk, such as CSV, JSON or Parquet.
+        example: "Each day's readings are appended to 'data/readings.csv'."
+      - id: other
+        definition: A single place of another kind.
+        example: "Results are pushed to a spreadsheet through its web API."
+      - id: remote-object-store
+        definition: A cloud bucket or another remote file service.
+        example: "The JSON is uploaded to a cloud bucket under a key that holds the date."
+      - id: server-database
+        definition: A database reached over a connection to a server (such as PostgreSQL or MySQL), also when it is started in a container.
+        example: "psycopg2.connect(host='localhost', dbname='shop')."
+      - id: several
+        definition: Two or more of these kinds, each holding stored data.
+        example: "Raw responses are saved as JSON files and the parsed rows go into SQLite."
+    cannot_tell:
+      when: The storage sits behind a connection setting that the response leaves blank.
+      example: "DATABASE_URL is read from the environment with no default and no word on what it points to."
+    not_applicable:
+      when: The code stores nothing. It only prints or returns its results.
+      example: "The fetched readings are printed and not saved."
+
+  - id: cleaning_steps
+    dimension: method
+    question: Which cleaning steps does the code apply to the data?
+    select: multi
+    applies_to: {tasks: [csv-to-database], levels: all}
+    guidance: Rows written to a separate place are always bad-input handling (sets-aside) and never a cleaning step, whatever they failed, repeats included. Where the rows go to no separate place, three things are cleaning steps and are never bad-input handling. They are removing repeated rows, dropping or filling rows with a missing value (with or without a count), and converting the type of a whole column. Rows removed, reported or repaired because they fail any other test or raise an error are bad-input handling and never a cleaning step.
+    none_example: "The file is read and inserted as it is; 'clean' appears only in a function name."
+    options:
+      - id: converts-types
+        definition: Converts values to numbers, booleans or another type (dates aside).
+        example: "The quantity column is cast to whole numbers."
+      - id: fills-missing
+        definition: Replaces missing values with a default or a computed value.
+        example: "An empty city becomes 'Unknown'."
+      - id: normalises-case
+        definition: Changes the letter case of values (lower, upper or title case).
+        example: "Emails are lower-cased."
+      - id: other
+        definition: Another cleaning step that no other option covers.
+        example: "Currency symbols and thousands separators are stripped from the amounts."
+      - id: parses-dates
+        definition: Parses date or time values into one form.
+        example: "pd.to_datetime(df['order_date'])."
+      - id: removes-duplicates
+        definition: Removes repeated rows, where the removed rows go to no separate place.
+        example: "df.drop_duplicates()."
+      - id: removes-incomplete-rows
+        definition: Drops rows that lack a value, where the dropped rows go to no separate place.
+        example: "df.dropna(subset=['id'])."
+      - id: renames-columns
+        definition: Rewrites column names (lower case, underscores, trimmed).
+        example: "Column names are lower-cased and their spaces become underscores."
+      - id: trims-whitespace
+        definition: Strips spaces around values.
+        example: "Every text value is passed through .strip()."
+    cannot_tell:
+      when: The cleaning is done by a helper or module that the response does not show.
+      example: "'rows = clean(rows)', where clean() is imported from a file that is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response lists the stages of a pipeline in words."
+
+  - id: scheduling
+    dimension: operation
+    question: Which mechanisms for running it every day does the response deliver?
+    select: multi
+    applies_to: {tasks: [daily-api-fetch], levels: all}
+    guidance: Count a mechanism only when the response gives it in concrete form, as code, a configuration entry or a command line.
+    none_example: "The script fetches once when run. The text says 'run this every day' and gives no way to do so."
+    options:
+      - id: ci-schedule
+        definition: A scheduled trigger of a hosted build or automation service.
+        example: "A workflow file with a 'schedule' trigger and the cron expression '0 6 * * *'."
+      - id: in-process
+        definition: The program stays running and times itself, with a sleep loop or a scheduling library inside the code.
+        example: "A 'while True' loop that sleeps 24 hours between fetches."
+      - id: orchestrator
+        definition: A job or graph definition for a workflow orchestrator or a cloud scheduler service.
+        example: "A DAG file with a daily schedule interval."
+      - id: os-scheduler
+        definition: An entry for the operating system's scheduler, such as a cron line, a systemd timer or a Task Scheduler command.
+        example: "'Add this to your crontab: 0 6 * * * python fetch.py'."
+      - id: other
+        definition: Another concrete mechanism that no other option covers.
+        example: "A shortcut for a phone's automation app that opens the script's address each morning."
+    cannot_tell:
+      when: The response says a scheduling file is included, and the file is missing.
+      example: "'The timer is defined in fetch.timer', and no such file is delivered."
+    not_applicable: never
+
+  - id: retry_policy
+    dimension: robustness
+    question: What does the code do when a request to the API fails?
+    select: single
+    applies_to: {tasks: [daily-api-fetch], levels: all}
+    absent: none
+    guidance: Where a library's retry setting decides it, go by what the call states, or by the library's default for what it leaves unset. If you do not know that default, answer cannot-tell.
+    options:
+      - id: none
+        definition: No retry. A failed request is not sent again within the run.
+        example: "requests.get(url) is followed by raise_for_status(); a failure ends the run."
+      - id: retries-fixed-wait
+        definition: Sends the request again after a wait of the same length each time.
+        example: "A loop tries 3 times with time.sleep(60) between tries."
+      - id: retries-growing-wait
+        definition: Sends the request again after waits that grow from one try to the next.
+        example: "time.sleep(2 ** attempt) between tries."
+      - id: retries-no-wait
+        definition: Sends the request again at once, with no wait.
+        example: "'for attempt in range(3)' repeats the request with nothing between tries."
+    cannot_tell:
+      when: A retry helper is used and its waiting rule is not shown.
+      example: "The fetch function carries '@retry' from a local module that is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response describes the fetch-and-store steps in prose."
+
+  - id: gap_recovery
+    dimension: robustness
+    question: What does the code do about a day that an earlier run failed to fetch?
+    select: single
+    applies_to: {tasks: [daily-api-fetch], levels: all}
+    absent: none
+    tie_rule: If more than one applies, answer the first that does in this order, which is backfills, refetches-window, manual-date.
+    options:
+      - id: backfills
+        definition: Finds days that are missing from what is stored, or that follow the last stored day, and fetches them in the same run.
+        example: "The script reads the last date in the file and fetches every day from then until yesterday."
+      - id: manual-date
+        definition: Fetches one day per run and takes a date or a range as an argument, so that a person can fetch a missed day by hand.
+        example: "'python fetch.py --date 2027-03-02' fetches that day; with no argument it fetches yesterday."
+      - id: none
+        definition: Fetches only the day of the run. Nothing is provided for a missed day.
+        example: "The date is always today's, set inside the script."
+      - id: other
+        definition: Another single way of dealing with a missed day that no other option covers.
+        example: "A day that fails is written to 'failed_days.txt' for a person to deal with."
+      - id: refetches-window
+        definition: Fetches a fixed span of recent days on every run, whether or not they are already stored.
+        example: "Each run fetches the last 7 days and writes them again."
+    cannot_tell:
+      when: The dates to fetch come from a helper that the response does not show.
+      example: "'for day in days_to_fetch():', where days_to_fetch is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response describes a daily fetch in general terms."
+
+  - id: log_format_assumed
+    dimension: assumptions
+    question: Which log line format does the code parse?
+    select: single
+    applies_to: {tasks: [log-aggregation], levels: all}
+    absent: always-present
+    tie_rule: Answer several only when the code parses two or more formats. A format that is only mentioned does not count.
+    options:
+      - id: app-message
+        definition: Application log lines with a timestamp, a level such as INFO or ERROR, and a free-text message.
+        example: "The pattern matches '2027-03-02 14:05:31 ERROR Disk full'."
+      - id: json-lines
+        definition: One JSON object per line.
+        example: "Each line is passed to json.loads()."
+      - id: other
+        definition: Another single format (key=value pairs, delimited fields, a custom layout).
+        example: "Lines are split on '|' into five named fields."
+      - id: several
+        definition: Two or more formats, each handled.
+        example: "A list of patterns covers access lines and syslog lines; the first that matches is used."
+      - id: user-pattern
+        definition: No format is built in. The user supplies the pattern or the field layout.
+        example: "The pattern is a required '--pattern' argument."
+      - id: web-access
+        definition: Web server access lines in the common or combined layout (address, time in brackets, request, status, size).
+        example: "A regular expression for lines like '203.0.113.7 - - [02/Mar/2027:14:05:31 +0000] \"GET / HTTP/1.1\" 200 512'."
+    cannot_tell:
+      when: The parsing is done by a helper or module that the response does not show.
+      example: "'entry = parse_line(line)', where parse_line is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response explains log aggregation in general terms."
+
+  - id: aspect_handling
+    dimension: method
+    question: How does the code treat an image's proportions when it resizes?
+    select: single
+    applies_to: {tasks: [image-resize], levels: all}
+    absent: always-present
+    options:
+      - id: crops
+        definition: Fills a fixed width and height and cuts off what does not fit.
+        example: "ImageOps.fit(img, (800, 800)) cuts each picture to a square."
+      - id: keeps-proportions
+        definition: Scales width and height by the same factor (fits inside a box, sets one side, or applies a percentage).
+        example: "img.thumbnail((1024, 1024))."
+      - id: pads
+        definition: Keeps the proportions and fills the rest of a fixed box with a background.
+        example: "The picture is scaled to fit and pasted onto a white 800 by 800 canvas."
+      - id: stretches
+        definition: Forces a fixed width and height, so the proportions can change.
+        example: "img.resize((800, 600)) with no look at the original shape."
+      - id: user-selects
+        definition: Offers two or more of these as an option of the program.
+        example: "A '--mode' option takes fit, fill or stretch."
+    cannot_tell:
+      when: The resizing is done by an external command whose options the response does not give.
+      example: "The script calls an image tool with a variable $OPTS that is never set."
+    not_applicable:
+      when: The response has no code.
+      example: "The response recommends an image editor and gives no code."
+
+  - id: ci_checks
+    dimension: method
+    question: Which kinds of check does the workflow run?
+    select: multi
+    applies_to: {tasks: [ci-workflow], levels: all}
+    none_example: "The workflow checks out the code and prints 'CI placeholder'."
+    options:
+      - id: build
+        definition: Builds or packages the software.
+        example: "A step runs 'python -m build'."
+      - id: coverage
+        definition: Measures test coverage.
+        example: "The tests run with a coverage option and the report is uploaded."
+      - id: lint-or-format
+        definition: Runs a linter or a formatting check.
+        example: "A step runs 'ruff check .'."
+      - id: other
+        definition: Another kind of check that no other option covers.
+        example: "A step fails the run if the changelog has no entry for the new version."
+      - id: publish
+        definition: Publishes or releases a build (to a registry, a release page or a deployment).
+        example: "On a version tag the package is uploaded to the package index."
+      - id: security-scan
+        definition: Scans for vulnerabilities or audits dependencies.
+        example: "A step runs 'pip-audit'."
+      - id: tests
+        definition: Runs the test suite.
+        example: "A step runs 'npm test'."
+      - id: type-check
+        definition: Runs a static type checker.
+        example: "A step runs 'mypy src'."
+    cannot_tell:
+      when: The workflow calls a script or another workflow that holds the checks and is not shown.
+      example: "The only step is 'run: ./ci.sh', and ci.sh is not delivered."
+    not_applicable:
+      when: The response delivers no workflow or configuration file.
+      example: "The response explains what continuous integration is and gives no file."
+
+  - id: rule_definition
+    dimension: method
+    question: How are the validation rules written down?
+    select: single
+    applies_to: {tasks: [data-validation], levels: all}
+    absent: always-present
+    tie_rule: Go by where a rule's values and conditions are written. Code that only reads rules from a file or a table and applies them is not statements. If rules are written in two or more of these ways, answer several.
+    options:
+      - id: external-file
+        definition: In a separate file that the code loads (JSON, YAML, CSV or similar).
+        example: "Rules are loaded from 'rules.json'."
+      - id: library-schema
+        definition: As a schema or model of a validation library (declared classes, schema objects or expectations).
+        example: "A schema class declares each field with its type and its allowed range."
+      - id: rule-table
+        definition: As a table, list or mapping of rules inside the code, applied by a general loop.
+        example: "RULES = {'temp_c': (-40, 50), 'humidity': (0, 100)}, and one loop applies them."
+      - id: several
+        definition: In two or more of these ways.
+        example: "Ranges come from rules.yaml; the duplicate check is written as code."
+      - id: statements
+        definition: As conditions written one by one in the code (if-tests, assertions).
+        example: "One 'if' test per field, each appending a message to a list of errors."
+    cannot_tell:
+      when: The rules are said to be in a place the response does not show.
+      example: "'Rules are defined in validators.py', which is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response lists kinds of validation in prose."
+
+  - id: failure_signal
+    dimension: robustness
+    question: How does the step tell whatever runs next that the data failed validation?
+    select: single
+    applies_to: {tasks: [data-validation], levels: all}
+    absent: none
+    tie_rule: If a delivered entry point ends the process with a status, answer exit-status, whatever the functions inside it do.
+    options:
+      - id: exit-status
+        definition: Ends the process with a non-zero exit status.
+        example: "'sys.exit(1)' when any record fails."
+      - id: none
+        definition: Gives no signal that a program could act on. It only prints, logs or writes a report.
+        example: "A report is printed and the script ends normally."
+      - id: raises
+        definition: Raises an exception or error and leaves its handling to the caller.
+        example: "validate() ends with 'raise ValidationError(errors)'."
+      - id: returns-value
+        definition: Returns a result (a flag, a report object, the filtered data) from a function to the calling code.
+        example: "validate() returns the valid rows and a list of errors, and nothing else acts on them."
+    cannot_tell:
+      when: The code that runs after the checks is not shown.
+      example: "main() calls report(results), and report() is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response describes where a validation step would sit in a pipeline."

@@ -1,0 +1,227 @@
+# Which rubric items each pipeline prompt takes out of the model's hands
+# (T2.4). Companion of pipeline.v1.yaml; checked by tagger/rubric.py.
+#
+# Same idea and same entry format as analysis/website/dictated.yaml, whose
+# rules are in docs/metrics.md, "Open choices". An item is OPEN in a cell
+# unless an entry here closes it for that task and level. Only open items
+# count toward a default. The variable name of an item is
+# rubric.pipeline.<item id>, as the tags are stored (docs/record-format.md).
+#
+#   closed   the items an entry closes
+#   reason   direction   the brief names the behavior or form wanted
+#            content     the brief supplies the content that decides the answer
+#            constraint  the brief states a technical need
+#   quote    words of wording A at that level (one text or a list); a check
+#            that the entry still matches the prompt
+#   expect   optional, per item: what a run that followed the brief shows.
+#            {in: [...]} for a single-select item; {present: [...]} and/or
+#            {absent: [...]} for a multi-select item
+#   note     why, and what to be careful about
+#   associations   not closed: wording that may pull an open choice
+#            (prompts/pipeline/leak-check.md). Read the share beside it.
+#
+# L0 and L1 close nothing. Read from prompts/pipeline/leak-check.md, "What
+# each L2 dictates", and from the L2 texts.
+#
+# This file changes how tags are counted, not how they are made: changing an
+# entry needs no new rubric version and no new tagging. When the type's
+# features.yaml exists, its metrics_version covers these entries.
+schema_version: 1
+project_type: pipeline
+rubric: pipeline.v1
+
+tasks:
+  ci-workflow:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.pipeline.ci_checks]
+        reason: direction
+        quote:
+          - "Run the tests on Linux, macOS and Windows"
+          - "Fail if any file is not formatted with the language's own formatter"
+          - "Measure test coverage and fail if it falls below 80%."
+        expect:
+          rubric.pipeline.ci_checks: {present: [tests, lint-or-format, coverage]}
+        note: >-
+          The brief lists the checks. A build, a publish step or a type check
+          added beside them is not against it. The changelog check on a
+          version tag is an `other` check; it is not judged, because other
+          can hold anything.
+
+  csv-to-database:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.pipeline.sample_data, rubric.pipeline.input_assumption]
+        reason: content
+        quote: "with a header row and these columns: order_id, order_date, customer_email, product, quantity, unit_price. Some sample rows:"
+        note: The brief names the columns and supplies rows to try the code on.
+      - closed: [rubric.pipeline.cleaning_steps]
+        reason: content
+        quote: "Cleaning rules:"
+        expect:
+          rubric.pipeline.cleaning_steps:
+            present: [trims-whitespace, normalises-case, parses-dates, converts-types, removes-duplicates]
+        note: >-
+          Prices stored as whole cents are a type conversion. Dropping a row
+          that repeats an earlier one is removes-duplicates, a cleaning step
+          where the repeats go to no separate place, as the brief asks. A
+          response that writes the repeats to a file shows sets-aside under
+          bad_input_handling and not removes-duplicates, and so does not
+          meet this expectation. A row without an order_id goes to the
+          rejects file: rows written to a separate place are always
+          bad_input_handling (sets-aside) and never a cleaning step, so
+          removes-incomplete-rows is not expected. This follows the rule
+          the two items share (the guidance of cleaning_steps).
+      - closed: [rubric.pipeline.bad_input_handling]
+        reason: direction
+        quote: "to a rejects file, with the reason next to it"
+        expect:
+          rubric.pipeline.bad_input_handling: {present: [sets-aside]}
+      - closed: [rubric.pipeline.rerun_behavior]
+        reason: direction
+        quote: "Loading the same file a second time leaves the database as it was."
+        expect:
+          rubric.pipeline.rerun_behavior: {in: [replaces, skips-or-merges]}
+        note: >-
+          A second run that stops on a key conflict (stops-on-repeat) may also
+          leave the database unchanged. It is not counted as following the
+          brief, which asks for a second load that works. replaces is counted
+          as following it: the same file loaded afresh leaves the same rows.
+          The tag cannot tell that from a pipeline that empties the table and
+          so loses the rows of other months. Read compliance here as an upper
+          bound.
+      - closed: [rubric.pipeline.storage_kind]
+        reason: constraint
+        quote: "with no separate server to install"
+        note: >-
+          A real need that points to an embedded database, the expected
+          default (docs/leak-check.md, rule 14). No expected value: storage
+          is not read at L2 for this task, as compliance or as persistence.
+    associations:
+      L0:
+        - variables: [rubric.pipeline.storage_kind]
+          quote: "a database"
+          note: >-
+            The task names a database at every level, so flat files are not
+            an open answer here. Read the kind of database only (embedded or
+            server). Database against files is read on daily-api-fetch.
+
+  daily-api-fetch:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.pipeline.sample_data, rubric.pipeline.input_assumption]
+        reason: content
+        quote: "The response is JSON with one entry per station and hour, for example:"
+        note: The brief gives the fields and an example response.
+      - closed: [rubric.pipeline.scheduling]
+        reason: direction
+        quote: "It runs once and then exits. The machine's own scheduler starts it at 6:00am each day"
+        expect:
+          rubric.pipeline.scheduling: {absent: [in-process, ci-schedule, orchestrator]}
+        note: >-
+          The scheduler is said to exist already, so a response that delivers
+          no scheduler entry (none) follows the brief as much as one that
+          gives a cron line. The machine's own scheduler may be the L0
+          default itself: check the pilot before reading this as a default
+          that gave way.
+      - closed: [rubric.pipeline.retry_policy]
+        reason: direction
+        quote: "try again up to 3 times, a minute apart"
+        expect:
+          rubric.pipeline.retry_policy: {in: [retries-fixed-wait]}
+      - closed: [rubric.pipeline.storage_kind]
+        reason: direction
+        quote: "Store the readings as one CSV file per month"
+        expect:
+          rubric.pipeline.storage_kind: {in: [flat-files]}
+      - closed: [rubric.pipeline.rerun_behavior]
+        reason: direction
+        quote: "Fetching the same day twice leaves the files as they were."
+        expect:
+          rubric.pipeline.rerun_behavior: {in: [replaces, skips-or-merges]}
+        note: >-
+          replaces is counted as following the brief: a day's rows written
+          afresh leave the same content. The tag cannot tell that from a
+          pipeline that rewrites a whole month's file from one day's data,
+          which would lose rows. Read compliance here as an upper bound.
+      - closed: [rubric.pipeline.gap_recovery]
+        reason: direction
+        quote: "If an earlier run failed and left a day missing, the next run fetches that day too."
+        expect:
+          rubric.pipeline.gap_recovery: {in: [backfills, refetches-window]}
+        note: >-
+          A run that fetches a fixed span of recent days again also fetches
+          a day the run before it missed, so refetches-window is counted as
+          following the brief. It does so only inside its span; the tag does
+          not hold the span's length. manual-date and other are not counted.
+
+  data-validation:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.pipeline.sample_data, rubric.pipeline.input_assumption]
+        reason: content
+        quote: "in JSON Lines (one JSON object per line), for example:"
+        note: >-
+          The brief gives the fields and two sample readings. Where the field
+          rules sit is rule_definition; no value is expected here.
+      - closed: [rubric.pipeline.rule_definition]
+        reason: direction
+        quote: "Keep the rules in a separate file that the network's coordinator can edit without changing the code."
+        expect:
+          rubric.pipeline.rule_definition: {in: [external-file]}
+      - closed: [rubric.pipeline.bad_input_handling]
+        reason: direction
+        quote: "Each rejected reading goes to a rejects file for the day, together with every rule it broke."
+        expect:
+          rubric.pipeline.bad_input_handling: {present: [sets-aside]}
+      - closed: [rubric.pipeline.failure_signal]
+        reason: direction
+        quote: "The exit code is 0 when fewer than 5% of the readings are rejected and 2 otherwise"
+        expect:
+          rubric.pipeline.failure_signal: {in: [exit-status]}
+
+  image-resize:
+    prompt_set_version: "1"
+    L2:
+      - closed: [rubric.pipeline.aspect_handling]
+        reason: direction
+        quote: "keeping its proportions"
+        expect:
+          rubric.pipeline.aspect_handling: {in: [keeps-proportions]}
+      - closed: [rubric.pipeline.rerun_behavior]
+        reason: direction
+        quote: "Skip a photo whose output is already newer than the input"
+        expect:
+          rubric.pipeline.rerun_behavior: {in: [skips-or-merges]}
+      - closed: [rubric.pipeline.bad_input_handling]
+        reason: direction
+        quote:
+          - "A photo that fails leaves the others unaffected."
+          - "with the reason for each failure"
+        expect:
+          rubric.pipeline.bad_input_handling: {present: [skips-and-reports]}
+
+  log-aggregation:
+    prompt_set_version: "1"
+    L2:
+      - closed:
+          - rubric.pipeline.sample_data
+          - rubric.pipeline.input_assumption
+          - rubric.pipeline.log_format_assumed
+        reason: content
+        quote: "Each line is one request:"
+        expect:
+          rubric.pipeline.log_format_assumed: {in: [other]}
+        note: >-
+          The brief invents a line format that is none of the well-known
+          ones, and gives sample lines.
+      - closed: [rubric.pipeline.bad_input_handling]
+        reason: direction
+        quote: "The number of malformed lines, with the first 5 of them."
+        expect:
+          rubric.pipeline.bad_input_handling: {present: [skips-and-reports]}
+    associations:
+      L1:
+        - variables: [rubric.pipeline.log_format_assumed]
+          quote: "access logs"
+          note: Suggests a web server's access log layout.
