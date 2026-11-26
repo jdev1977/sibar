@@ -296,3 +296,18 @@ def test_only_a_workflow_is_parse_checked(output):
     assert configs[".github/workflows/ci.yml"]["parses"]
     assert configs[".github/workflows/ci.yml"]["commands"] == ["go test ./..."]
     assert not configs["broken.yaml"]["parses"]
+
+
+def test_setup_and_tool_configuration_files_are_not_entry_points():
+    found = survey({"path": "setup.py", "runs_code": True},
+                   {"path": "docs/conf.py", "runs_code": True},
+                   {"path": "conftest.py", "runs_code": True})
+    assert choose_entry(found, [])[0] is None
+
+
+@pytest.mark.sandbox
+def test_the_entry_runs_before_the_tests(output):
+    detail = output({"main.py": "open('order.txt', 'a').write('entry ')\n",
+                     "test_order.py": ("def test_after():\n"
+                                       "    assert open('order.txt').read() == 'entry '\n")})
+    assert detail["tests"]["passed"] == 1, detail["tests"]

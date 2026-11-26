@@ -37,6 +37,8 @@ OUTCOMES = ("ran", "failed", "timeout", "memory", "blocked", "not-runnable", "er
 TEXT_LIMIT = 4000  # characters of stdout or stderr kept in a record
 # Names an entry point most often has, best first.
 ENTRY_NAMES = ("main.py", "__main__.py", "app.py", "run.py", "cli.py", "pipeline.py")
+# Files that run code but are tools' configuration, never the program.
+NOT_ENTRIES = frozenset({"setup.py", "conftest.py", "noxfile.py", "conf.py", "fabfile.py"})
 LANGUAGES = {
     ".js": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript", ".ts": "TypeScript",
     ".tsx": "TypeScript", ".jsx": "JavaScript", ".go": "Go", ".rs": "Rust",
@@ -159,6 +161,8 @@ def choose_entry(survey, paths):
         if entry.get("test") or "syntax_error" in entry or "error" in entry:
             continue
         name = path.rsplit("/", 1)[-1]
+        if name.lower() in NOT_ENTRIES:
+            continue
         if name == "__main__.py" and "/" in path:
             continue  # run as a package below
         if entry.get("main_guard") or (entry.get("runs_code") and name[:-3] not in imported):
@@ -309,13 +313,16 @@ def run_folder(source, paths=None, settings=Settings(), root=None):
                 if "SIBAR_SANDBOX_STUB" in environment:
                     environment["SIBAR_SANDBOX_SHIMS"] = "clock,stub"
             detail["environment"] = sorted(environment)
+
+            def measure():
+                if hook is not None:
+                    try:
+                        detail["task"] = hook.measure(box, detail)
+                    except Exception as error:  # the runs' results still stand
+                        detail["task"] = {"error": f"{type(error).__name__}: {error}"[:300]}
+
             _run_output(box, tools, survey, paths, settings, environment, detail,
-                        hook.arguments if hook else ())
-            if hook is not None:
-                try:
-                    detail["task"] = hook.measure(box, detail)
-                except Exception as error:  # the runs' results still stand
-                    detail["task"] = {"error": f"{type(error).__name__}: {error}"[:300]}
+                        hook.arguments if hook else (), measure)
     except (SandboxError, runtime.RuntimeMissing, OSError) as error:
         detail.update(result="error", reason=f"{type(error).__name__}: {error}"[:500])
     return detail
@@ -358,7 +365,10 @@ def _run_entry(box, command, settings, environment, arguments):
     return run_detail
 
 
-def _run_output(box, tools, survey, paths, settings, environment, detail, arguments):
+def _run_output(box, tools, survey, paths, settings, environment, detail, arguments,
+                measure):
+    """Run the entry point, then measure what it wrote, then run the tests
+    (so the measurements see the program's files, not the tests')."""
     syntax = [f"{entry['path']}: {entry['syntax_error']}" for entry in survey["files"]
               if "syntax_error" in entry]
     if syntax:
@@ -371,8 +381,7 @@ def _run_output(box, tools, survey, paths, settings, environment, detail, argume
     detail["candidates"] = candidates[:20]
     missing = missing_modules(survey, paths)
     detail["missing_modules"] = missing
-    if settings.tests and any(entry.get("test") for entry in survey["files"]):
-        detail["tests"] = _run_tests(box, tools, survey, paths, environment)
+    has_tests = settings.tests and any(entry.get("test") for entry in survey["files"])
     if command and settings.entry:
         entry_files = None
         if len(command) > 1 and command[1].lower().endswith(".py"):
@@ -381,14 +390,22 @@ def _run_output(box, tools, survey, paths, settings, environment, detail, argume
         if lacking:
             detail["entry"] = {"command": command, "ran": False}
             detail.update(result="not-runnable", reason=OUTSIDE_PACKAGES + ", ".join(lacking))
-            return
-        run_detail = _run_entry(box, command, settings, environment, arguments)
-        detail["entry"] = run_detail
-        detail.update(result=run_detail["outcome"], reason=run_detail["reason"])
-        lacking = _missing_after(run_detail, missing) if run_detail["outcome"] == "failed" else []
-        if lacking:
-            detail.update(result="not-runnable", reason=OUTSIDE_PACKAGES + ", ".join(lacking))
+        else:
+            run_detail = _run_entry(box, command, settings, environment, arguments)
+            detail["entry"] = run_detail
+            detail.update(result=run_detail["outcome"], reason=run_detail["reason"])
+            lacking = (_missing_after(run_detail, missing)
+                       if run_detail["outcome"] == "failed" else [])
+            if lacking:
+                detail.update(result="not-runnable",
+                              reason=OUTSIDE_PACKAGES + ", ".join(lacking))
+        measure()
+        if has_tests:
+            detail["tests"] = _run_tests(box, tools, survey, paths, environment)
         return
+    if has_tests:
+        detail["tests"] = _run_tests(box, tools, survey, paths, environment)
+    measure()
     tests = detail.get("tests")
     if tests and tests.get("ran"):
         run_detail = tests["run"]

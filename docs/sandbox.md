@@ -92,20 +92,24 @@ sequential, which also suits a machine with little free memory.
 2. A helper parses every Python file **inside the sandbox** (never importing
    it) and lists imports, entry points and tests.
 3. The task's fixtures are written (below).
-4. If the output has tests (`test_*.py`, `*_test.py`, test functions or
-   `unittest` classes) they run with pytest, with the output's own pytest
-   configuration if it has one.
-5. The entry point runs, with no arguments. **No command line is assumed**
+4. The entry point runs, with no arguments. **No command line is assumed**
    (rule 18 of [leak-check.md](leak-check.md)); the entry point is read from
    the output: a file named `main.py`, `__main__.py`, `app.py`, `run.py`,
    `cli.py` or `pipeline.py`, then a package's `__main__.py`
    (`python -m pkg`), a console script in `pyproject.toml`, then any file
    that runs code when started (a main guard or statements at the top level)
-   and that no other file imports. The candidates are recorded. If it stops
-   asking for arguments (an argparse or click usage error, or an
-   `IndexError` on `sys.argv`), the arguments the task's fixtures suggest
-   are tried in turn, and the attempts are recorded.
-6. The task's measurements read what it wrote.
+   that no other file imports and that is not a tool's configuration
+   (`setup.py`, `conftest.py`, `conf.py`, `noxfile.py`, `fabfile.py`). Only
+   one runs; the candidates are recorded (an answer with several separate
+   code blocks runs its first). If it stops asking for arguments (an
+   argparse or click usage error, or an `IndexError` on `sys.argv`), the
+   arguments the task's fixtures suggest are tried in turn, and the attempts
+   are recorded.
+5. The task's measurements read what it wrote.
+6. If the output has tests (`test_*.py`, `*_test.py`, test functions or
+   `unittest` classes) they run with pytest, with the output's own pytest
+   configuration if it has one. They run after the measurements, so these
+   see only what the program wrote.
 
 Each run gets its own job and limits; all share the working folder. The
 folder and everything else is deleted afterwards.
