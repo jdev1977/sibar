@@ -267,7 +267,7 @@ image = image-resize, ci = ci-workflow, validation = data-validation.
 | `sample_data` | assumptions | one of 3 | all but ci | csv, api, log, validation |
 | `input_assumption` | assumptions | one of 3 | csv, api, log, validation | all four |
 | `bad_input_handling` | robustness | several of 5 | csv, log, image, validation | all four |
-| `rerun_behavior` | robustness | one of 3 | csv, api, image | all three |
+| `rerun_behavior` | robustness | one of 4 | csv, api, image | all three |
 | `storage_kind` | operation | one of 6 | csv, api | both |
 | `cleaning_steps` | method | several of 8 | csv | csv |
 | `scheduling` | operation | several of 4 | api | api |
@@ -363,8 +363,9 @@ numbers:
   per output for the smallest tagger and a few cents for the largest. These
   are estimates from the file sizes; T2.5 measures them.
 - **The Human's time is.** T2.5 has the Human tag 30 outputs per type. At 9
-  to 14 items an output that is 280 to 420 judgements per type, a sitting of
-  two to three hours. Twenty items per output would make it a day per type.
+  to 14 items an output that is 280 to 420 judgements per type, two to
+  three hours at 25 seconds a judgement. Twenty items per output would be
+  600 judgements, more than four hours per type.
 - **So is a small model's accuracy.** Each extra item in one call is another
   instruction to hold, and the calibration bar is set per rubric. If the
   smallest model misses the bar, T2.6 can ask the items of one output in two

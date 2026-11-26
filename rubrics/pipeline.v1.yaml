@@ -307,6 +307,9 @@ items:
       - id: skips-or-merges
         definition: Stored items are recognised and left alone or updated in place (a key with insert-or-ignore or upsert, an existence check, a record of what was done).
         example: "'INSERT OR IGNORE' into a table whose primary key is order_id."
+      - id: stops-on-repeat
+        definition: A repeat is refused. A unique key or an existence test makes the second write fail, and the run ends there.
+        example: "Plain INSERT statements into a table whose primary key is order_id, with nothing that handles a key conflict."
     cannot_tell:
       when: The storing step is a call whose behaviour on a repeat the response does not show.
       example: "'db.save(rows)', where db is a class that is not delivered."

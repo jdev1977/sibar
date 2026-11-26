@@ -445,6 +445,7 @@ items:
     select: single
     applies_to: {tasks: [hypothesis-test], levels: all}
     absent: not-mentioned
+    tie_rule: If it is both named as an assumption and examined, answer checked.
     options:
       - id: checked
         definition: Examines it with a test, a plot or a remark on the data values.

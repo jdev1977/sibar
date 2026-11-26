@@ -73,6 +73,10 @@ tasks:
         quote: "Loading the same file a second time leaves the database as it was."
         expect:
           rubric.pipeline.rerun_behavior: {in: [replaces, skips-or-merges]}
+        note: >-
+          A second run that stops on a key conflict (stops-on-repeat) may also
+          leave the database unchanged. It is not counted as following the
+          brief, which asks for a second load that works.
       - closed: [rubric.pipeline.storage_kind]
         reason: constraint
         quote: "with no separate server to install"
