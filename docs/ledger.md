@@ -27,6 +27,13 @@ with Ledger(batch_id="pilot-1", batch_cap_usd="20", total_cap_usd="50") as ledge
         charge = ledger.settle(reservation, usage, request_id=request_id)
 ```
 
+A call whose result arrives after its run has ended, such as a request in a
+provider's batch job, is settled by a later run of the same `batch_id`:
+`ledger.reopen(call_id)` rebuilds the open reservation from its `reserve`
+line, and `settle` is then called as usual. Until then it counts at its
+worst case. `reopen` refuses a call that is unknown, already settled or of
+another batch.
+
 ## The cap
 
 Before each call, for each cap that applies:

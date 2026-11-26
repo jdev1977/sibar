@@ -367,6 +367,7 @@ class Ledger:
         self.repaired_tail = None
         self._mutex = threading.Lock()
         self._open = {}  # call_id -> Reservation made by this object
+        self._unsettled = {}  # call_id -> reserve entry with no charge, from the file
         self._broken = False
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._handle = _lock(self.path.with_name(self.path.name + ".lock"))
@@ -390,8 +391,13 @@ class Ledger:
             # whose reservation then counts instead. (That is less than the
             # charge only if the call cost more than was reserved.)
             self.repaired_tail = repair_tail(self.path)
+        counted = _calls(found.entries)
+        # Reservations with no charge yet, so that a later run can settle
+        # them (reopen): a batch's results can arrive after its run ended.
+        self._unsettled = {call_id: entry for call_id, entry in counted.items()
+                           if entry["type"] == "reserve"}
         return {call_id: (entry["batch_id"], Decimal(entry["cost_usd"]))
-                for call_id, entry in _calls(found.entries).items()}
+                for call_id, entry in counted.items()}
 
     def close(self):
         """Release the file. Unsettled calls stay charged at their worst case."""
@@ -517,6 +523,36 @@ class Ledger:
             self._write("reserve", reservation,
                         (prompt_tokens, max_output_tokens, None), worst, True)
             self._open[reservation.call_id] = reservation
+            return reservation
+
+    def reopen(self, call_id):
+        """The open :class:`Reservation` of ``call_id``, so it can be settled.
+
+        For a call reserved by an earlier run of this batch whose result
+        arrives later, such as a request in a provider's batch job. The
+        reservation is rebuilt from its ``reserve`` line. Raises
+        :class:`LedgerError` if the call is unknown, already settled, or
+        belongs to another batch.
+        """
+        with self._mutex:
+            self._require_usable()
+            if call_id in self._open:
+                return self._open[call_id]
+            entry = self._unsettled.get(call_id)
+            if entry is None:
+                if call_id in self._calls:
+                    raise LedgerError(f"call {call_id} is already settled")
+                raise LedgerError(f"call {call_id}: no reservation in the ledger")
+            if entry["batch_id"] != self.batch_id:
+                raise LedgerError(f"call {call_id} belongs to batch "
+                                  f"{entry['batch_id']!r}, not {self.batch_id!r}")
+            tokens = entry["tokens"]
+            reservation = Reservation(
+                call_id, entry["batch_id"], entry["record_id"], entry["provider"],
+                entry["model_id"], tokens["input"], tokens["output"],
+                Decimal(entry["cost_usd"]))
+            del self._unsettled[call_id]
+            self._open[call_id] = reservation
             return reservation
 
     def settle(self, reservation, usage, *, request_id=None):

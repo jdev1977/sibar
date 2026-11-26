@@ -714,3 +714,40 @@ def test_the_command_runs_as_a_module(tmp_path):
     assert done.returncode == 0, done.stderr
     assert "b1" in done.stdout
     assert done.stderr == ""
+
+
+# Settling a reservation made by an earlier process (T2.6: a batch is
+# submitted by one run and its results are collected by a later one).
+
+def test_a_later_ledger_settles_an_open_reservation_from_the_file(tmp_path):
+    with open_ledger(tmp_path) as first:
+        reservation = reserve(first)
+    with open_ledger(tmp_path) as second:
+        assert second.spent_usd == WORST  # still counted at its worst case
+        reopened = second.reopen(reservation.call_id)
+        assert reopened == reservation
+        charge = second.settle(reopened, Usage(input=1000, output=100))
+        assert charge.cost_usd == Decimal("0.002")
+        assert second.spent_usd == Decimal("0.002")
+    assert [line["type"] for line in lines(tmp_path)] == ["reserve", "charge"]
+    assert read_ledger(tmp_path / "ledger.jsonl").ok
+
+
+def test_reopen_refuses_a_settled_unknown_or_foreign_call(tmp_path):
+    with open_ledger(tmp_path) as first:
+        settled = reserve(first)
+        first.settle(settled, Usage(input=1, output=1))
+    with open_ledger(tmp_path, batch="b2") as other:
+        foreign = reserve(other)
+    with open_ledger(tmp_path) as ledger:
+        for call_id, message in ((settled.call_id, "already settled"),
+                                 (str(uuid.uuid4()), "no reservation"),
+                                 (foreign.call_id, "batch")):
+            with pytest.raises(LedgerError, match=message):
+                ledger.reopen(call_id)
+
+
+def test_reopen_returns_the_open_reservation_made_by_the_same_ledger(tmp_path):
+    with open_ledger(tmp_path) as ledger:
+        reservation = reserve(ledger)
+        assert ledger.reopen(reservation.call_id) is reservation
