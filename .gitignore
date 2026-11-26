@@ -1,6 +1,8 @@
 # Secrets
 .env
 .env.*
+*.env
+.envrc
 !.env.example
 *.key
 *.pem
