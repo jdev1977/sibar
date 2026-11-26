@@ -62,7 +62,9 @@ _MENTION = re.compile(_TERM)
 # term, then perhaps a symbol in brackets, a joining word or mark, the number
 _AFTER = re.compile(
     _TERM + r"(?: ?\([^()\n]{0,20}\))?(?: n(?:_\{?\w{1,6}\}?)?)?"
-    r"(?: ?(?:of at least|of about|of|=|:|≈|\||is|at least)){0,2}"
+    # "of about 4.2" and "≈ 2.1" report what a design came to, not what it
+    # was designed to, and are left unread
+    r"(?: ?(?:of at least|of|=|:|\||is|at least)){0,2}"
     r"(?: n(?:_\{?\w{1,6}\}?)? ?=)? ?(?=\d)")
 _BEFORE = re.compile(
     r"(?<![\d.])(\d{1,2}(?:\.\d{1,2})?)(?: ?×|:1|-fold| times)? (?i:safety factor|"
@@ -72,6 +74,12 @@ _COMPUTED = re.compile(r"\b(?:actual|achieved|resulting|calculated|computed|"
                        r"provide[sd]?|giv(?:es|ing|en)|yield(?:s|ing)|obtained)\b",
                        re.IGNORECASE)
 _EXPRESSION = re.compile(r" ?[/×*÷]")
+
+
+def _chosen(written):
+    """A factor someone chooses is round (1.5, 2, 1.25); 2.87 is a result."""
+    decimals = written.partition(".")[2]
+    return len(decimals) < 2 or len(decimals) == 2 and decimals[1] in "05"
 
 
 def _safety(inputs, doc, text):
@@ -87,8 +95,9 @@ def _safety(inputs, doc, text):
         match = NUMBER.match(text, after.end())
         if not match or _EXPRESSION.match(text, match.end()):
             continue
-        value = parse(match).value
-        if not 1 <= value <= 20:
+        number = parse(match)
+        value = number.value
+        if not 1 <= value <= 20 or not _chosen(number.mantissa):
             continue
         span = _RANGE.match(text, match.end())
         if span and NUMBER.match(text, span.end()):
@@ -98,7 +107,7 @@ def _safety(inputs, doc, text):
     for hit, _ in zip(_BEFORE.finditer(text), range(MAX_HITS)):
         before = text[max(hit.start() - 40, 0):hit.start()].rsplit("\n", 1)[-1]
         value = float(hit[1])
-        if 1 <= value <= 20 and not _COMPUTED.search(before) \
+        if 1 <= value <= 20 and _chosen(hit[1]) and not _COMPUTED.search(before) \
                 and not before.rstrip().endswith(("-", "–", " to")):
             values.add(canonical(value))
     if values:
