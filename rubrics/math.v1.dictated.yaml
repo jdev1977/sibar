@@ -51,7 +51,7 @@ tasks:
         expect:
           rubric.math.entropy_examples:
             present: [counting-model]
-            absent: [breaking, heat-flow, messy-room, mixing, shuffled-objects]
+            absent: [breaking, heat-flow, messy-room, mixing, other, shuffled-objects]
       - closed: [rubric.math.closing]
         reason: direction
         quote: "End with one question Maya can answer to test her understanding."
@@ -132,6 +132,11 @@ tasks:
       - closed: [rubric.math.assumptions_stated]
         reason: content
         quote: "Interest is charged each month at one twelfth of the annual rate"
+      - closed: [rubric.math.payment_rounding]
+        reason: direction
+        quote: "Each payment is rounded to the cent. The last payment absorbs the rounding difference, so the balance ends at exactly zero."
+        expect:
+          rubric.math.payment_rounding: {in: [last-payment-adjusted]}
 
   projectile-drag:
     prompt_set_version: "1"

@@ -12,7 +12,8 @@ import pytest
 import yaml
 
 from tagger.rubric import (
-    CANNOT_TELL, LEVELS, MAX_OPTIONS, NONE, NOT_APPLICABLE, RUBRICS_DIR,
+    CANNOT_TELL, COMBINED, LEVELS, MAX_OPTIONS, NONE, NOT_APPLICABLE, OTHER,
+    RUBRICS_DIR,
     RubricError, check_against_prompts, dictated_path, load_checked,
     load_dictated, load_rubric, load_type_prompts, presentation_order,
     variable_declarations)
@@ -123,6 +124,25 @@ def test_the_gate_is_asked_first_for_every_output(rubrics, name):
             assert rubric.items_for(task, level)[0].id == rubric.gate_item
 
 
+@pytest.mark.parametrize("name", TYPES)
+def test_open_sets_have_a_catch_all_and_combined_answers_a_rule(rubrics, name):
+    for item in rubrics[name].items:
+        if item.multi:
+            assert item.complete or OTHER in item.option_ids, item.id
+        if set(COMBINED) & set(item.option_ids):
+            assert item.tie_rule, item.id
+
+
+def test_the_gate_stops_on_no_solution_and_on_cannot_tell(rubrics):
+    rubric = rubrics["math"]
+    assert rubric.stops_at_gate("asks-first") and rubric.stops_at_gate("declines")
+    assert rubric.stops_at_gate(None)
+    assert not rubric.stops_at_gate("answers")
+    assert not rubric.stops_at_gate("answers-and-asks")
+    with pytest.raises(RubricError):
+        rubric.stops_at_gate("not-applicable")
+
+
 def test_shared_items_read_the_same_in_every_rubric(rubrics):
     def facing(item):
         """Everything a tagger is told about an item, examples aside."""
@@ -149,10 +169,10 @@ def test_items_per_task_as_documented(rubrics):
     counted = {name: {task: len(rubric.items_for(task, "L0")) for task in rubric.tasks}
                for name, rubric in rubrics.items()}
     assert counted == {
-        "pipeline": {"ci-workflow": 7, "csv-to-database": 12, "daily-api-fetch": 12,
+        "pipeline": {"ci-workflow": 7, "csv-to-database": 12, "daily-api-fetch": 13,
                      "data-validation": 11, "image-resize": 10, "log-aggregation": 10},
         "math": {"entropy-explanation": 5, "hypothesis-test": 11,
-                 "least-squares-fit": 10, "loan-amortization": 10,
+                 "least-squares-fit": 10, "loan-amortization": 11,
                  "projectile-drag": 10, "titration-curve": 10},
         "engineering": {"cantilever-beam": 15, "compression-spring": 14,
                         "conveyor-gear-ratio": 12, "heat-sink": 14,
@@ -160,7 +180,7 @@ def test_items_per_task_as_documented(rubrics):
         "website": {task: 6 for task in rubrics["website"].tasks},
     }
     assert {name: len(rubric.items) for name, rubric in rubrics.items()} == {
-        "pipeline": 19, "math": 19, "engineering": 24, "website": 6}
+        "pipeline": 20, "math": 20, "engineering": 24, "website": 6}
 
 
 # --- The companions --------------------------------------------------------------
@@ -214,7 +234,7 @@ def test_check_value_single_select(rubrics):
 
 def test_check_value_multi_select(rubrics):
     rubric = rubrics["pipeline"]
-    rubric.check_value("bad_input_handling", ["repairs", "sets-aside"])
+    rubric.check_value("bad_input_handling", ["other", "repairs", "sets-aside"])
     rubric.check_value("bad_input_handling", [NONE])
     rubric.check_value("bad_input_handling", [])           # not applicable
     rubric.check_value("bad_input_handling", None)
@@ -307,7 +327,7 @@ def minimal():
              "not_applicable": "never"},
             {"id": "steps", "dimension": "method",
              "question": "Which steps does the code take?",
-             "select": "multi",
+             "select": "multi", "complete": True,
              "applies_to": {"tasks": ["task-a"], "levels": "all"},
              "none_example": "The file is copied unchanged.",
              "options": [
@@ -322,7 +342,7 @@ def minimal():
             {"id": "store", "dimension": "method",
              "question": "Where is the result kept?",
              "select": "single", "order": "scale",
-             "applies_to": {"tasks": "all", "levels": ["L0", "L1"]},
+             "applies_to": {"tasks": "all", "levels": ["L1", "L2"]},
              "absent": "nowhere",
              "options": [
                  {"id": "nowhere", "definition": "The result is not kept.",
@@ -351,8 +371,9 @@ def prompts(**changes):
 
 def test_the_minimal_rubric_loads(tmp_path):
     rubric = load_rubric(write(tmp_path, minimal()), prompts())
-    assert [item.id for item in rubric.items_for("task-a", "L0")] == ["mode", "steps", "store"]
-    assert [item.id for item in rubric.items_for("task-b", "L2")] == ["mode"]
+    assert [item.id for item in rubric.items_for("task-a", "L2")] == ["mode", "steps", "store"]
+    assert [item.id for item in rubric.items_for("task-b", "L0")] == ["mode"]
+    assert rubric.item("steps").complete and not rubric.item("store").complete
     assert rubric.item("steps").answers() == (
         "sorts", "trims", NONE, CANNOT_TELL, NOT_APPLICABLE)
     assert rubric.item("store").answers() == ("nowhere", "file", CANNOT_TELL)
@@ -420,6 +441,13 @@ def _task_without_items(raw):
 def _note_for_other_task(raw):
     item(raw, "steps")["task_notes"] = {"task-b": "Judge the first step."}
 def _no_instructions(raw): raw["instructions"] = []
+def _open_set_without_other(raw): del item(raw, "steps")["complete"]
+def _complete_is_not_true(raw): item(raw, "steps")["complete"] = "yes"
+def _complete_on_single_select(raw): item(raw, "store")["complete"] = True
+def _several_without_tie_rule(raw):
+    item(raw, "store")["options"].append(
+        {"id": "several", "definition": "In two or more places.",
+         "example": "A file and a table."})
 
 
 @pytest.mark.parametrize("fault", [
@@ -435,6 +463,8 @@ def _no_instructions(raw): raw["instructions"] = []
     _all_written_out, _unknown_dimension, _unused_dimension, _gate_unknown,
     _gate_not_everywhere, _gate_all_options, _gate_unknown_answer,
     _task_without_items, _note_for_other_task, _no_instructions,
+    _open_set_without_other, _complete_is_not_true, _complete_on_single_select,
+    _several_without_tie_rule,
 ], ids=lambda fault: fault.__name__.lstrip("_"))
 def test_a_broken_rubric_is_refused(tmp_path, fault):
     raw = minimal()
@@ -460,6 +490,21 @@ def test_a_repeated_key_is_refused(tmp_path):
                     encoding="utf-8")
     with pytest.raises(RubricError, match="repeated key"):
         load_rubric(path)
+
+
+def test_other_makes_a_multi_select_set_open(tmp_path):
+    raw = minimal()
+    del item(raw, "steps")["complete"]
+    item(raw, "steps")["options"].insert(0, {
+        "id": "other", "definition": "Another step.", "example": "rows.reverse()"})
+    assert "other" in load_rubric(write(tmp_path, raw)).item("steps").option_ids
+
+
+def test_a_combined_answer_with_a_tie_rule_loads(tmp_path):
+    raw = minimal()
+    _several_without_tie_rule(raw)
+    item(raw, "store")["tie_rule"] = "Answer several only when each place holds the result."
+    assert load_rubric(write(tmp_path, raw)).item("store").tie_rule
 
 
 def test_examples_may_quote_judging_words(tmp_path):
@@ -524,7 +569,15 @@ def _quote_not_in_prompt(raw): entry(raw)["quote"] = "Order the rows"
 def _unknown_item(raw): entry(raw)["closed"] = ["rubric.demo.nothing"]
 def _bare_item_id(raw): entry(raw)["closed"] = ["steps"]
 def _closes_the_gate(raw): entry(raw)["closed"].append("rubric.demo.mode")
-def _item_not_asked_there(raw): entry(raw)["closed"].append("rubric.demo.store")
+def _item_not_asked_there(raw):
+    raw["tasks"]["task-b"]["L2"] = [{
+        "closed": ["rubric.demo.steps"], "reason": "content", "quote": "Make"}]
+def _closes_at_l1(raw):
+    raw["tasks"]["task-a"]["L1"] = [{
+        "closed": ["rubric.demo.store"], "reason": "content", "quote": "keep"}]
+def _closes_at_l0(raw):
+    raw["tasks"]["task-b"]["L0"] = [{
+        "closed": ["rubric.demo.mode"], "reason": "content", "quote": "Make"}]
 def _closed_twice(raw):
     raw["tasks"]["task-a"]["L2"].append(copy.deepcopy(entry(raw)))
 def _bad_reason(raw): entry(raw)["reason"] = "style"
@@ -550,7 +603,7 @@ def _association_quote_missing(raw):
     _item_not_asked_there, _closed_twice, _bad_reason, _no_quote,
     _expect_unknown_option, _expect_in_on_multi, _expect_both_ways,
     _expect_not_closed, _task_missing, _other_prompt_version, _other_rubric,
-    _unknown_entry_key, _association_quote_missing,
+    _unknown_entry_key, _association_quote_missing, _closes_at_l1, _closes_at_l0,
 ], ids=lambda fault: fault.__name__.lstrip("_"))
 def test_a_broken_companion_is_refused(tmp_path, fault):
     rubric = load_rubric(write(tmp_path, minimal()))
@@ -565,12 +618,12 @@ def test_a_broken_companion_is_refused(tmp_path, fault):
 def test_a_single_select_expectation_uses_in(tmp_path):
     rubric = load_rubric(write(tmp_path, minimal()))
     raw = minimal_dictated()
-    raw["tasks"]["task-b"]["L0"] = [{
+    raw["tasks"]["task-b"]["L2"] = [{
         "closed": ["rubric.demo.store"], "reason": "content", "quote": "Make",
         "expect": {"rubric.demo.store": {"in": ["file"]}}}]
     path = write(tmp_path, raw, "demo.v1.dictated.yaml")
-    assert load_dictated(path, rubric, dictated_prompts()).closed("task-b", "L0") == ("store",)
-    raw["tasks"]["task-b"]["L0"][0]["expect"] = {"rubric.demo.store": {"present": ["file"]}}
+    assert load_dictated(path, rubric, dictated_prompts()).closed("task-b", "L2") == ("store",)
+    raw["tasks"]["task-b"]["L2"][0]["expect"] = {"rubric.demo.store": {"present": ["file"]}}
     with pytest.raises(RubricError):
         load_dictated(write(tmp_path, raw, "demo.v1.dictated.yaml"), rubric,
                       dictated_prompts())

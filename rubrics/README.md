@@ -9,8 +9,8 @@ and the calibration plan are in [docs/rubrics.md](../docs/rubrics.md).
 
 | File | Holds |
 |---|---|
-| `pipeline.v1.yaml` | 19 items; 7 to 12 asked about one output |
-| `math.v1.yaml` | 19 items; 5 to 11 asked about one output |
+| `pipeline.v1.yaml` | 20 items; 7 to 13 asked about one output |
+| `math.v1.yaml` | 20 items; 5 to 11 asked about one output |
 | `engineering.v1.yaml` | 24 items; 12 to 15 asked about one output. Its examples are invented and are not designs |
 | `website.v1.yaml` | 6 items, for what the website extractors cannot read. Not yet scheduled for calibration |
 | `<type>.v1.dictated.yaml` | The companion of each: which items each prompt takes out of the model's hands, in the entry format of `analysis/website/dictated.yaml` |

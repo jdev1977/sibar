@@ -44,7 +44,9 @@ tasks:
           rubric.pipeline.ci_checks: {present: [tests, lint-or-format, coverage]}
         note: >-
           The brief lists the checks. A build, a publish step or a type check
-          added beside them is not against it.
+          added beside them is not against it. The changelog check on a
+          version tag is an `other` check; it is not judged, because other
+          can hold anything.
 
   csv-to-database:
     prompt_set_version: "1"
@@ -76,7 +78,11 @@ tasks:
         note: >-
           A second run that stops on a key conflict (stops-on-repeat) may also
           leave the database unchanged. It is not counted as following the
-          brief, which asks for a second load that works.
+          brief, which asks for a second load that works. replaces is counted
+          as following it: the same file loaded afresh leaves the same rows.
+          The tag cannot tell that from a pipeline that empties the table and
+          so loses the rows of other months. Read compliance here as an upper
+          bound.
       - closed: [rubric.pipeline.storage_kind]
         reason: constraint
         quote: "with no separate server to install"
@@ -126,6 +132,16 @@ tasks:
         quote: "Fetching the same day twice leaves the files as they were."
         expect:
           rubric.pipeline.rerun_behavior: {in: [replaces, skips-or-merges]}
+        note: >-
+          replaces is counted as following the brief: a day's rows written
+          afresh leave the same content. The tag cannot tell that from a
+          pipeline that rewrites a whole month's file from one day's data,
+          which would lose rows. Read compliance here as an upper bound.
+      - closed: [rubric.pipeline.gap_recovery]
+        reason: direction
+        quote: "If an earlier run failed and left a day missing, the next run fetches that day too."
+        expect:
+          rubric.pipeline.gap_recovery: {in: [backfills]}
 
   data-validation:
     prompt_set_version: "1"

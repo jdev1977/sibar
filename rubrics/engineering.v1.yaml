@@ -40,7 +40,8 @@ instructions:
 
 # The first item asked. With one of the no_solution answers there is nothing
 # to read: no other item is asked, and the run counts as an outcome without a
-# solution (docs/metrics.md, "Which runs count").
+# solution (docs/metrics.md, "Which runs count"). A cannot-tell at the gate
+# stops the same way, and the run is left out as unread.
 gate:
   item: response_mode
   no_solution: [asks-first, declines]
@@ -65,10 +66,10 @@ items:
     guidance: A solution is any attempt at the thing asked for, complete or not.
     options:
       - id: answers
-        definition: Delivers a solution and asks the user for no missing information.
+        definition: Delivers a solution and asks the user for no information.
         example: "A beam is sized for an assumed steel grade. The response asks nothing."
       - id: answers-and-asks
-        definition: Delivers a solution and also asks the user for information the request did not give. An offer to do more work is not such a question.
+        definition: Delivers a solution and also asks the user for information about what they have, need or mean. An offer to do more work is not such a question.
         example: "A steel beam is sized, then 'What material do you plan to use? I assumed S275 steel.'"
       - id: asks-first
         definition: Asks the user for information and delivers no solution.
@@ -87,7 +88,7 @@ items:
     select: single
     applies_to: {tasks: all, levels: all}
     absent: always-present
-    tie_rule: A solution split over several files is one solution. A variant counts only when it is carried through to its end.
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own.
     options:
       - id: general-only
         definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
@@ -96,7 +97,7 @@ items:
         definition: Carries one solution through to its end result.
         example: "One steel section is chosen and its stress and deflection are computed."
       - id: several-worked
-        definition: Carries two or more alternative solutions through to their end results (other inputs, designs or implementations).
+        definition: Carries two or more alternatives that differ in their inputs or their design through to end results of their own.
         example: "A steel beam and an aluminum beam are each sized in full."
     cannot_tell:
       when: The response stops part-way, so its complete solutions cannot be counted.
@@ -110,6 +111,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: always-present
     guidance: Judge the first sentence, heading or block only, whatever follows it.
+    tie_rule: If the first sentence holds a word of agreement, greeting, praise or enthusiasm, answer acknowledgement, whatever else that sentence does. A first-person statement of what the response will do is announcement, also when it lays out steps. Assumptions, a plan or background given with no such statement are framing.
     options:
       - id: acknowledgement
         definition: A reply to the user before any content, such as agreement, a greeting, praise or enthusiasm.
@@ -138,6 +140,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: always-present
     guidance: Judge the last sentence, list or block only.
+    tie_rule: A last line that states a result or a conclusion of the working is content, unless it sits under a label such as Summary, Recap or Key points. A passage that names a limit of what was delivered is caveat, also when it says how to lift the limit. A passage that only proposes additions is extension-ideas.
     options:
       - id: caveat
         definition: A warning, a limitation or advice to verify.
@@ -155,8 +158,11 @@ items:
         definition: A question to the reader that is not an offer, such as a request for information or a question to think about.
         example: "'What loads will the shelf carry?'"
       - id: recap
-        definition: A summary or final statement that repeats what the response already gave.
+        definition: A passage that repeats what the response already gave, under a label such as Summary, Recap, Conclusion or Key points, or as a closing list of what was delivered.
         example: "'Summary: a 60 × 120 mm bar, with the stress and deflection found above.'"
+      - id: sign-off
+        definition: A closing pleasantry with no content, such as a wish, thanks or a hope that the answer is of use.
+        example: "'Good luck with the build!'"
     cannot_tell:
       when: The response stops in the middle of a sentence or a code block.
       example: "The last line is 'so the required diameter is'."
@@ -170,6 +176,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: none
     tie_rule: If both an in-passing statement and a labelled list occur, answer listed.
+    guidance: An assumption is anything the response marks as assumed, chosen or taken for granted for lack of information, whether an input value, a condition or a simplification of the method. A value or a method used with no such marking is not a stated assumption.
     options:
       - id: none
         definition: States no assumption.
@@ -262,16 +269,16 @@ items:
     select: single
     applies_to: {tasks: all, levels: all}
     absent: none
-    tie_rule: If a product is named, answer named-product. Otherwise, if a size from a standard series is chosen, answer standard-size.
+    tie_rule: If a product is named, answer named-product. Otherwise, if a size from a standard series is chosen, answer standard-size. The thickness of a stock sheet, plate or board does not by itself make a standard size.
     options:
       - id: computed-size
-        definition: Dimensions or ratings that come straight from the calculation, with no reference to stock sizes.
+        definition: Chosen dimensions or ratings for the part, set from the calculation with no reference to a standard series or stock range.
         example: "'Width 47.3 mm, depth 94.6 mm.'"
       - id: named-product
         definition: A particular commercial product, model number or maker's part.
         example: "'Use a Norvane HS-220 extruded heat sink.'"
       - id: none
-        definition: Settles on no size, rating or part.
+        definition: Settles on no size, rating or part. A minimum or maximum that the part must meet, given with nothing chosen, is none.
         example: "'Any section with a modulus above 65 cm³ will work.'"
       - id: standard-size
         definition: A size, section or rating from a standard series or stock range, with no product named.
@@ -291,6 +298,12 @@ items:
       - id: analysis-limits
         definition: Names something the calculation leaves out or simplifies that could change the result in use.
         example: "'This ignores dynamic loads and the stiffness of the wall fixing.'"
+      - id: disclaimer
+        definition: A general statement that the result is an estimate, is for information or learning only, or comes with no guarantee, with nothing specific named.
+        example: "'This is a preliminary estimate for educational purposes only.'"
+      - id: other
+        definition: Another kind of caution that no other option covers.
+        example: "'Wear eye protection when you cut the spring wire.'"
       - id: seek-review
         definition: Advises a check by a qualified person, a supplier, a standard or a code before use.
         example: "'Have a structural engineer confirm the design.'"
@@ -310,6 +323,7 @@ items:
       tasks: [cantilever-beam, compression-spring, heat-sink, pipe-and-pump, shelf-bracket]
       levels: all
     absent: none
+    tie_rule: If the design is worked for one material and others are only mentioned, answer the one that is worked. Answer several only when the design is worked for two or more.
     task_notes:
       cantilever-beam: The part is the beam.
       compression-spring: The part is the spring wire.
@@ -371,6 +385,9 @@ items:
       - id: fatigue
         definition: Fatigue or life under repeated load.
         example: "'The stress range of 310 MPa is under the endurance limit of 380 MPa.'"
+      - id: other
+        definition: Another check with a number against a limit that no other option covers.
+        example: "'Solid length 9.2 mm is less than the 12 mm available, so the coils do not bind.'"
       - id: strength
         definition: Stress against an allowable or yield value.
         example: "'Bending stress 83 MPa against an allowable 125 MPa.'"
@@ -394,6 +411,9 @@ items:
       - id: mounting
         definition: How the part is fixed in place, such as hole sizes, fasteners or tightening.
         example: "'Two M5 countersunk screws at 40 mm spacing.'"
+      - id: other
+        definition: Another aspect of making the part that no other option covers.
+        example: "'Order ten at a time, which is the supplier's minimum.'"
       - id: process
         definition: How the part is made or cut.
         example: "'Cut from 3 mm sheet and bend to 90°.'"
@@ -434,6 +454,7 @@ items:
     select: single
     applies_to: {tasks: [cantilever-beam], levels: all}
     absent: none
+    tie_rule: Answer several only when two or more shapes are sized. A shape that is only mentioned does not count.
     options:
       - id: hollow
         definition: A tube, pipe or box section.
@@ -488,6 +509,7 @@ items:
     select: single
     applies_to: {tasks: [conveyor-gear-ratio], levels: all}
     absent: symbolic
+    tie_rule: Answer several only when a ratio is worked for each speed. A synchronous speed named beside the loaded speed that is used counts as the one used.
     options:
       - id: near-1500
         definition: A single speed from 1400 to 1500 rpm.
@@ -588,6 +610,7 @@ items:
     select: single
     applies_to: {tasks: [pipe-and-pump], levels: all}
     absent: none
+    tie_rule: Answer several only when the loss is computed by each method.
     options:
       - id: chart-or-table
         definition: Read from a pressure-drop chart, a table or a rule of thumb, with no equation.
@@ -636,11 +659,14 @@ items:
     select: single
     applies_to: {tasks: [pipe-and-pump], levels: all}
     absent: unspecified
-    tie_rule: If the pump is said to sit in the water, answer submersible, whatever its working principle.
+    tie_rule: If the pump is said to sit in the water, answer submersible, whatever its working principle. Answer several only when two or more kinds are left as candidates and none is chosen.
     options:
       - id: centrifugal
         definition: A centrifugal pump that sits outside the water.
         example: "'A small end-suction centrifugal pump.'"
+      - id: other
+        definition: A single kind of pump that no other option covers.
+        example: "'A hydraulic ram pump driven by the stream.'"
       - id: positive-displacement
         definition: A diaphragm, piston, gear or peristaltic pump.
         example: "'A 12 V diaphragm pump.'"
@@ -664,6 +690,7 @@ items:
     select: single
     applies_to: {tasks: [shelf-bracket], levels: all}
     absent: none
+    tie_rule: A solid web or plate in the corner is gusset-plate, also when holes are cut in it. A separate diagonal bar that leaves an open triangle is braced. If a delivered file or code and the prose differ, go by the file or code.
     options:
       - id: braced
         definition: Two legs at a right angle with a diagonal strut between them that leaves an opening.

@@ -71,7 +71,10 @@ items:
 ```
 
 A multi-select item has no `absent`; it has `none_example`, an output in
-which no option applies. Unknown keys and repeated keys are errors. Item ids
+which no option applies, and an `other` option unless it declares
+`complete: true` (its options cover every case). An item with a `several` or
+`both` option must have a `tie_rule` that says when that option applies.
+Unknown keys and repeated keys are errors. Item ids
 are lower-case with underscores, like feature names; option ids are
 lower-case with hyphens, like feature values.
 
@@ -96,7 +99,8 @@ with the request: `answers`, `answers-and-asks`, `asks-first` or `declines`.
 With `asks-first` or `declines` there is no solution to read, so no other
 item is asked. Such a run is counted in the outcome table
 ([metrics.md](metrics.md), "Which runs count") and in no other table, as a
-website run without a page is. Asking instead of assuming is itself a choice
+website run without a page is. A `cannot-tell` at the gate stops the same way, and the
+run is left out as unread (`Rubric.stops_at_gate`). Asking instead of assuming is itself a choice
 the prompt leaves open, and at L0 it may be a common one for the tasks with
 no givens ("Design a compression spring").
 
@@ -157,7 +161,11 @@ verdict), because a model read it. Calibration and the Human review of tags
 5. **A closed set with a rule for every corner.** Single-select options
    exclude each other; an `other` or `several` option closes a set that is
    not complete by itself; a tie rule says which option wins where two fit.
-   A question that cannot be given one answer per response is multi-select.
+   A question that cannot be given one answer per response is multi-select,
+   and every multi-select item has an `other` option, so that something
+   outside the list is recorded and not lost in `none`. The validator
+   requires both: `other` on a multi-select item (or `complete: true`), and
+   a tie rule beside a `several` or `both` option.
 6. **Delivered, not suggested.** "You could also add retries" is not a
    retry. This keeps a response that lists options from being tagged as
    having all of them.
@@ -173,7 +181,7 @@ verdict), because a model read it. Calibration and the Human review of tags
 Multi-select is used where a response commonly does several things at once
 (the cleaning steps applied, the checks carried out, the forms in which a
 curve is shown). A forced single answer there would be decided by the
-tagger's taste, which is what the rubric must not measure. Twelve of the 68
+tagger's taste, which is what the rubric must not measure. Twelve of the 70
 item definitions are multi-select.
 
 ## Guards against tagger bias
@@ -221,18 +229,114 @@ it is free, repeatable and cannot be biased.
 
 | Type | Left to the extractors | Read by the rubric |
 |---|---|---|
-| **Pipeline** | Language; libraries and imports; single script or modules, file layout and names; tests present; logging library or print; a retry present (keyword); configuration sources (arguments, environment, config files); where a key is read from; comment and docstring counts; a README file present; the build service and triggers of a CI file; headings, lists, code blocks and length of the reply | What happens to bad input; what a second run does; the kind of storage; the retry's waiting rule; how it is scheduled; where field names come from; sample data supplied; the log format assumed; cleaning steps; proportions on resize; kinds of CI check; where validation rules live and how failure is signalled; how the user is told to run it |
-| **Math or science** | Units; significant figures and decimals; notation (LaTeX, Unicode, plain); code present and its language; plotting code present; named methods and constants as keywords (a Ka value, "Shapiro"); a formula present; currency symbol; headings, tables, word count; pronouns (second person, "we") | Closed-form or stepwise; where the numbers come from (worked in text, code with or without results); where the result sits; whether it is verified; assumptions stated; the drag law; the test the conclusion rests on, its level and what is done about normality; the route to the fit and what is reported with it; how much of a schedule or curve is shown; framings and pictures of an explanation |
+| **Pipeline** | Language; libraries and imports; single script or modules, file layout and names; tests present; logging library or print; a retry present (keyword); configuration sources (arguments, environment, config files); where a key is read from; comment and docstring counts; a README file present; the build service, triggers and test matrix of a CI file; orientation and metadata handling and parallel work in image code (keywords and imports); output formats written; headings, lists, code blocks and length of the reply | What happens to bad input; what a second run does; the kind of storage; the retry's waiting rule; what is done about a missed day; how it is scheduled; where field names come from; sample data supplied; the log format assumed; cleaning steps; proportions on resize; kinds of CI check; where validation rules live and how failure is signalled; how the user is told to run it |
+| **Math or science** | Units; significant figures and decimals; notation (LaTeX, Unicode, plain); code present and its language; plotting code present; named methods and constants as keywords (a Ka value, "Shapiro"); a formula present; currency symbol; headings, tables, word count; pronouns (second person, "we") | Closed-form or stepwise; where the numbers come from (worked in text, code with or without results); where the result sits; whether it is verified; assumptions stated; the drag law; the test the conclusion rests on, its level and what is done about normality; the route to the fit and what is reported with it; how much of a schedule or curve is shown; how payments are rounded; framings and pictures of an explanation |
 | **Engineering** | Unit system; the value of a safety factor; standards cited by designation; checks named (keywords such as "Wahl", "buckling"); spring end type; numbers and default dimensions; CAD or drawing format (file type, code language); supply voltage; headings, tables, length | The material the part is made of; whether a margin is built in; which checks are carried out with numbers; a design load stated; computed size, standard size or named product; where formulas are said to come from; cautions given; making, mounting, finish and tolerances mentioned; and per task the section shape, own weight, motor speed, kind of reduction, interface resistance, cooling, friction method, fitting losses, kind of pump, bracket shape |
 | **Website** | Everything in [extractors.md](extractors.md): palette, fonts, libraries, layout, corners, shadows, gradients, icons, stock phrases, file structure, responsiveness, dark mode, accessibility | How the reply opens and closes around its code; the name the page gives its subject; people presented; contact details |
 
-Three items overlap an extractor on purpose, because the rubric answer is a
-different fact: `checks_performed` counts a check carried out with a number
-against a limit, where the extractor counts a check named; `curve_presentation`
-and `fit_extras` include plotting code as one form among several, where the
-extractor records only that plotting code exists; `usage_docs` reads
-instructions inside the reply, where the extractor sees only a README file.
-Where the two disagree on a run, the T2.11 review should look at it.
+**Overlaps with the extractors.** Some rubric items sit beside an extractor
+feature on the same subject. Each is kept because it answers a different
+question. Where the two disagree on a run, the T2.11 review should look at
+it.
+
+| Rubric item | Extractor feature beside it | What the rubric adds |
+|---|---|---|
+| `retry_policy` | a retry present (keyword) | the waiting rule between tries |
+| `storage_kind` | libraries imported (a database driver) | which store holds the results, where several are imported |
+| `scheduling` | scheduling libraries; a CI file's triggers | only what is delivered in concrete form, and its kind |
+| `ci_checks` | commands and tools named in a CI file | the kind of check, whatever the language's tool is called |
+| `usage_docs` | a README file present | instructions given inside the reply |
+| `sample_data` | data files present | sample input shown in the reply, or code that creates it |
+| `curve_presentation`, `fit_extras` | plotting code present | plotting as one form among several (table, description, sketch) |
+| `test_used`, `friction_method`, `drag_model` | method keywords | the method the result rests on, where several are named |
+| `computation_medium` | code present | whether the numbers come from the code or from worked text |
+| `material_assumed` | material names found | the material the part is designed in, where several are named |
+| `safety_margin` | the value of a safety factor | whether any margin is built in, with or without a number |
+| `checks_performed` | checks named (keywords) | a check carried out with a number against a limit |
+| `formula_source` | standards cited by designation | any source named, and a general pointer against a named one |
+| `opening`, `closing` | stock phrases, if T2.8 builds them for these types | the kind of opening or closing, whatever its words |
+
+### The choices the prompt READMEs name
+
+Every choice in the "Choices it brings out" column of the three prompt
+READMEs, and where it is read. "Not recorded" is deliberate, and the reason
+is given.
+
+| Task | Choice | Read by |
+|---|---|---|
+| csv-to-database | Parsing messy values | `cleaning_steps` |
+| | Storage | `storage_kind`; the engine by the libraries extractor |
+| | Bad rows | `bad_input_handling` |
+| | Safe re-runs | `rerun_behavior` |
+| daily-api-fetch | Scheduling | `scheduling` |
+| | Keys | Extractor: where a key is read from (environment, file, written in) |
+| | Retries | `retry_policy` |
+| | Gaps after a failed run | `gap_recovery` |
+| | Storage | `storage_kind` |
+| log-aggregation | Line format | `log_format_assumed` |
+| | Malformed lines | `bad_input_handling` |
+| | Memory | Not recorded in v1. Whether a file is read whole or line by line depends on which call is used in which language. An extractor can list the read calls; a rubric item would ask a small model to trace them. To reconsider once calibration shows how the code-reading items fare |
+| | Report shape | Not recorded. Which figures a report holds has no closed set of answers. The output formats written (printed, CSV, JSON) are the extractor's |
+| image-resize | Libraries | Extractor |
+| | Orientation and metadata | Extractor: keywords for orientation and metadata handling. Not a rubric item: whether the call that is found does what a brief means is for the sandbox to show, on its fixture images |
+| | Parallel work | Extractor: process or thread pools imported and used |
+| | Partial failure | `bad_input_handling` |
+| ci-workflow | Service, triggers | Extractor: the workflow file's path and keys |
+| | Test matrix | Extractor: the matrix keys of the workflow file (systems, versions) |
+| | Quality gates | `ci_checks` |
+| data-validation | Where rules live | `rule_definition` |
+| | How problems are reported | `bad_input_handling`. Whether all of a reading's problems are listed or only the first is not recorded in v1, for the reason given under Memory |
+| | Stopping the next stage | `failure_signal` |
+| projectile-drag | Drag law | `drag_model` |
+| | Constants assumed | Extractor: the numbers given for mass, size and coefficient. `result_form` says whether one case or several is worked |
+| | Closed form or numeric | `method_family` |
+| loan-amortization | Formula or month-by-month | `method_family` |
+| | Rounding | `payment_rounding` |
+| | How much of the schedule | `schedule_extent` |
+| | Currency | Extractor: currency symbol or code |
+| titration-curve | Approximations | `method_family` |
+| | Constants | Extractor: the Ka and Kw values used |
+| | Points reported | Extractor: the rows of the table. The answer checker reads the values |
+| | Drawn or tabulated | `curve_presentation` |
+| hypothesis-test | Which test | `test_used` |
+| | Assumptions | `normality_treatment`, `assumptions_stated` |
+| | Sides | Not recorded. The question is two-sided at every level, so it is not an open choice ([leak-check.md](leak-check.md), rule 9) |
+| | Level | `significance_level` |
+| | Wording of the decision | Not recorded. The decision is the answer checker's to read, and classes of wording could not be drawn so that two readers would sort a sentence the same way |
+| least-squares-fit | Formula route | `fit_route` |
+| | Errors and residuals | `fit_extras` |
+| | Precision | Extractor: significant figures |
+| | Plot or code | `fit_extras`; extractor: code present |
+| entropy-explanation | Framing | `entropy_framings` |
+| | Analogies | `entropy_examples` |
+| | Structure, length, formulas | Extractor |
+| cantilever-beam | Material, section | `material_assumed`, `section_shape` |
+| | Safety factor | `safety_margin`; its value by the extractor |
+| | Checks | `checks_performed` |
+| | Standards | Extractor; `formula_source` |
+| | Self-weight | `self_weight` |
+| conveyor-gear-ratio | Motor speed assumed | `motor_speed_assumed` |
+| | Stages | Not recorded as an item. The number of stages follows from the tooth counts or ratios, which the answer checker reads; `reduction_kind` says whether kinds are combined |
+| | Kind of reduction | `reduction_kind` |
+| | Real parts | `part_selection` |
+| heat-sink | Interface assumed | `interface_resistance` |
+| | Natural or forced air | `cooling_mode` |
+| | Bought or worked size | `part_selection` |
+| pipe-and-pump | Friction method | `friction_method` |
+| | Roughness | `material_assumed`; the roughness value by the extractor or the checker |
+| | Fittings | `minor_losses` |
+| | Temperature | Extractor or checker: a stated water temperature is a number, and the conditional reference answers need its value |
+| | Pump type | `pump_type` |
+| | Margin | `safety_margin` |
+| shelf-bracket | Dimensions | Extractor: the numbers; `bracket_form` for the shape |
+| | Load | `design_load` |
+| | Material | `material_assumed` |
+| | Making method | `manufacturing_notes` |
+| | CAD format | Extractor: file type or code language |
+| compression-spring | Force and size | `design_load`; the numbers by the extractor |
+| | Wire | `material_assumed` |
+| | Ends, stress correction | Extractor: keywords |
+| | Fatigue | `checks_performed` |
 
 T2.8's list in tasks.md does not yet name some of the left column (pronouns,
 position of prose around code, currency). They are listed here so that the
@@ -251,11 +355,11 @@ persistence at L2 ([metrics.md](metrics.md), "Sensitivity").
 | `response_mode` (the gate) | response | one of `answers`, `answers-and-asks`, `asks-first`, `declines` | all four |
 | `result_form` | response | one of `one-worked`, `several-worked`, `general-only` | pipeline, math (not the explanation), engineering |
 | `opening` | tone | one of `acknowledgement`, `announcement`, `content`, `framing`, `question` | all four |
-| `closing` | tone | one of `caveat`, `content`, `extension-ideas`, `offer`, `question`, `recap` | all four |
+| `closing` | tone | one of `caveat`, `content`, `extension-ideas`, `offer`, `question`, `recap`, `sign-off` | all four |
 | `assumptions_stated` | assumptions | scale: `none`, `in-passing`, `listed` | pipeline, math (not the explanation), engineering |
 | `answer_position` | structure | one of `before-working`, `after-working`, `no-working`, `no-final-result` | math (not the explanation), engineering |
 
-### Pipeline (19 items)
+### Pipeline (20 items)
 
 Tasks: csv = csv-to-database, api = daily-api-fetch, log = log-aggregation,
 image = image-resize, ci = ci-workflow, validation = data-validation.
@@ -266,19 +370,25 @@ image = image-resize, ci = ci-workflow, validation = data-validation.
 | `usage_docs` | operation | scale of 4 | all | none |
 | `sample_data` | assumptions | one of 3 | all but ci | csv, api, log, validation |
 | `input_assumption` | assumptions | one of 3 | csv, api, log, validation | all four |
-| `bad_input_handling` | robustness | several of 5 | csv, log, image, validation | all four |
+| `bad_input_handling` | robustness | several of 6 | csv, log, image, validation | all four |
 | `rerun_behavior` | robustness | one of 4 | csv, api, image | all three |
 | `storage_kind` | operation | one of 6 | csv, api | both |
-| `cleaning_steps` | method | several of 8 | csv | csv |
-| `scheduling` | operation | several of 4 | api | api |
+| `cleaning_steps` | method | several of 9 | csv | csv |
+| `scheduling` | operation | several of 5 | api | api |
 | `retry_policy` | robustness | one of 4 | api | api |
+| `gap_recovery` | robustness | one of 3 | api | api |
 | `log_format_assumed` | assumptions | one of 6 | log | log |
 | `aspect_handling` | method | one of 5 | image | image |
-| `ci_checks` | method | several of 7 | ci | ci |
+| `ci_checks` | method | several of 8 | ci | ci |
 | `rule_definition` | method | one of 5 | validation | validation |
 | `failure_signal` | robustness | one of 4 | validation | validation |
 
-### Math or science (19 items)
+`bad_input_handling` counts only code that tests a single record or file, or
+catches a failure on it. A cleaning step applied to all the data (dropping
+every row with a missing value, filling blanks) is `cleaning_steps`. The
+guidance of both items says so.
+
+### Math or science (20 items)
 
 "Numeric tasks" are the five with numbers: projectile-drag,
 loan-amortization, titration-curve, hypothesis-test, least-squares-fit.
@@ -286,7 +396,7 @@ loan-amortization, titration-curve, hypothesis-test, least-squares-fit.
 | Item | Dimension | Answers | Asked for | Closed at L2 in |
 |---|---|---|---|---|
 | `response_mode`, `opening` | as above | as above | all | none |
-| `closing` | tone | one of 6 | all | entropy-explanation |
+| `closing` | tone | one of 7 | all | entropy-explanation |
 | `result_form` | response | one of 3 | numeric tasks | projectile-drag |
 | `assumptions_stated` | assumptions | scale of 3 | numeric tasks | all five |
 | `answer_position` | structure | one of 4 | numeric tasks | loan-amortization, hypothesis-test |
@@ -295,14 +405,15 @@ loan-amortization, titration-curve, hypothesis-test, least-squares-fit.
 | `method_family` | method | one of 4 | projectile-drag, loan-amortization, titration-curve | all three |
 | `drag_model` | assumptions | one of 5 | projectile-drag | projectile-drag |
 | `schedule_extent` | structure | scale of 4 | loan-amortization | loan-amortization |
-| `curve_presentation` | structure | several of 4 | titration-curve | titration-curve |
+| `payment_rounding` | assumptions | one of 3 | loan-amortization | loan-amortization |
+| `curve_presentation` | structure | several of 5 | titration-curve | titration-curve |
 | `test_used` | method | one of 8 | hypothesis-test | hypothesis-test |
 | `significance_level` | assumptions | one of 5 | hypothesis-test | hypothesis-test |
 | `normality_treatment` | assumptions | one of 4 | hypothesis-test | hypothesis-test |
 | `fit_route` | method | one of 6 | least-squares-fit | least-squares-fit |
-| `fit_extras` | checks | several of 5 | least-squares-fit | least-squares-fit |
-| `entropy_framings` | explanation | several of 6 | entropy-explanation | entropy-explanation |
-| `entropy_examples` | explanation | several of 6 | entropy-explanation | entropy-explanation |
+| `fit_extras` | checks | several of 6 | least-squares-fit | least-squares-fit |
+| `entropy_framings` | explanation | several of 7 | entropy-explanation | entropy-explanation |
+| `entropy_examples` | explanation | several of 7 | entropy-explanation | entropy-explanation |
 
 ### Engineering (24 items)
 
@@ -318,16 +429,16 @@ not designs.
 | `safety_margin` | checks | scale of 3 | all | cantilever-beam, compression-spring, shelf-bracket |
 | `formula_source` | method | scale of 3 | all | cantilever-beam |
 | `part_selection` | design | one of 4 | all | cantilever-beam, heat-sink, shelf-bracket |
-| `caveats` | practice | several of 3 | all | none |
+| `caveats` | practice | several of 5 | all | none |
 | `material_assumed` | assumptions | one of 9 | all but conveyor-gear-ratio | all five |
-| `checks_performed` | checks | several of 5 | cantilever-beam, compression-spring, shelf-bracket | all three |
-| `manufacturing_notes` | practice | several of 4 | cantilever-beam, compression-spring, heat-sink, shelf-bracket | shelf-bracket |
+| `checks_performed` | checks | several of 6 | cantilever-beam, compression-spring, shelf-bracket | all three |
+| `manufacturing_notes` | practice | several of 5 | cantilever-beam, compression-spring, heat-sink, shelf-bracket | shelf-bracket |
 | `design_load` | assumptions | one of 3 | compression-spring, shelf-bracket | both |
 | `section_shape`, `self_weight` | design, assumptions | one of 7, one of 3 | cantilever-beam | cantilever-beam |
 | `motor_speed_assumed`, `reduction_kind` | assumptions, design | one of 5 each | conveyor-gear-ratio | conveyor-gear-ratio |
 | `interface_resistance`, `cooling_mode` | assumptions, design | one of 3, one of 4 | heat-sink | heat-sink |
 | `friction_method`, `minor_losses` | method, assumptions | one of 5, one of 3 | pipe-and-pump | pipe-and-pump |
-| `pump_type` | design | one of 5 | pipe-and-pump | none |
+| `pump_type` | design | one of 6 | pipe-and-pump | none |
 | `bracket_form` | design | one of 5 | shelf-bracket | shelf-bracket |
 
 ### Website (6 items)
@@ -336,15 +447,15 @@ not designs.
 |---|---|---|---|---|
 | `response_mode`, `opening`, `closing` | as above | as above | all | none |
 | `name_given` | invented-content | one of 4 | all | all six |
-| `people_presented` | invented-content | several of 3 | all | all but todo-app |
+| `people_presented` | invented-content | several of 4 | all | all but todo-app |
 | `contact_details` | invented-content | one of 3 | all | all but todo-app |
 
 ## Size
 
 | Rubric | Items in the file | Items asked about one output, by task |
 |---|---|---|
-| pipeline | 19 | 7 (ci) to 12 (csv, api); mean 10.3 |
-| math | 19 | 5 (the explanation), 10 or 11 for the numeric tasks; mean 9.3 |
+| pipeline | 20 | 7 (ci) to 13 (api); mean 10.5 |
+| math | 20 | 5 (the explanation), 10 or 11 for the numeric tasks; mean 9.5 |
 | engineering | 24 | 12 to 15; mean 14 |
 | website | 6 | 6 |
 
@@ -362,8 +473,8 @@ numbers:
   is a short list. At the prices in tasks.md that is about a tenth of a cent
   per output for the smallest tagger and a few cents for the largest. These
   are estimates from the file sizes; T2.5 measures them.
-- **The Human's time is.** T2.5 has the Human tag 30 outputs per type. At 9
-  to 14 items an output that is 280 to 420 judgements per type, two to
+- **The Human's time is.** T2.5 has the Human tag 30 outputs per type. At 9.5
+  to 14 items an output that is 285 to 420 judgements per type, two to
   three hours at 25 seconds a judgement. Twenty items per output would be
   600 judgements, more than four hours per type.
 - **So is a small model's accuracy.** Each extra item in one call is another
@@ -372,7 +483,10 @@ numbers:
   calls, by dimension, before moving up a tier.
 - **Engineering is the largest** because the plan lists the most open
   choices for it, and most need reading. Its count is at the limit; an item
-  added later should replace one.
+  added later should replace one. The cap of 15 was kept in the review
+  round: the two items added there went to pipeline and math, and no
+  engineering item was dropped, because each records a choice the plan
+  lists for the type and none duplicates another.
 
 ## Website
 
@@ -429,7 +543,8 @@ tasks:
 - `associations` lists wording that may pull an open choice without closing
   it: "pH curve" and a drawn curve, "gear ratio" and gears, "access logs"
   and a web server's log layout.
-- L0 and L1 close nothing. The entries were read from the "What each L2
+- L0 and L1 close nothing, and the loader refuses an entry there: wording
+  at those levels that may pull a choice is an association. The entries were read from the "What each L2
   dictates" and "Choices not to read as defaults" tables of the three
   leak-check logs and from the L2 texts.
 - Math and engineering L2 briefs state their assumptions, so
@@ -491,6 +606,13 @@ and tags a sample with a non-Claude model. This section recommends how.
   other than the most common one come from.
 - **The Human tags first and blind**: from the rubric file, without the
   model that wrote the output and before seeing any tagger's answer.
+- **The Human's own repeat.** The Human tags 10 of the 30 a second time, at
+  least a day later and without the first tags. The Human's agreement with
+  their own first pass, by the measure below, is the ceiling: no tagger can
+  be shown to agree with the Human more than the Human does. If it is below
+  0.95 for a rubric, the wording is at fault before any tagger is, and a
+  tagger within a few points of the ceiling should not fail on condition 1
+  alone.
 - Keep the Human's first-pass tags as they are. If the Human reads a
   disagreement again and changes a tag, record both; the bar is judged on
   the first pass and the second is reported beside it.
@@ -500,11 +622,21 @@ and tags a sample with a non-Claude model. This section recommends how.
 Agreement of a tagger with the Human on one item and one output is the
 agreement the metrics already use between two runs ([metrics.md](metrics.md),
 "Agreement and shift"): 1 or 0 for a single-select item, and the Jaccard
-overlap for a multi-select item (1 when both say `none`). A `cannot-tell` on
-one side only counts as 0; on both sides as 1.
+overlap for a multi-select item (1 when both say `none`). Three cases
+are scored here that the metrics skip. The metrics leave out a pair of runs
+when either has no value; in calibration these are answers of the tagger and
+must count:
+
+- `cannot-tell` on one side only scores 0, and on both sides 1;
+- `not-applicable` on one side only scores 0, and on both sides 1;
+- where the Human and the tagger disagree at the gate (one went on to the
+  other items, the other stopped), every further item that either of them
+  answered scores 0 for that output.
 
 - **Item agreement** A(i): the mean over the outputs for which item i was
-  asked and the Human did not stop at the gate.
+  asked and at least one of the two went past the gate. `docs/tagger.md`
+  lists A(i) for every item, with the number of outputs behind it, and not
+  only the rubric figure.
 - **Rubric agreement** A: the mean of A(i) over the items, each item
   weighted by its number of judged outputs, with a 95% interval from a
   bootstrap over the 30 outputs (outputs are resampled whole, because the
@@ -554,8 +686,10 @@ variables. If two models pass and the dearer one reaches 0.95, weigh that
 against its price: it is the difference between "default" and "strong
 default" for the choices that matter most.
 
-Items asked for one task only have 5 judged outputs each in the 30, too few
-for condition 2. They are judged together, as one pooled group per rubric,
+**A limit of this design.** Items asked for one task only have 5 judged
+outputs each in the 30, too few for condition 2: 9 of the 20 pipeline items,
+11 of the 20 math items and 10 of the 24 engineering items. Calibration as
+T2.5 defines it cannot validate them one by one. They are judged together, as one pooled group per rubric,
 against 0.80. They stay `provisional` and are read in per-task tables, where
 the metrics label them `insufficient data` for a pooled row in any case (one
 task). If one of them matters to a finding, the Human tags 10 more outputs
@@ -571,7 +705,11 @@ of that task first.
    new rubric version if tags are to be kept) and tag the 30 again.
 3. An item that fails after one rewrite stays `provisional` and out of the
    summaries, or is dropped. It does not hold the rubric back.
-4. The 100 outputs that only the models tagged give a second reading:
+4. Expect the first rewording in two groups: the items that read what code
+   does (`bad_input_handling`, `rerun_behavior`, `input_assumption`), and the
+   shared items with the finest boundaries (`opening`, `closing`,
+   `result_form`). Look at their A(i) first.
+5. The 100 outputs that only the models tagged give a second reading:
    agreement between the chosen model and the largest one, per item, by the
    same measure. An item under 0.85 there goes on the list for the T2.11
    review even if it passed on the 30.
@@ -610,8 +748,8 @@ show.
 ## Notes for later tasks
 
 - **T2.6 (tagger).** Load with `tagger.rubric.load_checked(type)`; ask
-  `Rubric.items_for(task, level)`, gate first; stop after the gate on a
-  `no_solution` answer; show options in `presentation_order`; give the
+  `Rubric.items_for(task, level)`, gate first; stop after the gate when
+  `Rubric.stops_at_gate` says so (a `no_solution` answer or `cannot-tell`); show options in `presentation_order`; give the
   instructions word for word, and for each item its question, guidance, tie
   rule, the task note for the output's task, each option's definition and
   example, and the `cannot_tell` and `not_applicable` rules; check every
@@ -652,7 +790,9 @@ show.
 - item ids are unique, every dimension is used, and every answer of every
   item (each option, `none`, `cannot-tell`, `not-applicable`) has its own
   example;
-- every single-select item says how "not present" is answered;
+- every single-select item says how "not present" is answered; every
+  multi-select item has an `other` option or declares itself complete; every
+  `several` or `both` option comes with a tie rule;
 - no output is asked more than 15 items, and the counts in
   [Size](#size) hold;
 - shared items and the instructions read the same in every rubric;
@@ -660,7 +800,7 @@ show.
   and every expected value is an answer of its item;
 - stored values, option order and the variable declarations behave as
   described above;
-- one fault at a time, 43 broken rubrics and 17 broken companions are
+- one fault at a time, 47 broken rubrics and 19 broken companions are
   refused: a version that differs from the file name, a repeated id, a
   missing example, a judging word, a model name, options out of order, an
   unknown task, a quote that is not in the prompt, and so on.

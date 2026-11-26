@@ -39,7 +39,8 @@ instructions:
 
 # The first item asked. With one of the no_solution answers there is nothing
 # to read: no other item is asked, and the run counts as an outcome without a
-# solution (docs/metrics.md, "Which runs count").
+# solution (docs/metrics.md, "Which runs count"). A cannot-tell at the gate
+# stops the same way, and the run is left out as unread.
 gate:
   item: response_mode
   no_solution: [asks-first, declines]
@@ -59,10 +60,10 @@ items:
     guidance: A solution is any attempt at the thing asked for, complete or not.
     options:
       - id: answers
-        definition: Delivers a solution and asks the user for no missing information.
+        definition: Delivers a solution and asks the user for no information.
         example: "A complete page for a bakery. The response asks nothing."
       - id: answers-and-asks
-        definition: Delivers a solution and also asks the user for information the request did not give. An offer to do more work is not such a question.
+        definition: Delivers a solution and also asks the user for information about what they have, need or mean. An offer to do more work is not such a question.
         example: "A page is given, then 'What is the bakery called? I used a made-up name.'"
       - id: asks-first
         definition: Asks the user for information and delivers no solution.
@@ -82,6 +83,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: always-present
     guidance: Judge the first sentence, heading or block only, whatever follows it.
+    tie_rule: If the first sentence holds a word of agreement, greeting, praise or enthusiasm, answer acknowledgement, whatever else that sentence does. A first-person statement of what the response will do is announcement, also when it lays out steps. Assumptions, a plan or background given with no such statement are framing.
     options:
       - id: acknowledgement
         definition: A reply to the user before any content, such as agreement, a greeting, praise or enthusiasm.
@@ -110,6 +112,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: always-present
     guidance: Judge the last sentence, list or block only.
+    tie_rule: A last line that states a result or a conclusion of the working is content, unless it sits under a label such as Summary, Recap or Key points. A passage that names a limit of what was delivered is caveat, also when it says how to lift the limit. A passage that only proposes additions is extension-ideas.
     options:
       - id: caveat
         definition: A warning, a limitation or advice to verify.
@@ -127,8 +130,11 @@ items:
         definition: A question to the reader that is not an offer, such as a request for information or a question to think about.
         example: "'Which products do you actually sell?'"
       - id: recap
-        definition: A summary or final statement that repeats what the response already gave.
-        example: "'This page includes a hero, a menu, an about section and a contact form.'"
+        definition: A passage that repeats what the response already gave, under a label such as Summary, Recap, Conclusion or Key points, or as a closing list of what was delivered.
+        example: "'Summary: the page has a hero, a menu, an about section and a contact form.'"
+      - id: sign-off
+        definition: A closing pleasantry with no content, such as a wish, thanks or a hope that the answer is of use.
+        example: "'Enjoy your new site!'"
     cannot_tell:
       when: The response stops in the middle of a sentence or a code block.
       example: "The last line is '<footer class=\"site-fo'."
@@ -150,10 +156,10 @@ items:
         definition: No name appears in the page's visible text or its title.
         example: "The page opens with a photo and a menu, and no name is shown anywhere."
       - id: placeholder
-        definition: A stand-in that asks to be replaced, or a stock stand-in name.
+        definition: Text written for the page's owner to replace, such as words in brackets, a phrase that starts with Your, or the name of the slot in place of a name (Company Name).
         example: "'[Your Bakery Name]' in the header."
       - id: specific-name
-        definition: A particular name of its own, such as a business, product or personal name.
+        definition: A particular name of its own, such as a business, product or personal name, however common that name is.
         example: "'Golden Crust Bakery' in the header and in the footer."
     cannot_tell:
       when: The name is filled in by a script from data the response does not show.
@@ -168,6 +174,9 @@ items:
     guidance: Go by the text a visitor would see.
     none_example: "The page lists products and opening hours and names no person."
     options:
+      - id: other
+        definition: Another named person that no other option covers.
+        example: "'Photo by Lena Osei' under the main picture."
       - id: owner-or-team
         definition: A named owner, founder, author, speaker or team member.
         example: "'Meet our head baker, Marie Laurent.'"
@@ -192,13 +201,13 @@ items:
     guidance: Contact details are a street address, a phone number or an email address in the text a visitor would see.
     options:
       - id: filled-in
-        definition: Values written as if they were real.
+        definition: Values written as if they were real, also when the number, street or domain is a reserved or made-up one.
         example: "'12 Mill Lane · 555-0100 · hello@example.com'"
       - id: none
         definition: No address, phone number or email address appears.
         example: "The footer holds only a copyright line."
       - id: placeholder
-        definition: Stand-ins that ask to be replaced.
+        definition: Text written for the page's owner to replace, such as words in brackets or a phrase that starts with Your.
         example: "'[Your address here]' and 'your@email.com'."
     cannot_tell:
       when: The details are filled in by a script from data the response does not show.

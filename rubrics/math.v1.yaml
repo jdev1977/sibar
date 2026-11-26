@@ -36,7 +36,8 @@ instructions:
 
 # The first item asked. With one of the no_solution answers there is nothing
 # to read: no other item is asked, and the run counts as an outcome without a
-# solution (docs/metrics.md, "Which runs count").
+# solution (docs/metrics.md, "Which runs count"). A cannot-tell at the gate
+# stops the same way, and the run is left out as unread.
 gate:
   item: response_mode
   no_solution: [asks-first, declines]
@@ -60,10 +61,10 @@ items:
     guidance: A solution is any attempt at the thing asked for, complete or not.
     options:
       - id: answers
-        definition: Delivers a solution and asks the user for no missing information.
+        definition: Delivers a solution and asks the user for no information.
         example: "A worked solution that ends with a range of 41 m. It asks nothing."
       - id: answers-and-asks
-        definition: Delivers a solution and also asks the user for information the request did not give. An offer to do more work is not such a question.
+        definition: Delivers a solution and also asks the user for information about what they have, need or mean. An offer to do more work is not such a question.
         example: "A solution with assumed drag constants, then 'What object is it, so I can use its real drag coefficient?'"
       - id: asks-first
         definition: Asks the user for information and delivers no solution.
@@ -84,7 +85,7 @@ items:
       tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]
       levels: all
     absent: always-present
-    tie_rule: A solution split over several files is one solution. A variant counts only when it is carried through to its end.
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own.
     options:
       - id: general-only
         definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
@@ -93,7 +94,7 @@ items:
         definition: Carries one solution through to its end result.
         example: "One set of drag constants is assumed and the range is computed for it."
       - id: several-worked
-        definition: Carries two or more alternative solutions through to their end results (other inputs, designs or implementations).
+        definition: Carries two or more alternatives that differ in their inputs or their design through to end results of their own.
         example: "The range is computed for a tennis ball and again for a steel ball."
     cannot_tell:
       when: The response stops part-way, so its complete solutions cannot be counted.
@@ -107,6 +108,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: always-present
     guidance: Judge the first sentence, heading or block only, whatever follows it.
+    tie_rule: If the first sentence holds a word of agreement, greeting, praise or enthusiasm, answer acknowledgement, whatever else that sentence does. A first-person statement of what the response will do is announcement, also when it lays out steps. Assumptions, a plan or background given with no such statement are framing.
     options:
       - id: acknowledgement
         definition: A reply to the user before any content, such as agreement, a greeting, praise or enthusiasm.
@@ -135,6 +137,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: always-present
     guidance: Judge the last sentence, list or block only.
+    tie_rule: A last line that states a result or a conclusion of the working is content, unless it sits under a label such as Summary, Recap or Key points. A passage that names a limit of what was delivered is caveat, also when it says how to lift the limit. A passage that only proposes additions is extension-ideas.
     options:
       - id: caveat
         definition: A warning, a limitation or advice to verify.
@@ -152,8 +155,11 @@ items:
         definition: A question to the reader that is not an offer, such as a request for information or a question to think about.
         example: "'Can you say why the curve is flat near the half-equivalence point?'"
       - id: recap
-        definition: A summary or final statement that repeats what the response already gave.
+        definition: A passage that repeats what the response already gave, under a label such as Summary, Recap, Conclusion or Key points, or as a closing list of what was delivered.
         example: "'To sum up: the payment is 178.21 a month and the interest comes to 1692.65, as found above.'"
+      - id: sign-off
+        definition: A closing pleasantry with no content, such as a wish, thanks or a hope that the answer is of use.
+        example: "'Good luck with the lab report!'"
     cannot_tell:
       when: The response stops in the middle of a sentence or a code block.
       example: "The last line is 'so the range is approx'."
@@ -169,6 +175,7 @@ items:
       levels: all
     absent: none
     tie_rule: If both an in-passing statement and a labelled list occur, answer listed.
+    guidance: An assumption is anything the response marks as assumed, chosen or taken for granted for lack of information, whether an input value, a condition or a simplification of the method. A value or a method used with no such marking is not a stated assumption.
     options:
       - id: none
         definition: States no assumption.
@@ -275,6 +282,7 @@ items:
       levels: all
     absent: not-shown
     guidance: Go by the method the response uses, or the one it sets out if it computes nothing.
+    tie_rule: Answer both only when each route is carried through to numbers. A route that is only named does not count.
     task_notes:
       loan-amortization: Judge how the monthly payment is found. A schedule built from a payment that is already known is not stepwise.
       projectile-drag: Judge how the range is found.
@@ -303,6 +311,7 @@ items:
     select: single
     applies_to: {tasks: [projectile-drag], levels: all}
     absent: none
+    tie_rule: Answer both only when the problem is worked under each law. A law that is only mentioned does not count.
     options:
       - id: both
         definition: Works the problem under a linear law and under a quadratic law.
@@ -351,6 +360,28 @@ items:
       example: "The table ends at month 23 in the middle of a row."
     not_applicable: never
 
+  - id: payment_rounding
+    dimension: assumptions
+    question: How does the response deal with rounding the payments to whole cents?
+    select: single
+    applies_to: {tasks: [loan-amortization], levels: all}
+    absent: not-addressed
+    tie_rule: If a payment or the final balance is adjusted for rounding, answer last-payment-adjusted, whatever else is said.
+    options:
+      - id: last-payment-adjusted
+        definition: Rounds the payment to cents and adjusts the final payment or the final balance so that the loan ends at zero.
+        example: "'The 60th payment is 178.13, a little less than the others, to clear the balance.'"
+      - id: not-addressed
+        definition: Says nothing about rounding. Amounts may be shown to two decimals.
+        example: "'Monthly payment: 178.21. Total paid: 10692.60.'"
+      - id: noted-only
+        definition: Remarks that rounding leaves a small difference, and adjusts no payment.
+        example: "'Totals may be off by a few cents because of rounding.'"
+    cannot_tell:
+      when: A final payment differs from the others and the response does not say why.
+      example: "The last row of the table shows 178.13 with no remark."
+    not_applicable: never
+
   - id: curve_presentation
     dimension: structure
     question: In which forms does the response present the pH curve?
@@ -364,6 +395,9 @@ items:
       - id: drawn
         definition: A picture of the curve in the response itself, as an image, vector graphics or a sketch made of text characters.
         example: "A text sketch with pH on the vertical axis and '*' marks along an S shape."
+      - id: other
+        definition: Another form that no other option covers.
+        example: "A single formula that gives the pH as a function of the volume added."
       - id: plot-code
         definition: Code that draws the curve.
         example: "A script that ends with plt.plot(volumes, ph)."
@@ -418,6 +452,7 @@ items:
     select: single
     applies_to: {tasks: [hypothesis-test], levels: all}
     absent: none
+    tie_rule: Answer several only when a decision is given at each level. A confidence interval beside a decision at the same level is that one level.
     options:
       - id: five-percent
         definition: A level of 0.05, or a 95% confidence level.
@@ -470,6 +505,7 @@ items:
     select: single
     applies_to: {tasks: [least-squares-fit], levels: all}
     absent: not-shown
+    tie_rule: Answer several only when the slope and intercept are computed by two or more routes. Code that only repeats the formulas of the hand calculation is the same route.
     options:
       - id: centered-sums
         definition: From sums of deviations from the means (Sxx and Sxy).
@@ -507,6 +543,9 @@ items:
       - id: goodness-of-fit
         definition: R², a correlation coefficient or another single measure of fit.
         example: "'R² = 0.998'."
+      - id: other
+        definition: Another result that no other option covers.
+        example: "'At x = 10 the line predicts y = 19.7.'"
       - id: plot
         definition: A plot of the points and the line, or code that draws one.
         example: "A script ends with plt.scatter(x, y) and plt.plot(x, fit)."
@@ -543,6 +582,9 @@ items:
       - id: microstates
         definition: As a count of the microscopic arrangements that fit what is observed.
         example: "'S = k ln W, where W is the number of ways to arrange the particles.'"
+      - id: other
+        definition: Another way of describing it that no other option covers.
+        example: "'Entropy is what gives time its direction.'"
       - id: unavailable-energy
         definition: As energy that cannot be turned into work.
         example: "'Entropy measures the energy that is no longer available to do work.'"
@@ -574,6 +616,9 @@ items:
       - id: mixing
         definition: Substances mixing or spreading through a space.
         example: "'A drop of ink spreads through a glass of water.'"
+      - id: other
+        definition: Another picture or example that no other option covers.
+        example: "'A steam engine can never turn all of its heat into motion.'"
       - id: shuffled-objects
         definition: Cards, dice, coins or sorted objects that get shuffled or tossed.
         example: "'A new deck of cards is in order; shuffle it and it almost never comes back.'"

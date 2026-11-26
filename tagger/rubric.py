@@ -37,6 +37,9 @@ REASONS = ("direction", "content", "constraint")
 CANNOT_TELL = "cannot-tell"        # stored as null: undetermined
 NOT_APPLICABLE = "not-applicable"  # stored as this text, or [] for multi-select
 NONE = "none"                      # multi-select only: no option applies
+OTHER = "other"                    # the catch-all option of an open set
+# An option with one of these ids needs a tie rule: when does it apply?
+COMBINED = ("several", "both")
 RESERVED = (CANNOT_TELL, NOT_APPLICABLE)
 ALWAYS_PRESENT = "always-present"  # `absent` of an item whose subject always exists
 NEVER = "never"                    # `not_applicable` of an item that always applies
@@ -76,7 +79,7 @@ _TOP_KEYS = {"schema_version", "project_type", "rubric_version",
 _ITEM_KEYS = {"id", "dimension", "question", "select", "applies_to", "options",
               "cannot_tell", "not_applicable"}
 _ITEM_OPTIONAL = {"order", "absent", "none_example", "tie_rule", "guidance",
-                  "task_notes"}
+                  "task_notes", "complete"}
 _OPTION_KEYS = {"id", "definition", "example"}
 _ENTRY_KEYS = {"closed", "reason", "quote", "expect", "note"}
 
@@ -117,6 +120,7 @@ class Item:
     tie_rule: Optional[str] = None
     guidance: Optional[str] = None
     task_notes: Mapping[str, str] = MappingProxyType({})
+    complete: bool = False           # multi: the options cover every case
 
     @property
     def multi(self):
@@ -175,6 +179,15 @@ class Rubric:
     def variable(self, item_id):
         """The variable name of an item in the metrics: ``rubric.<type>.<id>``."""
         return f"{self.extractor}.{self.item(item_id).id}"
+
+    def stops_at_gate(self, value):
+        """Whether a stored gate tag ends the tagging of an output.
+
+        It does for a ``no_solution`` answer, and for None (cannot tell):
+        without knowing that there is a solution, nothing else can be read.
+        """
+        self.check_value(self.gate_item, value)
+        return value is None or value in self.gate_no_solution
 
     def items_for(self, task, level):
         """The items asked about an output of a task and level, gate first."""
@@ -379,6 +392,16 @@ def _item(raw, tasks, dimensions, at):
         if "none_example" not in raw:
             raise RubricError(f"{at}: missing none_example")
         none_example = _example(raw["none_example"], f"{at}.none_example")
+    complete = raw.get("complete", False)
+    if complete is not False and (complete is not True or select != "multi"):
+        raise RubricError(f"{at}.complete may only be true, on a multi-select item")
+    if select == "multi" and not complete and OTHER not in ids:
+        raise RubricError(f"{at}: a multi-select item has an {OTHER!r} option, "
+                          "or declares complete: true when its options cover "
+                          "every case")
+    if any(option_id in COMBINED for option_id in ids) and "tie_rule" not in raw:
+        raise RubricError(f"{at}: an item with a 'several' or 'both' option "
+                          "needs a tie_rule that says when it applies")
 
     cannot_tell = _special(raw["cannot_tell"], f"{at}.cannot_tell")
     not_applicable = None
@@ -409,7 +432,7 @@ def _item(raw, tasks, dimensions, at):
         order=order, tasks=item_tasks, levels=item_levels, options=tuple(options),
         absent=absent, none_example=none_example, cannot_tell=cannot_tell,
         not_applicable=not_applicable, task_notes=MappingProxyType(task_notes),
-        **optional)
+        complete=complete, **optional)
 
 
 def _rubric(raw, path):
@@ -608,6 +631,12 @@ def load_dictated(path, rubric, prompts=None):
                                   "the rubric's")
             for level in LEVELS:
                 seen = set()
+                if level != "L2" and body.get(level):
+                    # docs/leak-check.md: L0 and L1 name none of the open
+                    # choices. Wording that may pull one is an association.
+                    raise RubricError(f"task {task}: {level} closes nothing; "
+                                      "list wording that may pull a choice "
+                                      "under associations")
                 for index, entry in enumerate(body.get(level) or []):
                     at = f"{task}.{level}[{index}]"
                     _keys(entry, {"closed", "reason", "quote"},

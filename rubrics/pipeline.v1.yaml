@@ -33,7 +33,8 @@ instructions:
 
 # The first item asked. With one of the no_solution answers there is nothing
 # to read: no other item is asked, and the run counts as an outcome without a
-# solution (docs/metrics.md, "Which runs count").
+# solution (docs/metrics.md, "Which runs count"). A cannot-tell at the gate
+# stops the same way, and the run is left out as unread.
 gate:
   item: response_mode
   no_solution: [asks-first, declines]
@@ -56,10 +57,10 @@ items:
     guidance: A solution is any attempt at the thing asked for, complete or not.
     options:
       - id: answers
-        definition: Delivers a solution and asks the user for no missing information.
+        definition: Delivers a solution and asks the user for no information.
         example: "A complete script, then a paragraph on how it works. It asks nothing."
       - id: answers-and-asks
-        definition: Delivers a solution and also asks the user for information the request did not give. An offer to do more work is not such a question.
+        definition: Delivers a solution and also asks the user for information about what they have, need or mean. An offer to do more work is not such a question.
         example: "A script is given, followed by 'Which database do you use? I assumed SQLite.'"
       - id: asks-first
         definition: Asks the user for information and delivers no solution.
@@ -78,7 +79,7 @@ items:
     select: single
     applies_to: {tasks: all, levels: all}
     absent: always-present
-    tie_rule: A solution split over several files is one solution. A variant counts only when it is carried through to its end.
+    tie_rule: The same question answered for the same inputs a second way (another method, a second test, or code beside a hand calculation) is one solution, and so is a solution split over several files. Answer several-worked only when the alternatives differ in their inputs or their design and each is carried through to an end result of its own.
     options:
       - id: general-only
         definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
@@ -87,8 +88,8 @@ items:
         definition: Carries one solution through to its end result.
         example: "One script that reads, cleans and loads the file."
       - id: several-worked
-        definition: Carries two or more alternative solutions through to their end results (other inputs, designs or implementations).
-        example: "A complete Python version and a complete shell version of the same pipeline."
+        definition: Carries two or more alternatives that differ in their inputs or their design through to end results of their own.
+        example: "A version that loads into SQLite and a second complete version that loads into PostgreSQL."
     cannot_tell:
       when: The response stops part-way, so its complete solutions cannot be counted.
       example: "The response ends in the middle of the first function."
@@ -101,6 +102,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: always-present
     guidance: Judge the first sentence, heading or block only, whatever follows it.
+    tie_rule: If the first sentence holds a word of agreement, greeting, praise or enthusiasm, answer acknowledgement, whatever else that sentence does. A first-person statement of what the response will do is announcement, also when it lays out steps. Assumptions, a plan or background given with no such statement are framing.
     options:
       - id: acknowledgement
         definition: A reply to the user before any content, such as agreement, a greeting, praise or enthusiasm.
@@ -129,6 +131,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: always-present
     guidance: Judge the last sentence, list or block only.
+    tie_rule: A last line that states a result or a conclusion of the working is content, unless it sits under a label such as Summary, Recap or Key points. A passage that names a limit of what was delivered is caveat, also when it says how to lift the limit. A passage that only proposes additions is extension-ideas.
     options:
       - id: caveat
         definition: A warning, a limitation or advice to verify.
@@ -146,8 +149,11 @@ items:
         definition: A question to the reader that is not an offer, such as a request for information or a question to think about.
         example: "'What does your CSV look like?'"
       - id: recap
-        definition: A summary or final statement that repeats what the response already gave.
+        definition: A passage that repeats what the response already gave, under a label such as Summary, Recap, Conclusion or Key points, or as a closing list of what was delivered.
         example: "'In summary, the script reads the file, cleans five columns and loads one table.'"
+      - id: sign-off
+        definition: A closing pleasantry with no content, such as a wish, thanks or a hope that the answer is of use.
+        example: "'Hope this helps!'"
     cannot_tell:
       when: The response stops in the middle of a sentence or a code block.
       example: "The last line is 'def load_rows(conn, ro'."
@@ -161,6 +167,7 @@ items:
     applies_to: {tasks: all, levels: all}
     absent: none
     tie_rule: If both an in-passing statement and a labelled list occur, answer listed.
+    guidance: An assumption is anything the response marks as assumed, chosen or taken for granted for lack of information, whether an input value, a condition or a simplification of the method. A value or a method used with no such marking is not a stated assumption.
     options:
       - id: none
         definition: States no assumption.
@@ -261,12 +268,15 @@ items:
     applies_to:
       tasks: [csv-to-database, data-validation, image-resize, log-aggregation]
       levels: all
-    guidance: Count code written for such input. An error that would occur with nothing written for it is not an option; if that is all there is, answer none.
+    guidance: Count only code that tests a single record or file, or catches a failure on it, and then acts on that record or file. A cleaning step applied to all the data, such as dropping every row with a missing value, filling blanks or coercing a column, is not handling of such input. An error that would occur with nothing written for it is not an option; if that is all there is, answer none.
     none_example: "Every value is converted with int() and float() directly, with nothing around the conversions."
     options:
+      - id: other
+        definition: Another action on such a record or file that no other option covers.
+        example: "A row that fails is sent to a person by email for a decision."
       - id: repairs
-        definition: Changes the value so the record can be kept, by filling a default, coercing the type or clipping to a range.
-        example: "Unparseable quantities are coerced to missing and then filled with 0."
+        definition: After a failed check or a caught error, changes the value so that the record can be kept.
+        example: "'except ValueError: quantity = 0' keeps the row with a quantity of 0."
       - id: sets-aside
         definition: Writes the record or file to a separate place (a rejects file, table or folder).
         example: "Rows that fail are appended to 'rejected.csv'."
@@ -294,8 +304,9 @@ items:
       tasks: [csv-to-database, daily-api-fetch, image-resize]
       levels: all
     absent: always-present
+    guidance: Where a library call decides it, go by the mode the call states, or by the library's default when it states none. A file opened for writing is replaced. A file opened for appending is added to.
     task_notes:
-      daily-api-fetch: Judge what happens when the same day is fetched twice.
+      daily-api-fetch: Judge what happens when the same day is fetched twice. A file or a table section for one day that is written afresh when that day is fetched again is replaces.
       image-resize: What is stored is the resized image files. Redoing and overwriting every image is replaces. Leaving images that already exist is skips-or-merges.
     options:
       - id: adds-again
@@ -325,7 +336,7 @@ items:
       tasks: [csv-to-database, daily-api-fetch]
       levels: all
     absent: always-present
-    tie_rule: Where the storage depends on a setting, go by the value the code uses when nothing is set.
+    tie_rule: Where the storage depends on a setting, go by the value the code uses when nothing is set. Answer several only when two or more kinds each hold stored data in the same run.
     options:
       - id: embedded-database
         definition: A database that runs inside the program from a local file, with no server (such as SQLite or DuckDB).
@@ -357,6 +368,7 @@ items:
     question: Which cleaning steps does the code apply to the data?
     select: multi
     applies_to: {tasks: [csv-to-database], levels: all}
+    guidance: Count steps applied to the data as a whole. What is done with a single record that fails a test or raises an error is not a cleaning step.
     none_example: "The file is read and inserted as it is; 'clean' appears only in a function name."
     options:
       - id: converts-types
@@ -368,6 +380,9 @@ items:
       - id: normalises-case
         definition: Changes the letter case of values (lower, upper or title case).
         example: "Emails are lower-cased."
+      - id: other
+        definition: Another cleaning step that no other option covers.
+        example: "Rows whose total lies far outside the usual range are removed as outliers."
       - id: parses-dates
         definition: Parses date or time values into one form.
         example: "pd.to_datetime(df['order_date'])."
@@ -410,6 +425,9 @@ items:
       - id: os-scheduler
         definition: An entry for the operating system's scheduler, such as a cron line, a systemd timer or a Task Scheduler command.
         example: "'Add this to your crontab: 0 6 * * * python fetch.py'."
+      - id: other
+        definition: Another concrete mechanism that no other option covers.
+        example: "A shortcut for a phone's automation app that opens the script's address each morning."
     cannot_tell:
       when: The response says a scheduling file is included, and the file is missing.
       example: "'The timer is defined in fetch.timer', and no such file is delivered."
@@ -421,6 +439,7 @@ items:
     select: single
     applies_to: {tasks: [daily-api-fetch], levels: all}
     absent: none
+    guidance: Where a library's retry setting is used, go by what the response sets. A backoff setting above zero is retries-growing-wait. A retry count with no wait and no backoff set is retries-no-wait.
     options:
       - id: none
         definition: No retry. A failed request is not sent again within the run.
@@ -441,12 +460,37 @@ items:
       when: The response has no code.
       example: "The response describes the fetch-and-store steps in prose."
 
+  - id: gap_recovery
+    dimension: robustness
+    question: What does the code do about a day that an earlier run failed to fetch?
+    select: single
+    applies_to: {tasks: [daily-api-fetch], levels: all}
+    absent: none
+    tie_rule: If the code both finds missing days itself and takes a date as an argument, answer backfills.
+    options:
+      - id: backfills
+        definition: Finds days that are missing from what is stored, or that follow the last stored day, and fetches them in the same run.
+        example: "The script reads the last date in the file and fetches every day from then until yesterday."
+      - id: manual-date
+        definition: Fetches one day per run and takes a date or a range as an argument, so that a person can fetch a missed day by hand.
+        example: "'python fetch.py --date 2027-03-02' fetches that day; with no argument it fetches yesterday."
+      - id: none
+        definition: Fetches only the day of the run. Nothing is provided for a missed day.
+        example: "The date is always today's, set inside the script."
+    cannot_tell:
+      when: The dates to fetch come from a helper that the response does not show.
+      example: "'for day in days_to_fetch():', where days_to_fetch is not delivered."
+    not_applicable:
+      when: The response has no code.
+      example: "The response describes a daily fetch in general terms."
+
   - id: log_format_assumed
     dimension: assumptions
     question: Which log line format does the code parse?
     select: single
     applies_to: {tasks: [log-aggregation], levels: all}
     absent: always-present
+    tie_rule: Answer several only when the code parses two or more formats. A format that is only mentioned does not count.
     options:
       - id: app-message
         definition: Application log lines with a timestamp, a level such as INFO or ERROR, and a free-text message.
@@ -518,6 +562,9 @@ items:
       - id: lint-or-format
         definition: Runs a linter or a formatting check.
         example: "A step runs 'ruff check .'."
+      - id: other
+        definition: Another kind of check that no other option covers.
+        example: "A step fails the run if the changelog has no entry for the new version."
       - id: publish
         definition: Publishes or releases a build (to a registry, a release page or a deployment).
         example: "On a version tag the package is uploaded to the package index."
@@ -543,7 +590,7 @@ items:
     select: single
     applies_to: {tasks: [data-validation], levels: all}
     absent: always-present
-    tie_rule: If the rules are written in more than one of these ways, answer several.
+    tie_rule: Go by where a rule's values and conditions are written. Code that only reads rules from a file or a table and applies them is not statements. If rules are written in two or more of these ways, answer several.
     options:
       - id: external-file
         definition: In a separate file that the code loads (JSON, YAML, CSV or similar).
