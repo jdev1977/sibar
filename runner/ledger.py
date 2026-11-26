@@ -179,13 +179,14 @@ def call_cost(model, input_tokens, output_tokens):
     """The cost in US dollars of one call to ``model`` (a ``runner.models.Model``).
 
     ``output_tokens`` is everything billed at the output rate. A prompt above a
-    price tier's threshold puts the whole call on that tier's rates. Cached,
-    batch and off-peak discounts are ignored.
+    price tier's threshold puts the whole call on that tier's rates; of the
+    tiers it is above, the one with the highest threshold applies, whatever
+    their order in the list. Cached, batch and off-peak discounts are ignored.
     """
-    rates = model
-    for tier in model.price_tiers:
-        if input_tokens > tier.above_input_tokens:
-            rates = tier
+    matching = [tier for tier in model.price_tiers
+                if input_tokens > tier.above_input_tokens]
+    rates = (max(matching, key=lambda tier: tier.above_input_tokens)
+             if matching else model)
     prices = (rates.input_price_per_mtok_usd, rates.output_price_per_mtok_usd)
     if None in prices:
         raise LedgerError(f"model {model.id!r} has no price in the model list")
@@ -486,7 +487,10 @@ class Ledger:
         ``prompt_tokens`` is a high estimate (see
         :func:`estimate_prompt_tokens`). ``max_output_tokens`` is the output
         limit **sent in the request**, covering reasoning; leave it None when
-        the request sends none, and the model's maximum is assumed. Raises
+        the request sends none, and the model's maximum is assumed. That is
+        only valid where the ``models.yaml`` maximum truly bounds the request:
+        not when a mode such as long decode or automatic continuation lets one
+        request produce more (send an explicit limit then). Raises
         :class:`BudgetExceeded` if spending plus this call's worst case is above
         a cap, otherwise writes the reservation to disk and returns it.
         """
