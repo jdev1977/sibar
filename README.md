@@ -16,9 +16,10 @@ levels of direction (L0 bare, L1 brief, L2 directed) and run several times.
 
 **Status:** early setup (Phase 0). The repository layout, the secret scan, the
 model list, the run record format, the cost ledger, the generation runner and
-the offline renderer are in place. The runner has been tested only with a fake transport: no
-provider has been called yet (see [docs/runner.md](docs/runner.md)). Prompts,
-extractors, rubrics and viewer are not built yet, and no results exist.
+the offline renderer, the website prompts and the website extractors are in
+place. The runner has been tested only with a fake transport: no provider has
+been called yet (see [docs/runner.md](docs/runner.md)). Rubrics and the viewer
+are not built yet, and no results exist.
 
 ## Layout
 
@@ -28,7 +29,7 @@ extractors, rubrics and viewer are not built yet, and no results exist.
 | [prompts/](prompts/README.md) | Task prompts, by project type |
 | [runner/](runner/README.md) | Python package: run record format and generation runs |
 | [renderer/](docs/renderer.md) | Python package: offline screenshots of generated pages |
-| [extractors/](extractors/README.md) | Python package: features parsed from outputs |
+| [extractors/](docs/extractors.md) | Python package: features parsed from outputs |
 | [rubrics/](rubrics/README.md) | Versioned tagging rubrics, by project type |
 | [viewer/](viewer/README.md) | Local page for comparing outputs |
 | [docs/](docs/README.md) | Project documents |

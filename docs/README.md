@@ -12,6 +12,8 @@ Project documents. Present now:
   isolation and limits (T1.3)
 - [leak-check.md](leak-check.md): the rules for checking prompts for leaks,
   written in T1.2 and reused by T2.2 and the Wave 2 leak checks
+- [extractors.md](extractors.md): the extractor interface and the twelve
+  website extractors, feature by feature (T1.4)
 
 Added by later tasks in [tasks.md](../tasks.md):
 
