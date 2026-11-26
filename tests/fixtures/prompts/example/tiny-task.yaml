@@ -1,0 +1,20 @@
+# A tiny example prompt file for tests and for the T0.5 live check (see
+# prompts/README.md for the format). Not a real task of any project type.
+schema_version: 1
+project_type: example
+task_id: tiny-task
+prompt_set_version: "0"
+prompts:
+  L0:
+    A: Write a short poem about bread.
+    B: Write a brief poem about bread.
+  L1:
+    A: Write a short poem about bread for a bakery's chalkboard.
+    B: Write a brief poem about bread for the chalkboard outside a bakery.
+  L2:
+    A: |
+      Write a four-line poem about sourdough bread for a bakery's chalkboard.
+      Keep each line under eight words.
+    B: |
+      Write a poem of four lines about sourdough for the chalkboard outside a
+      bakery. Each line should have fewer than eight words.

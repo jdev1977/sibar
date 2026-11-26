@@ -304,6 +304,17 @@ def test_price_tiers_apply_to_the_whole_call(prompt, expected):
     assert call_cost(MODELS.get("tiered"), prompt, 1000) == Decimal(expected)
 
 
+@pytest.mark.parametrize("prompt,expected", [
+    (1001, "0.022002"),
+    (5001, "0.045003"),  # the highest matching threshold, not the last listed
+])
+def test_the_highest_matching_tier_wins_whatever_the_list_order(prompt, expected):
+    # The loader keeps tiers ascending, but a Model can be built directly.
+    unordered = fake_model("unordered", tiers=(PriceTier(5000, 3.0, 30.0),
+                                               PriceTier(1000, 2.0, 20.0)))
+    assert call_cost(unordered, prompt, 1000) == Decimal(expected)
+
+
 def test_the_tier_of_the_actual_prompt_is_charged(tmp_path):
     with open_ledger(tmp_path) as ledger:
         reservation = reserve(ledger, model="tiered", prompt=900)

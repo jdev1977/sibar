@@ -51,7 +51,11 @@ needs, from the caller:
    client library's automatic retries);
 2. `max_output_tokens` equal to the limit sent in the request, or None when none
    is sent (the model's maximum from `models.yaml` is then assumed). It is taken
-   to bound reasoning tokens too;
+   to bound reasoning tokens too. Sending no limit is only valid where the
+   `models.yaml` maximum truly bounds the request. It does not when a mode lets
+   one request produce more than that maximum, such as Gemini long decode
+   (`max_output_tokens` above 65,536, background execution or automatic
+   continuation): send an explicit limit there and reserve that;
 3. a prompt estimate that is not too low. `estimate_prompt_tokens` counts one
    token per UTF-8 byte plus 1000, for text only;
 4. nothing billed beyond list-price tokens (see Prices).
@@ -84,7 +88,8 @@ the worst case.
 
 From `models.yaml`: the base rates, and `price_tiers` for models that charge a
 whole call at a higher rate above a prompt size (Claude Haiku 5.5, GPT-6.2 Sol,
-GPT-6 Luna). DeepSeek's listed rates are its peak, cache-miss rates and are
+GPT-6 Luna). When a prompt is above several thresholds, the tier with the
+highest threshold applies, whatever the order of the list. DeepSeek's listed rates are its peak, cache-miss rates and are
 always used. Cached-input and off-peak discounts are ignored, so those can only
 make the real bill lower.
 
