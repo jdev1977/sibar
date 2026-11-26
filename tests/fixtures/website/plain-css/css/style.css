@@ -1,0 +1,88 @@
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lato&display=swap");
+
+/* Colours: body {color: #ff00ff} in a comment must not count. */
+:root {
+  --cream: #fdf6e3;
+  --brown: #8b4513;
+  --accent: hsl(30, 80%, 45%);
+  --radius: 8px;
+}
+
+body {
+  margin: 0;
+  font-family: "Lato", Helvetica, Arial, sans-serif;
+  background-color: var(--cream);
+  color: #2b2118;
+}
+
+h1, h2, h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  color: var(--brown);
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  background: rgba(253, 246, 227, 0.9);
+}
+
+.hero {
+  padding: clamp(2rem, 6vw, 6rem) 1rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.card {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+  background: white;
+}
+
+.card img {
+  border-radius: 50%;
+}
+
+.nav {
+  display: flex;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--brown);
+}
+
+@media (max-width: 768px) {
+  .cards { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 30em) {
+  .nav { flex-direction: column; }
+}
+
+@media (prefers-color-scheme: dark) {
+  body { background-color: #1a1a1a; color: #eee; }
+}
+
+body.dark {
+  background-color: #121212;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none; }
+}

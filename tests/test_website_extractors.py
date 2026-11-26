@@ -1,0 +1,1110 @@
+"""The twelve website extractors on hand-made fixtures with known values (T1.4).
+
+Fixtures are in tests/fixtures/website/. Each test states the values worked
+out by reading the fixture, not values copied from a run.
+"""
+
+import json
+import time
+from pathlib import Path
+
+import pytest
+
+from extractors import base
+from extractors.base import Inputs, InputFile, run_extractors
+from extractors.registry import extractors_for
+from extractors.website import stock_phrases
+
+FIXTURES = Path(__file__).parent / "fixtures" / "website"
+WEBSITE = extractors_for("website")
+
+
+def run(name):
+    """``{extractor short name: values}`` for a fixture folder."""
+    results = run_extractors(WEBSITE, Inputs.from_directory(FIXTURES / name))
+    return {full.split(".", 1)[1]: values for full, (_, values) in results.items()}
+
+
+@pytest.fixture(scope="module")
+def tailwind_landing():
+    return run("tailwind-landing")
+
+
+@pytest.fixture(scope="module")
+def plain_css():
+    return run("plain-css")
+
+
+@pytest.fixture(scope="module")
+def react_spa():
+    return run("react-spa")
+
+
+@pytest.fixture(scope="module")
+def negative():
+    return run("negative")
+
+
+@pytest.fixture(scope="module")
+def bootstrap():
+    return run("bootstrap")
+
+
+def subset(values, expected):
+    """The expected keys of ``values``, for a readable comparison."""
+    return {key: values.get(key, "<missing>") for key in expected}
+
+
+def check(values, expected):
+    assert subset(values, expected) == expected
+    assert values["status"] == "ok"
+
+
+# --- Every fixture: statuses and determinism ----------------------------------------
+
+
+@pytest.mark.parametrize("name", ["tailwind-landing", "plain-css", "react-spa",
+                                  "negative", "bootstrap", "hostile"])
+def test_every_extractor_runs_and_is_deterministic(name):
+    first = run(name)
+    assert set(first) == {e.name.split(".", 1)[1] for e in WEBSITE}
+    assert all(values["status"] in ("ok", "partial") for values in first.values()), {
+        key: values.get("error") for key, values in first.items()}
+    again = run(name)
+    assert json.dumps(first) == json.dumps(again)
+    for values in first.values():
+        assert list(values) == sorted(values)
+
+
+def test_no_files_means_no_input():
+    results = run_extractors(WEBSITE, Inputs([]))
+    assert {values["status"] for _, values in results.values()} == {"no-input"}
+    assert all(list(values) == ["status"] for _, values in results.values())
+
+
+def test_css_only_output():
+    inputs = Inputs([InputFile("style.css", b"body{color:#ff0000}")])
+    results = {k: v for k, (_, v) in run_extractors(WEBSITE, inputs).items()}
+    assert results["website.palette"]["colors"] == ["#ff0000"]
+    assert results["website.layout"] == {"status": "no-input"}
+    assert results["website.accessibility"] == {"status": "no-input"}
+
+
+# --- Palette -----------------------------------------------------------------------------
+
+
+def test_palette_tailwind(tailwind_landing):
+    check(tailwind_landing["palette"], {
+        "tailwind_colors": ["gray-100", "gray-200", "gray-50", "gray-500", "gray-600",
+                            "gray-900", "gray-950", "indigo-100", "indigo-500",
+                            "indigo-600", "pink-400", "purple-600", "white",
+                            "yellow-300"],
+        "hues": ["blue", "indigo", "pink", "purple", "yellow"],
+        "dominant_hue": "indigo",
+        "background": "white", "background_hex": "#ffffff", "base_scheme": "light",
+        "unparsed_colors": 0,
+    })
+
+
+def test_palette_plain_css(plain_css):
+    check(plain_css["palette"], {
+        "colors": ["#000000", "#121212", "#1a1a1a", "#2b2118", "#667eea", "#764ba2",
+                   "#8b4513", "#cf7317", "#eeeeee", "#fdf6e3", "#ffffff"],
+        "color_count": 11,
+        "color_classes": ["black", "blue-mid", "brown-dark", "gray-dark", "gray-light",
+                          "orange-mid", "violet-mid", "white", "yellow-light"],
+        "hues": ["blue", "brown", "orange", "violet", "yellow"],
+        "dominant_hue": "brown",  # the cream (yellow) is too pale to count
+        "background": "yellow-light", "background_hex": "#fdf6e3",
+        "base_scheme": "light", "tailwind_colors": [], "unparsed_colors": 0,
+    })
+
+
+def test_palette_react_wrapper_background(react_spa):
+    check(react_spa["palette"], {
+        "tailwind_colors": ["cyan-400", "slate-100", "slate-400", "slate-500",
+                            "slate-900", "slate-950", "violet-400", "violet-500"],
+        "background": "black", "background_hex": "#020617", "base_scheme": "dark",
+        "dominant_hue": "violet",  # slate is neutral; violet-400/500 are the accent
+    })
+
+
+def test_palette_negative(negative):
+    check(negative["palette"], {
+        "colors": [], "color_count": 0, "hues": [], "dominant_hue": "none",
+        "background": "default", "background_hex": None, "base_scheme": "light",
+        "tailwind_colors": [],
+    })
+
+
+def test_background_through_an_unknown_variable_is_unknown():
+    inputs = Inputs([InputFile("index.html",
+                               b"<style>body{background:var(--nope)}</style><p>x")])
+    values = run_extractors([e for e in WEBSITE if e.name == "website.palette"],
+                            inputs)["website.palette"][1]
+    assert values["background"] is None and values["base_scheme"] is None
+    assert values["unparsed_colors"] == 1
+
+
+# --- Fonts ---------------------------------------------------------------------------------
+
+
+def test_fonts_tailwind_config_and_google(tailwind_landing):
+    check(tailwind_landing["fonts"], {
+        "families": ["inter"], "loaded_families": ["inter"],
+        "font_sources": ["google-fonts"], "primary_font": "inter",
+        "primary_category": "sans", "heading_font": "same", "generic_families": [],
+    })
+
+
+def test_fonts_plain_css(plain_css):
+    check(plain_css["fonts"], {
+        "families": ["arial", "georgia", "helvetica", "lato", "playfair display"],
+        "family_count": 5,
+        "generic_families": ["sans-serif", "serif"],
+        "loaded_families": ["lato", "playfair display"],
+        "font_categories": ["sans", "serif"],
+        "font_sources": ["google-fonts"],
+        "primary_font": "lato", "primary_category": "sans",
+        "heading_font": "playfair display", "heading_category": "serif",
+        "system_stack": False,
+    })
+
+
+def test_fonts_none_declared(negative, react_spa):
+    check(negative["fonts"], {"families": [], "primary_font": "default",
+                              "heading_font": "same", "font_sources": []})
+    check(react_spa["fonts"], {"families": [], "generic_families": ["sans-serif"],
+                               "primary_font": "default"})
+
+
+def test_fonts_system_stack_and_shorthand():
+    inputs = Inputs([InputFile("a.html", b"<style>html{font:16px/1.5 -apple-system,"
+                               b"BlinkMacSystemFont,'Segoe UI',sans-serif}"
+                               b"@font-face{font-family:Mine;src:url(mine.woff2)}"
+                               b"</style><p>x")])
+    values = run_extractors([e for e in WEBSITE if e.name == "website.fonts"],
+                            inputs)["website.fonts"][1]
+    assert values["primary_font"] == "-apple-system"
+    assert values["primary_category"] == "system" and values["system_stack"]
+    assert values["font_sources"] == ["self-hosted"]
+    assert "mine" in values["loaded_families"]
+
+
+# --- Libraries -------------------------------------------------------------------------------
+
+
+def test_libraries_cdn(tailwind_landing):
+    check(tailwind_landing["libraries"], {
+        "libraries": ["lucide", "tailwindcss"], "framework": "none",
+        "css_framework": "tailwindcss", "tailwind_usage": "referenced",
+        "tailwind_evidence": ["inline-config", "reference"], "delivery": ["cdn"],
+        "cdn_hosts": ["cdn.tailwindcss.com", "fonts.googleapis.com", "unpkg.com"],
+        "unrecognised": [],
+    })
+
+
+def test_libraries_packages(react_spa):
+    check(react_spa["libraries"], {
+        "libraries": ["lucide", "react", "recharts", "tailwindcss", "vite"],
+        "framework": "react", "css_framework": "tailwindcss",
+        "tailwind_evidence": ["config-file", "css-directive", "package"],
+        "delivery": ["package"], "cdn_hosts": [],
+        "unrecognised": ["@vitejs/plugin-react"],
+    })
+
+
+def test_libraries_plain_and_bootstrap(plain_css, bootstrap, negative):
+    check(plain_css["libraries"], {
+        "libraries": ["font-awesome"], "css_framework": "none", "framework": "none",
+        "cdn_hosts": ["cdnjs.cloudflare.com", "fonts.googleapis.com"]})
+    check(bootstrap["libraries"], {
+        "libraries": ["bootstrap", "bootstrap-icons"], "css_framework": "bootstrap",
+        "tailwind_usage": "none", "unrecognised": ["cdn.example.net"]})
+    check(negative["libraries"], {"libraries": [], "framework": "none",
+                                  "css_framework": "none", "tailwind_usage": "none"})
+
+
+def test_tailwind_classes_without_a_reference():
+    page = (b'<div class="flex items-center justify-between gap-4 rounded-xl '
+            b'bg-indigo-600 text-sm font-semibold shadow-md">x</div>')
+    values = run_extractors([e for e in WEBSITE if e.name == "website.libraries"],
+                            Inputs([InputFile("a.html", page)]))
+    values = values["website.libraries"][1]
+    assert values["tailwind_usage"] == "classes-only"
+    assert values["css_framework"] == "tailwindcss" and values["libraries"] == []
+
+
+# --- Layout ------------------------------------------------------------------------------------
+
+
+def test_layout_tailwind(tailwind_landing):
+    check(tailwind_landing["layout"], {
+        "sections": ["header", "hero", "features", "testimonials", "pricing",
+                     "footer"],
+        "hero": True, "landmarks": ["footer", "header", "nav", "section"],
+        "layout_systems": ["flex", "grid"], "grid_columns": ["1", "3"],
+        "card_groups": 1, "card_group_sizes": [3], "nav_position": "sticky",
+        "max_widths_px": [768, 1280], "container_class": False,
+    })
+
+
+def test_layout_plain_css(plain_css):
+    check(plain_css["layout"], {
+        "sections": ["header", "hero", "menu", "about", "order", "footer"],
+        "landmarks": ["article", "footer", "header", "main", "nav", "section"],
+        "layout_systems": ["flex", "grid"], "grid_columns": ["1", "auto-fit"],
+        "card_group_sizes": [4], "nav_position": "sticky",
+        "max_widths_px": [1100],
+    })
+
+
+def test_layout_react_components(react_spa):
+    check(react_spa["layout"], {
+        "sections": ["header", "hero", "other", "other", "footer"],
+        "landmarks": ["footer", "header", "main", "nav", "section"],
+        "grid_columns": ["2", "3"], "card_groups": 0, "nav_position": "static",
+        "max_widths_px": [1152],
+    })
+
+
+def test_layout_negative(negative):
+    check(negative["layout"], {"hero": False, "landmarks": [], "layout_systems": [],
+                               "card_groups": 0, "nav_position": "none",
+                               "max_widths_px": []})
+
+
+# --- Corners and shadows ---------------------------------------------------------------------
+
+
+def test_corners_tailwind(tailwind_landing):
+    check(tailwind_landing["corners-shadows"], {
+        "radii": ["8px", "12px", "16px", "full"], "common_radius": "16px",
+        "corner_style": "very-rounded", "pill_shapes": True, "shadow_count": 5,
+        "shadow_kinds": ["soft", "subtle"], "backdrop_blur": True,
+        "text_shadow": False,
+    })
+
+
+def test_corners_plain_css_follow_variables(plain_css):
+    check(plain_css["corners-shadows"], {
+        "radii": ["8px", "full"], "common_radius": "8px", "corner_style": "rounded",
+        "pill_shapes": True, "shadow_count": 2, "shadow_kinds": ["soft", "subtle"],
+        "backdrop_blur": False,
+    })
+
+
+def test_corners_react_coloured_shadow(react_spa):
+    check(react_spa["corners-shadows"], {
+        "radii": ["12px"], "corner_style": "rounded", "shadow_count": 1,
+        "shadow_kinds": ["colored", "subtle"]})
+
+
+def test_corners_bootstrap_classes_are_not_read_as_tailwind(bootstrap, negative):
+    for values in (bootstrap["corners-shadows"], negative["corners-shadows"]):
+        check(values, {"radii": [], "corner_style": "square", "shadow_count": 0,
+                       "shadow_kinds": []})
+
+
+def test_shadow_kinds_from_css():
+    css = (b"<style>.a{box-shadow:4px 4px 0 #000}.b{box-shadow:0 0 20px #6366f1}"
+           b".c{box-shadow:inset 0 1px 2px #000}.d{box-shadow:none}</style><p>x")
+    values = run_extractors([e for e in WEBSITE if e.name ==
+                             "website.corners-shadows"],
+                            Inputs([InputFile("a.html", css)]))
+    values = values["website.corners-shadows"][1]
+    assert values["shadow_kinds"] == ["colored", "glow", "hard", "inset"]
+    assert values["shadow_count"] == 3
+
+
+# --- Gradients -------------------------------------------------------------------------------
+
+
+def test_gradients_tailwind(tailwind_landing):
+    check(tailwind_landing["gradients"], {
+        "gradient_count": 2, "gradient_types": ["linear"],
+        "gradient_directions": ["to-bottom-right", "to-right"],
+        "gradient_hues": ["indigo", "pink", "purple", "yellow"],
+        "gradient_pairs": ["indigo>purple", "pink>yellow"], "gradient_text": True,
+        "gradient_targets": ["other", "text"],
+    })
+
+
+def test_gradients_plain_css(plain_css):
+    check(plain_css["gradients"], {
+        "gradient_count": 1, "gradient_directions": ["135deg"],
+        "gradient_hues": ["blue", "violet"], "gradient_pairs": ["blue>violet"],
+        "gradient_text": False, "gradient_targets": ["hero"],
+    })
+
+
+def test_gradients_react_and_none(react_spa, negative):
+    check(react_spa["gradients"], {"gradient_pairs": ["violet>teal"],
+                                   "gradient_text": True,
+                                   "gradient_targets": ["text"]})
+    check(negative["gradients"], {"gradient_count": 0, "gradient_types": [],
+                                  "gradient_text": False})
+
+
+def test_css_gradient_text():
+    css = (b"<style>h1{background:radial-gradient(circle,red,#3b82f6);"
+           b"-webkit-background-clip:text;color:transparent}</style><h1>x</h1>")
+    values = run_extractors([e for e in WEBSITE if e.name == "website.gradients"],
+                            Inputs([InputFile("a.html", css)]))["website.gradients"][1]
+    assert values["gradient_text"] and values["gradient_types"] == ["radial"]
+    assert values["gradient_pairs"] == ["red>blue"]
+
+
+# --- Icons and emoji -------------------------------------------------------------------------
+
+
+def test_icons_tailwind(tailwind_landing):
+    check(tailwind_landing["icons-emoji"], {
+        "icon_libraries": ["lucide"], "inline_svg_count": 0,
+        "emoji": ["✨", "\U0001F33E", "\U0001F49A", "\U0001F680"],
+        "emoji_count": 4, "emoji_led_headings": 0, "text_symbols": [],
+        "icon_kinds": ["emoji", "library"], "favicon": "emoji",
+    })
+
+
+def test_icons_plain_and_bootstrap(plain_css, bootstrap, react_spa, negative):
+    check(plain_css["icons-emoji"], {"icon_libraries": ["font-awesome"],
+                                     "emoji": [], "favicon": "file",
+                                     "icon_kinds": ["library"]})
+    check(bootstrap["icons-emoji"], {"icon_libraries": ["bootstrap-icons"]})
+    check(react_spa["icons-emoji"], {"icon_libraries": ["lucide"],
+                                     "emoji": ["\U0001F4C8"], "favicon": "none"})
+    check(negative["icons-emoji"], {"icon_libraries": [], "emoji": [],
+                                    "emoji_count": 0, "icon_kinds": [],
+                                    "favicon": "none", "text_symbols": []})
+
+
+def test_emoji_led_headings_and_symbols():
+    page = "<h2>\U0001F35E Our bread</h2><p>✓ Fresh → daily</p><svg></svg>"
+    values = run_extractors([e for e in WEBSITE if e.name == "website.icons-emoji"],
+                            Inputs([InputFile("a.html", page.encode())]))
+    values = values["website.icons-emoji"][1]
+    assert values["emoji_led_headings"] == 1
+    assert values["text_symbols"] == ["→", "✓"]
+    assert values["icon_kinds"] == ["emoji", "inline-svg", "symbol"]
+
+
+# --- Stock phrases ---------------------------------------------------------------------------
+
+
+def test_stock_phrases_tailwind(tailwind_landing):
+    check(tailwind_landing["stock-phrases"], {
+        "stock_phrases": ["construction-not-just", "cta-get-started",
+                          "cta-learn-more", "placeholder-doe-names",
+                          "placeholder-lorem-ipsum"],
+        "stock_phrase_counts": {"construction-not-just": 1, "cta-get-started": 1,
+                                "cta-learn-more": 1, "placeholder-doe-names": 1,
+                                "placeholder-lorem-ipsum": 2},
+        "stock_phrase_hits": 6,
+        "stock_phrase_categories": ["construction", "cta", "placeholder"],
+        "em_dash_count": 2, "exclamation_count": 0,
+        "headings_checked": 5, "title_case_headings": 4,
+    })
+
+
+def test_stock_phrases_react(react_spa):
+    check(react_spa["stock-phrases"], {
+        "stock_phrases": ["marketing-filler-verbs"], "em_dash_count": 1,
+        "headings_checked": 2, "title_case_headings": 0})
+
+
+def test_stock_phrases_no_false_positives(negative, plain_css):
+    check(negative["stock-phrases"], {"stock_phrases": [], "stock_phrase_hits": 0,
+                                      "em_dash_count": 1})
+    check(plain_css["stock-phrases"], {"stock_phrases": [], "em_dash_count": 0,
+                                       "title_case_headings": 0})
+
+
+def test_every_rule_has_a_source_url_and_matches_an_example():
+    version, rules = stock_phrases.load_rules()
+    assert version >= 1 and len(rules) >= 25
+    examples = {
+        "placeholder-bracketed": "[insert photo here]",
+        "stat-round-plus": "10,000+ happy bakers",
+        "marketing-faster-smarter": "build faster",
+        "construction-no-no-just": "no fuss, no waiting, just bread",
+    }
+    for rule in rules:
+        if rule.id in examples:
+            assert rule.regex.search(examples[rule.id]), rule.id
+
+
+@pytest.mark.parametrize("pattern", ["a*", "(?:ab)+", "x{1,500}", "(ab){2,3}",
+                                     r"(a)\1", "x{3,}", "(?P<n>a)(?P=n)"])
+def test_unsafe_patterns_are_refused(pattern):
+    with pytest.raises(stock_phrases.RuleError):
+        stock_phrases.check_pattern(pattern)
+
+
+def test_rules_file_problems_are_refused(tmp_path):
+    bad = tmp_path / "rules.json"
+    bad.write_text(json.dumps({"version": 1, "sources": {}, "rules": [
+        {"id": "x", "source": "nowhere", "phrases": ["a"]}]}))
+    with pytest.raises(stock_phrases.RuleError):
+        stock_phrases.load_rules(bad)
+
+
+def test_title_case():
+    assert stock_phrases.is_title_case("Lightning Fast Delivery")
+    assert stock_phrases.is_title_case("The Art of Slow Bread")
+    assert not stock_phrases.is_title_case("What our customers say")
+    assert not stock_phrases.is_title_case("ABOUT THE BAKERY")
+    assert not stock_phrases.is_title_case("Two Words")
+
+
+# --- File structure --------------------------------------------------------------------------
+
+
+def test_file_structure(tailwind_landing, plain_css, react_spa):
+    check(tailwind_landing["file-structure"], {
+        "file_count": 1, "file_kinds": {"html": 1}, "structure": "single-html",
+        "folders": [], "entry_file": "index.html", "inline_script_blocks": 2,
+        "inline_style_blocks": 0, "external_scripts": 2, "external_stylesheets": 1})
+    check(plain_css["file-structure"], {
+        "file_count": 4, "file_kinds": {"css": 1, "html": 1, "js": 1, "svg": 1},
+        "structure": "html-css-js", "folders": ["css", "img", "js"], "max_depth": 1,
+        "external_scripts": 1, "external_stylesheets": 2, "has_package_json": False})
+    check(react_spa["file-structure"], {
+        "file_count": 6,
+        "file_kinds": {"css": 1, "html": 1, "js": 1, "json": 1, "jsx": 2},
+        "structure": "component-project", "folders": ["src"],
+        "has_package_json": True, "has_build_config": True})
+
+
+def test_file_structure_counts_skipped_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(base, "MAX_FILE_BYTES", 5)
+    (tmp_path / "index.html").write_text("<p>hello world</p>")
+    (tmp_path / "a.css").write_text("a{}")
+    results = run_extractors(WEBSITE, Inputs.from_directory(tmp_path))
+    structure = results["website.file-structure"][1]
+    assert structure["status"] == "partial" and structure["skipped_files"] == 1
+    assert structure["file_count"] == 2 and structure["structure"] == "html-css"
+
+
+# --- Responsiveness ---------------------------------------------------------------------------
+
+
+def test_responsiveness(tailwind_landing, plain_css, react_spa, negative):
+    check(tailwind_landing["responsiveness"], {
+        "viewport_meta": "device-width", "width_media_queries": 0,
+        "tailwind_breakpoints": ["md"], "media_query_style": "mobile-first"})
+    check(plain_css["responsiveness"], {
+        "viewport_meta": "device-width", "width_media_queries": 2,
+        "breakpoints_px": [480, 768], "media_query_style": "desktop-first",
+        "fluid_techniques": ["auto-fit-grid", "clamp", "viewport-units"],
+        "responsive_images": False})
+    check(react_spa["responsiveness"], {"tailwind_breakpoints": ["sm", "lg"]})
+    check(negative["responsiveness"], {
+        "viewport_meta": "absent", "width_media_queries": 0, "breakpoints_px": [],
+        "media_query_style": "none", "fluid_techniques": []})
+
+
+def test_range_media_queries():
+    css = b"<style>@media (width >= 40rem){a{b:c}} @media (900px > width){a{b:c}}" \
+          b"</style><p>x"
+    values = run_extractors([e for e in WEBSITE if e.name ==
+                             "website.responsiveness"],
+                            Inputs([InputFile("a.html", css)]))
+    values = values["website.responsiveness"][1]
+    assert values["breakpoints_px"] == [640, 900]
+    assert values["media_query_style"] == "mixed"
+
+
+# --- Dark mode --------------------------------------------------------------------------------
+
+
+def test_dark_mode(tailwind_landing, plain_css, react_spa, negative):
+    check(tailwind_landing["dark-mode"], {
+        "dark_mode": "toggle",
+        "mechanisms": ["tailwind-class-strategy", "tailwind-dark-variant",
+                       "toggle-script"],
+        "theme_toggle": True})
+    check(plain_css["dark-mode"], {
+        "dark_mode": "both",
+        "mechanisms": ["dark-class-selector", "prefers-color-scheme-css",
+                       "toggle-script"],
+        "theme_toggle": True})
+    check(react_spa["dark-mode"], {"dark_mode": "dark-only", "mechanisms": [],
+                                   "theme_toggle": False})
+    check(negative["dark-mode"], {"dark_mode": "none", "mechanisms": [],
+                                  "theme_toggle": False})
+
+
+# --- Accessibility -----------------------------------------------------------------------------
+
+
+def test_accessibility_tailwind(tailwind_landing):
+    check(tailwind_landing["accessibility"], {
+        "html_lang": "present", "lang": "en", "images": 1, "images_missing_alt": 1,
+        "alt_coverage": "none", "h1_count": 1, "heading_levels": [1, 2, 3],
+        "heading_skips": 1, "main_landmark": False, "skip_link": False,
+        "form_controls": 1, "unlabelled_controls": 1, "buttons_without_name": 1,
+        "generic_link_text": 0, "focus_styles": True, "reduced_motion": False,
+        "outline_removed": False})
+
+
+def test_accessibility_plain_css(plain_css):
+    check(plain_css["accessibility"], {
+        "images": 4, "images_missing_alt": 0, "images_empty_alt": 1,
+        "alt_coverage": "all", "heading_levels": [1, 2, 3], "heading_skips": 0,
+        "main_landmark": True, "skip_link": True, "form_controls": 3,
+        "unlabelled_controls": 1, "buttons_without_name": 0, "generic_link_text": 1,
+        "aria_attributes": 1, "focus_styles": True, "reduced_motion": True})
+
+
+def test_accessibility_negative_and_react(negative, react_spa):
+    check(negative["accessibility"], {
+        "html_lang": "absent", "lang": None, "alt_coverage": "all",
+        "main_landmark": False, "focus_styles": False, "form_controls": 0})
+    check(react_spa["accessibility"], {
+        "alt_coverage": "no-images", "main_landmark": True, "h1_count": 1,
+        "heading_skips": 0, "aria_attributes": 1})
+
+
+# --- Hostile input --------------------------------------------------------------------------------
+
+
+HOSTILE = {
+    "unclosed-tags.html": b"<a " * 100_000,
+    "deep.html": b"<div><section>" * 50_000,
+    "attributes.html": b"<p " + b"data-x='1' " * 100_000 + b">",
+    "nested.css": b"a{b:" + b"(" * 200_000,
+    "rules.css": b".a{color:red}" * 100_000,
+    "comments.js": b"/*" * 300_000,
+    "strings.jsx": b"<div className={`" * 50_000,
+    "binary.html": bytes(range(256)) * 4000,
+    "emoji.html": "\U0001F35E‍".encode() * 100_000,
+    "classes.html": b'<div class="' + b"bg-red-500 rounded-xl " * 50_000 + b'">',
+    "config.html": b"<script>tailwind.config=" + b"{colors:{a:" * 100_000
+    + b"</script>",
+    "theme.css": b"@theme{" + b"--color-a: var(--color-a);" * 50_000 + b"}",
+}
+
+
+def test_hostile_input_finishes_without_errors(tmp_path):
+    for name, data in HOSTILE.items():
+        (tmp_path / name).write_bytes(data)
+    start = time.perf_counter()
+    results = run_extractors(WEBSITE, Inputs.from_directory(tmp_path))
+    elapsed = time.perf_counter() - start
+    assert elapsed < 60, elapsed
+    assert all(values["status"] in ("ok", "partial") for _, values in
+               results.values()), {k: v.get("error") for k, (_, v) in results.items()}
+
+
+def test_files_over_the_size_limit_are_skipped(tmp_path):
+    (tmp_path / "huge.html").write_bytes(b"<p>x</p>" * (base.MAX_FILE_BYTES // 8 + 1))
+    results = run_extractors(WEBSITE, Inputs.from_directory(tmp_path))
+    palette = results["website.palette"][1]
+    assert palette == {"skipped_files": 1, "status": "no-input"}
+    structure = results["website.file-structure"][1]
+    assert structure["status"] == "partial" and structure["file_count"] == 1
+
+
+def test_meta_tags_in_head_are_read():
+    page = (b'<html><head><meta name="theme-color" content="#336699">'
+            b'<meta name="color-scheme" content="light dark"></head><body><p>x</p>'
+            b"</body></html>")
+    results = run_extractors(WEBSITE, Inputs([InputFile("index.html", page)]))
+    assert results["website.palette"][1]["colors"] == ["#336699"]
+    assert results["website.dark-mode"][1]["mechanisms"] == ["color-scheme-property"]
+    assert results["website.dark-mode"][1]["dark_mode"] == "system"
+
+
+def test_fontsource_imports():
+    script = b'import "@fontsource/dm-sans/400.css";\nimport "@fontsource-variable/inter";'
+    inputs = Inputs([InputFile("index.html", b"<p>x</p>"),
+                     InputFile("main.js", script)])
+    values = run_extractors([e for e in WEBSITE if e.name == "website.fonts"],
+                            inputs)["website.fonts"][1]
+    assert values["font_sources"] == ["fontsource"]
+    assert values["loaded_families"] == ["dm sans", "inter"]
+
+
+
+# --- Fix round 1: pages from the review --------------------------------------------
+# tw-dark-slate, css-variables, react-components, tw-light-config, forced-dark and
+# tailwind-v4 are the reviewer's hand-made pages, kept as fixtures.
+
+
+@pytest.fixture(scope="module")
+def slate():
+    return run("tw-dark-slate")
+
+
+@pytest.fixture(scope="module")
+def variables():
+    return run("css-variables")
+
+
+@pytest.fixture(scope="module")
+def components():
+    return run("react-components")
+
+
+@pytest.fixture(scope="module")
+def light_config():
+    return run("tw-light-config")
+
+
+@pytest.fixture(scope="module")
+def forced():
+    return run("forced-dark")
+
+
+@pytest.fixture(scope="module")
+def tailwind4():
+    return run("tailwind-v4")
+
+
+def only(name, page, files=()):
+    """Values of one extractor on a page given as text."""
+    inputs = Inputs([InputFile("index.html", page.encode())]
+                    + [InputFile(path, text.encode()) for path, text in files])
+    return run_extractors([e for e in WEBSITE if e.name == f"website.{name}"],
+                          inputs)[f"website.{name}"][1]
+
+
+def test_slate_is_neutral_so_indigo_dominates(slate):
+    # C1: slate-400..900 (chroma 13 to 15) were blue and outvoted indigo.
+    check(slate["palette"], {"dominant_hue": "indigo", "background": "black",
+                             "base_scheme": "dark"})
+    assert "blue-dark" not in slate["palette"]["color_classes"]
+
+
+def test_dominant_hue_ignores_pale_tints():
+    page = ('<style>body{background:#fdf6e3;color:#fef9ef}h1{color:#fdf6e3}'
+            '.a{color:#fdf6e3}.b{color:#2563eb}</style><h1>x</h1>')
+    values = only("palette", page)
+    assert values["hues"] == ["blue", "yellow"]
+    assert values["dominant_hue"] == "blue"
+
+
+def test_theme_colours_from_inline_config(light_config, slate):
+    # Important 1: colors in an inline tailwind.config.
+    values = light_config["palette"]
+    assert "accent" in values["tailwind_colors"] and "#8b5cf6" in values["colors"]
+    assert values["unknown_color_utilities"] == 0
+
+
+def test_theme_colours_from_config_file(components):
+    # Important 1: tailwind.config.js; hsl(var(--x)) values are known names
+    # whose colour cannot be read.
+    values = components["palette"]
+    assert {"brand-500", "brand-600", "primary", "border"} <= set(
+        values["tailwind_colors"])
+    assert {"#10b981", "#059669"} <= set(values["colors"])
+    assert values["dominant_hue"] == "green"
+    assert values["unparsed_colors"] == 5  # primary, primary-foreground, border,
+    # and bg-background / text-foreground from @apply
+    assert values["unknown_color_utilities"] == 0
+
+
+def test_theme_colours_from_v4_theme(tailwind4):
+    # Important 1 and the v4 font: @theme --color-* and --font-sans.
+    check(tailwind4["palette"], {
+        "tailwind_colors": ["brand-500", "brand-600", "neutral-100", "neutral-400",
+                            "neutral-950", "pink-500"],
+        "dominant_hue": "violet", "unknown_color_utilities": 0})
+    check(tailwind4["gradients"], {"gradient_pairs": ["violet>pink"],
+                                   "gradient_text": True})
+    check(tailwind4["corners-shadows"], {"shadow_kinds": ["colored", "soft"]})
+    check(tailwind4["fonts"], {"primary_font": "manrope", "families": ["manrope"]})
+
+
+def test_unknown_colour_utilities_are_counted():
+    page = ('<script src="https://cdn.tailwindcss.com"></script>'
+            '<div class="bg-brand-500 text-xl border-2 text-ink border-ink">x</div>')
+    values = only("palette", page)
+    assert values["unknown_color_utilities"] == 2
+    assert values["unknown_color_names"] == ["brand-500", "ink"]
+
+
+def test_fonts_from_config_file(components):
+    # Important 2: tailwind.config.js was skipped (its "tailwind" was in a comment).
+    check(components["fonts"], {"primary_font": "geist", "heading_font": "cal sans",
+                                "families": ["cal sans", "geist", "inter"]})
+
+
+def test_fonts_through_variables(variables):
+    # Important 3.
+    check(variables["fonts"], {"primary_font": "dm sans",
+                               "heading_font": "playfair display",
+                               "generic_families": ["sans-serif", "serif"]})
+
+
+def test_shadows_through_variables(variables):
+    # Important 4: --shadow-sm (subtle), --shadow-lg (soft), --shadow-glow.
+    check(variables["corners-shadows"], {
+        "shadow_count": 3, "shadow_kinds": ["colored", "glow", "soft", "subtle"],
+        "radii": ["8px", "16px"]})
+
+
+def test_gradients_counted_where_variables_use_them(variables):
+    # Important 5: --gradient-primary is defined once and used twice.
+    check(variables["gradients"], {
+        "gradient_count": 3, "gradient_types": ["linear", "radial"],
+        "gradient_pairs": ["orange>orange"], "gradient_text": True,
+        "gradient_targets": ["button", "hero", "text"]})
+
+
+def test_single_stops_and_variant_stops_make_no_pair(slate, components):
+    # A from-colour fading to transparent is one stop: no indigo>indigo.
+    check(slate["gradients"], {"gradient_pairs": ["indigo>pink", "indigo>purple"]})
+    # dark:from-slate-900 is not a stop of the light gradient.
+    check(components["gradients"], {"gradient_pairs": ["green>white"]})
+
+
+def test_forced_dark_page(forced, variables):
+    # Important 6: <html class="dark"> with no way back is dark only, and its
+    # background is the dark: one.
+    check(forced["palette"], {"background": "black", "background_hex": "#09090b",
+                              "base_scheme": "dark"})
+    check(forced["dark-mode"], {"dark_mode": "dark-only", "forced_dark": True,
+                                "theme_toggle": False})
+    # data-theme="dark" with a toggle stays a toggle.
+    check(variables["dark-mode"], {"dark_mode": "toggle", "forced_dark": True,
+                                   "theme_toggle": True})
+    check(variables["palette"], {"base_scheme": "dark", "background_hex": "#1c1917"})
+
+
+def test_forced_dark_through_css_variables():
+    page = ('<html data-theme="dark"><style>:root{--bg:#ffffff}'
+            '[data-theme="dark"]{--bg:#111827}body{background:var(--bg)}</style>'
+            '<body><h1>x</h1></body></html>')
+    assert only("palette", page)["base_scheme"] == "dark"
+    assert only("dark-mode", page)["dark_mode"] == "dark-only"
+
+
+def test_hero_rules(light_config, slate):
+    # Important 7: the first block with an h1 is the hero even when its words
+    # name something else ("products" used to make it a menu).
+    check(light_config["layout"], {
+        "sections": ["header", "hero", "other", "contact", "footer"], "hero": True})
+    # The CTA band's "Ready to Get Started?" (Important 8).
+    check(slate["layout"], {
+        "sections": ["nav", "hero", "other", "features", "pricing", "testimonials",
+                     "faq", "cta", "footer"]})
+
+
+def test_hero_name_beats_header_tag_and_h1_words_do_not_name_kinds():
+    page = ('<body><header class="hero"><h1>Pricing for everyone</h1></header>'
+            '<section><h1>Our team</h1></section></body>')
+    assert only("layout", page)["sections"] == ["hero", "other"]
+
+
+def test_card_groups_with_a_highlighted_card_and_mapped_cards(slate, components):
+    check(slate["layout"], {"card_group_sizes": [3, 3, 3], "card_groups": 3})
+    check(components["layout"], {"card_groups": 2, "mapped_card_groups": 2,
+                                 "card_group_sizes": []})
+
+
+def test_phrases_split_by_inline_elements_match():
+    page = "<h2>Ready to <span>get</span> <em>started</em>?</h2><p>Learn</p><p>more</p>"
+    values = only("stock-phrases", page)
+    assert values["stock_phrase_counts"] == {"cta-get-started": 1}
+
+
+def test_stock_alt_rule_reads_alt_text_only(variables):
+    # Important 9: "Happy Customers" as a stat label is not stock alt text.
+    assert "placeholder-stock-alt" not in variables["stock-phrases"]["stock_phrases"]
+    values = only("stock-phrases", '<img src="a.jpg" alt="Happy customer smiling">'
+                                   "<p>Happy customer</p>")
+    assert values["stock_phrase_counts"] == {"placeholder-stock-alt": 1}
+
+
+def test_per_phrase_matches(slate):
+    check(slate["stock-phrases"], {
+        "stock_phrase_matches": {"acme": 1, "empowers": 1, "game-changer": 1,
+                                 "get started": 2, "robust": 1, "unlock": 1}})
+
+
+
+# --- Fix round 2 ------------------------------------------------------------------
+
+
+def test_one_wrapper_does_not_collapse_the_page():
+    # B1: a min-h-screen wrapper (HTML) or a React root div holds the page.
+    check(run("html-wrapper")["layout"], {
+        "sections": ["nav", "hero", "features", "pricing", "footer"]})
+    check(run("react-wrapper")["layout"], {
+        "sections": ["nav", "hero", "faq"], "mapped_card_groups": 1})
+
+
+def test_section_words_beat_the_get_started_phrase():
+    # B2: "Simple pricing to get started" is pricing, "Get started in three
+    # steps" is steps; "Ready to get started?" stays cta; "Everything you need
+    # to get started" is not a call, so its words name nothing.
+    check(run("get-started-headings")["layout"], {
+        "sections": ["nav", "hero", "other", "pricing", "steps", "cta", "footer"],
+        "card_group_sizes": [3, 3]})
+
+
+def test_utility_classes_do_not_name_sections():
+    # bg-[url('/images/map-bg.jpg')] made the hero a contact section.
+    check(run("hero-utility-classes")["layout"], {
+        "sections": ["header", "hero", "other", "contact", "footer"]})
+
+
+def test_unreadable_theme_background_falls_through_and_hsl_vars_resolve():
+    # B3: bg-background is hsl(var(--background)); --background: 0 0% 100%.
+    values = run("shadcn-theme")["palette"]
+    check(values, {"background": "white", "background_hex": "#ffffff",
+                   "base_scheme": "light", "unparsed_colors": 0,
+                   "dominant_hue": "blue"})
+    assert "#2463eb" in values["colors"]  # --primary: 221 83% 53%
+
+
+def test_theme_name_keys_and_spreads():
+    # fontSize and backgroundImage keys are not colours; text-shadow-lg is not
+    # a colour; a spread in the colours object does not stop the reader.
+    check(run("theme-name-keys")["palette"], {
+        "tailwind_colors": ["accent", "brand-500", "white"],
+        "unknown_color_utilities": 0, "unknown_color_names": []})
+
+
+def test_unreadable_theme_background_with_nothing_else_is_unknown():
+    page = ('<script src="https://cdn.tailwindcss.com"></script><script>'
+            "tailwind.config={theme:{extend:{colors:{surface:'var(--nope)'}}}}"
+            '</script><body class="bg-surface"><p>x</p></body>')
+    values = only("palette", page)
+    assert values["background"] is None and values["base_scheme"] is None
+
+
+
+# --- Fix round 3 ------------------------------------------------------------------
+
+
+def test_forced_dark_theme_colour_reads_the_dark_variables():
+    # N1: <html class="dark">, bg-background = hsl(var(--background)), with
+    # light values on :root and dark ones on .dark.
+    page = ('<html class="dark"><head><script src="https://cdn.tailwindcss.com">'
+            "</script><script>tailwind.config={darkMode:'class',theme:{extend:"
+            "{colors:{background:'hsl(var(--background))'}}}}</script><style>"
+            ":root{--background:0 0% 100%}.dark{--background:222 47% 11%}"
+            '</style></head><body class="bg-background"><p>x</p></body></html>')
+    values = only("palette", page)
+    assert values["base_scheme"] == "dark"
+    assert values["background_hex"] == "#0f1729"
+    # The same through a v4 @theme colour.
+    page = ('<html data-theme="dark"><script src="https://cdn.jsdelivr.net/npm/'
+            '@tailwindcss/browser@4"></script><style>:root{--bg:#ffffff}'
+            '[data-theme="dark"]{--bg:#111827}@theme{--color-page:var(--bg)}'
+            '</style><body class="bg-page"><p>x</p></body></html>')
+    values = only("palette", page)
+    assert values["background_hex"] == "#111827" and values["base_scheme"] == "dark"
+
+
+VAR_BOMBS = {
+    # Each var refers to the next 40 times: 40**4 expansions if not memoised.
+    "fan-out": ":root{" + "".join(
+        "--v%d:%s;" % (n, " ".join(["var(--v%d)" % (n + 1)] * 40)) for n in range(4))
+    + "--v4:red}" + "".join(
+        ".a%d{color:rgb(var(--v0));box-shadow:var(--v0);border-radius:var(--v0);"
+        "background:linear-gradient(var(--v0),var(--v0));font-family:var(--v0)}" % i
+        for i in range(50)),
+    # A 30 KB value used by 100 rules inside colour functions.
+    "huge-value": ":root{--big:" + "1 " * 15000 + "}" + "".join(
+        ".b%d{color:hsl(var(--big));background:linear-gradient(var(--big),red)}" % i
+        for i in range(100)),
+    # Gradients nesting gradients through variables.
+    "nested": "".join(
+        ":root{--%s:linear-gradient(%s)}" % (name, ",".join(["var(--%s)" % inner] * 40))
+        for name, inner in (("a", "b"), ("b", "c"), ("c", "d")))
+    + ":root{--d:red}" + "".join(
+        ".c%d{background:var(--a);color:rgb(var(--a))}" % i for i in range(200)),
+}
+
+
+@pytest.mark.parametrize("name", sorted(VAR_BOMBS))
+def test_var_resolution_is_bounded(name):
+    # N2: following var() must stay linear on hostile custom properties.
+    page = ('<html class="dark"><style>%s</style><body class="bg-background">'
+            "<p>x</p></body></html>" % VAR_BOMBS[name]).encode()
+    start = time.perf_counter()
+    results = run_extractors(WEBSITE, Inputs([InputFile("index.html", page)]))
+    assert time.perf_counter() - start < 10
+    assert all(values["status"] == "ok" for _, values in results.values())
+
+
+# --- Fix round 4 ------------------------------------------------------------------
+
+
+def _stops(count):
+    return ",".join("red %d%%" % (n % 100) for n in range(count))
+
+
+SPLICE_BOMBS = {
+    # A huge gradient behind an alias that repeats it 99 times, used by many
+    # rules: rules x references x inner size if only top-level values count.
+    "alias-of-huge": ":root{--big:linear-gradient(%s);--a:%s}" % (
+        _stops(1000), " ".join(["var(--big)"] * 99)) + "".join(
+        ".a%d{background:var(--a);box-shadow:var(--a);font-family:var(--a)}" % i
+        for i in range(2000)),
+    # One huge function used directly by many rules.
+    "huge-shared": ":root{--big:linear-gradient(%s)}" % _stops(3000) + "".join(
+        ".a%d{background:var(--big);box-shadow:var(--big)}" % i
+        for i in range(5000)),
+    # The same just under the size cap: every use is a full walk, so the
+    # page budget has to stop it.
+    "large-shared": ":root{--g:linear-gradient(%s);--a:var(--g),var(--g)}"
+    % _stops(30) + "".join(
+        ".a%d{background:var(--a);box-shadow:var(--a);color:rgb(var(--a))}" % i
+        for i in range(12000)),
+    # Aliases that each add to the one before, and nesting in functions.
+    "growing-chain": ":root{--c0:red;" + "".join(
+        "--c%d:var(--c%d) f(var(--c%d)) 1px;" % (n, n - 1, n - 1)
+        for n in range(1, 20000)) + "}" + "".join(
+        ".a%d{background:var(--c%d);color:var(--c%d)}" % (n, n, n)
+        for n in range(1, 20000, 7)),
+    # Many different colour-function texts, each resolved as text.
+    "text-uses": ":root{--h:%s}" % ("1 " * 140) + "".join(
+        ".a%d{color:hsl(var(--h) var(--h) %d)}" % (i, i) for i in range(20000)),
+    # One huge token behind a variable: a single component value, but each
+    # use would cost its length. As a font name, an ident in a shadow, and
+    # a string inside a colour function inside a gradient.
+    "huge-font-string": ':root{--f:"%s"}' % ("A" * 900_000) + "".join(
+        ".a%d{font-family:var(--f)}" % i for i in range(30000)),
+    "huge-shadow-ident": ":root{--c:0 0 4px %s}" % ("a" * 900_000) + "".join(
+        ".a%d{box-shadow:var(--c)}" % i for i in range(30000)),
+    "huge-string-in-gradient": ':root{--g:linear-gradient(hsl("%s" var(--q)),red);'
+    '--s:0 0 4px hsl("%s" var(--q))}' % ("A" * 400_000, "A" * 400_000) + "".join(
+        ".a%d{background:var(--g);box-shadow:var(--s)}" % i for i in range(20000)),
+    # Tokens just under the size cap: the page budget has to stop them.
+    "large-tokens": ':root{--f:"%s";--c:0 0 4px %s}' % ("A" * 900, "a" * 1800)
+    + "".join(".a%d{font-family:var(--f);box-shadow:var(--c)}" % i
+              for i in range(20000)),
+}
+
+
+@pytest.mark.parametrize("name", sorted(SPLICE_BOMBS))
+def test_var_splicing_is_bounded_per_page(name):
+    page = ("<style>%s</style><body><p>x</p></body>" % SPLICE_BOMBS[name]).encode()
+    start = time.perf_counter()
+    results = run_extractors(WEBSITE, Inputs([InputFile("index.html", page)]))
+    assert time.perf_counter() - start < 10
+    assert all(values["status"] == "ok" for _, values in results.values())
+
+
+def _resolver(css):
+    from extractors.website.css import parse_css
+    from extractors.website.values import Resolver
+    return Resolver(parse_css(css, "x.css").declarations)
+
+
+def _texts(resolver, names):
+    from extractors.website.css import serialize
+    out = {}
+    for name in names:
+        nodes = resolver.expanded(name)
+        out[name] = None if nodes is None else serialize(nodes)
+    return out
+
+
+@pytest.mark.parametrize("css, expected", [
+    # An alias chain deeper than any depth limit resolves from either end.
+    (":root{--c0:var(--c1);--c1:var(--c2);--c2:var(--c3);--c3:var(--c4);"
+     "--c4:var(--c5);--c5:var(--c6);--c6:var(--c7);--c7:#ff0000}",
+     {"--c%d" % n: "#ff0000" for n in range(8)}),
+    # Everything that reaches a cycle is unreadable, whichever is asked first.
+    (":root{--a:var(--b);--b:red var(--a);--x:1px var(--y);--y:var(--r);"
+     "--r:var(--y) var(--x);--u:blue var(--a);--ok:2px var(--nope)}",
+     {"--a": None, "--b": None, "--x": None, "--y": None, "--r": None,
+      "--u": None, "--ok": "2px var(--nope)"}),
+])
+def test_var_expansion_does_not_depend_on_the_order_of_use(css, expected):
+    import itertools
+    names = sorted(expected)
+    orders = (itertools.permutations(names) if len(names) <= 7
+              else [names, names[::-1], names[3:] + names[:3]])
+    for order in orders:
+        assert _texts(_resolver(css), order) == expected
+
+
+def test_colours_through_nested_vars_do_not_depend_on_the_order_of_use():
+    from extractors.website.values import color_nodes
+    css = (":root{" + "".join("--n%d:f(var(--n%d));" % (n, n + 1) for n in range(8))
+           + "--n8:#ff0000;--p:g(var(--q));--q:g(var(--p)) #00ff00;"
+           "--s:h(var(--p)) #0000ff}"
+           ".a{color:var(--n0)}.b{color:var(--n5)}.c{color:var(--p)}"
+           ".d{color:var(--q)}.e{color:var(--s)}")
+    from extractors.website.css import parse_css
+    uses = [d for d in parse_css(css, "x.css").declarations if d.prop == "color"]
+    seen = set()
+    for order in (uses, uses[::-1], uses[2:] + uses[:2]):
+        resolver = _resolver(css)
+        read = {d.selector: color_nodes(d.value, d.prop, resolver) for d in order}
+        seen.add(json.dumps(read, sort_keys=True))
+        assert read[".a"] == read[".b"] == ([("#ff0000", 1.0)], 0)
+        assert read[".c"] == read[".d"] == read[".e"] == ([], 1)
+    assert len(seen) == 1
+
+
+def test_words_in_a_variable_read_the_same_whatever_the_rule_order():
+    # --x holds two colour words. Through a colour property both are colours;
+    # through another custom property (words count only as a whole value)
+    # neither is. The first use must not decide for the second.
+    from extractors.website.css import parse_css
+    from extractors.website.values import color_nodes
+    css = ":root{--x:red blue}.z{--z:var(--x)}.b{color:var(--x)}"
+    uses = [d for d in parse_css(css, "x.css").declarations if d.prop != "--x"]
+    for order in (uses, uses[::-1]):
+        resolver = _resolver(css)
+        read = {d.prop: color_nodes(d.value, d.prop, resolver) for d in order}
+        assert read == {"--z": ([], 0),
+                        "color": ([("#ff0000", 1.0), ("#0000ff", 1.0)], 0)}
+    pages = ["<style>:root{--x:red blue}%s</style><p>x</p>" % rules for rules in (
+        ".z{--z:var(--x)}.b{color:var(--x)}", ".b{color:var(--x)}.z{--z:var(--x)}")]
+    first, second = (only("palette", page) for page in pages)
+    assert first == second and first["colors"] == ["#0000ff", "#ff0000"]
+
+
+def test_palette_is_the_same_whatever_the_rule_order():
+    tokens = (":root{--c0:var(--c1);--c1:var(--c2);--c2:var(--c3);--c3:var(--c4);"
+              "--c4:var(--c5);--c5:var(--c6);--c6:#e11d48}")
+    rules = [".a{color:var(--c0)}", ".b{background:var(--c4)}",
+             ".c{border-color:var(--c6)}"]
+    results = {json.dumps(only("palette", "<style>%s%s</style><p>x</p>" % (
+        tokens, "".join(order))), sort_keys=True)
+        for order in (rules, rules[::-1])}
+    assert len(results) == 1
+    assert "#e11d48" in json.loads(results.pop())["colors"]
+
+
+def test_ordinary_design_tokens_still_resolve():
+    # A six-layer mesh gradient, a five-layer shadow and aliases of both.
+    mesh = ",".join(
+        "radial-gradient(at %d%% %d%%, hsla(%d,100%%,74%%,1) 0px, transparent 50%%)"
+        % (x, y, h) for x, y, h in ((40, 20, 28), (80, 0, 189), (0, 50, 355),
+                                    (80, 50, 340), (0, 100, 22), (80, 100, 242)))
+    shadow = ",".join("0 %dpx %dpx rgba(15, 23, 42, 0.0%d)" % (n, 2 * n, n)
+                      for n in (1, 2, 4, 8, 16))
+    page = ("<style>:root{--mesh:%s;--hero-bg:var(--mesh);--shadow-xl:%s;"
+            "--card-shadow:var(--shadow-xl);--radius:12px;--brand:#4f46e5;"
+            "--font:'Inter',sans-serif;--body-font:var(--font)}"
+            "body{font-family:var(--body-font)}.hero{background:var(--hero-bg)}"
+            ".card{box-shadow:var(--card-shadow);border-radius:var(--radius);"
+            "color:var(--brand)}</style><body><p>x</p></body>" % (mesh, shadow))
+    results = run_extractors(WEBSITE, Inputs([InputFile("index.html",
+                                                        page.encode())]))
+    by = {full.split(".", 1)[1]: values for full, (_, values) in results.items()}
+    assert by["gradients"]["gradient_count"] == 6
+    assert by["gradients"]["gradient_types"] == ["radial"]
+    assert by["gradients"]["gradient_targets"] == ["hero"]
+    assert by["corners-shadows"]["shadow_count"] == 1
+    assert by["corners-shadows"]["radii"] == ["12px"]
+    assert by["fonts"]["primary_font"] == "inter"
+    assert "#4f46e5" in by["palette"]["colors"]
+    assert by["palette"]["unparsed_colors"] == 0
+
+
+def test_wrapper_with_its_own_heading_is_not_unwrapped():
+    # N3: a wrapper whose direct children include an h2 is a section itself.
+    page = ("<body><div><h2>Pricing</h2><div class='grid'><div><h3>Free</h3>"
+            "</div><div><h3>Pro</h3></div></div></div></body>")
+    assert only("layout", page)["sections"] == ["pricing"]

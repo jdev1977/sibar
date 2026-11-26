@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "about": "Stock phrases and copy patterns counted by the website.stock-phrases extractor (T1.4). Each rule paraphrases or names a pattern from a public list of 'AI slop' tells; lists were not copied whole. A hit means the page uses the phrase, not that a model wrote it. Phrases are matched case-insensitively on whole words; 'pattern' rules are regular expressions limited to bounded repeats (no * or +). 'scope' is 'copy' (the default: visible text per block element, plus placeholder, title and aria-label) or 'alt' (image alt text only). Bump 'version' whenever a rule changes.",
+  "sources": {
+    "wikipedia-signs": {
+      "url": "https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing",
+      "licence": "CC BY-SA 4.0 (Wikipedia text); single words and short phrases cited, not the page's text",
+      "checked": "2026-11-26"
+    },
+    "pixelslop": {
+      "url": "https://cdn.jsdelivr.net/npm/pixelslop@0.3.8/dist/skill/resources/ai-slop-patterns.md",
+      "licence": "Apache-2.0 (npm package pixelslop 0.3.8)",
+      "checked": "2026-11-26"
+    },
+    "ux-skill-ban-list": {
+      "url": "https://github.com/Laith0003/ux-skill/wiki/Anti-AI-slop-ban-list",
+      "licence": "none stated; only the ideas are used, in our own words",
+      "checked": "2026-11-26"
+    },
+    "925studios-tells": {
+      "url": "https://www.925studios.co/blog/ai-slop-design-tells",
+      "licence": "none stated; only the ideas are used, in our own words",
+      "checked": "2026-11-26"
+    }
+  },
+  "rules": [
+    {"id": "cta-get-started", "category": "cta", "source": "pixelslop", "phrases": ["get started", "get started today", "get started for free"]},
+    {"id": "cta-learn-more", "category": "cta", "source": "pixelslop", "phrases": ["learn more"]},
+    {"id": "cta-read-more", "category": "cta", "source": "pixelslop", "phrases": ["read more"]},
+    {"id": "cta-try-now", "category": "cta", "source": "pixelslop", "phrases": ["try now", "try it now", "try it free"]},
+    {"id": "placeholder-lorem-ipsum", "category": "placeholder", "source": "pixelslop", "phrases": ["lorem ipsum", "dolor sit amet"]},
+    {"id": "placeholder-coming-soon", "category": "placeholder", "source": "pixelslop", "phrases": ["coming soon"]},
+    {"id": "placeholder-bracketed", "category": "placeholder", "source": "pixelslop", "pattern": "\\[(?:insert|your|add|enter) [^\\]\\n]{0,40}\\]"},
+    {"id": "placeholder-stock-alt", "category": "placeholder", "source": "pixelslop", "scope": "alt", "phrases": ["diverse team", "happy customer", "happy customers", "business meeting", "team collaboration", "working on laptop", "smiling person"]},
+    {"id": "placeholder-doe-names", "category": "placeholder", "source": "ux-skill-ban-list", "phrases": ["john doe", "jane doe", "john smith", "jane smith"]},
+    {"id": "placeholder-fake-company", "category": "placeholder", "source": "ux-skill-ban-list", "phrases": ["acme", "acme inc", "acme corp", "techcorp"]},
+    {"id": "stat-round-plus", "category": "marketing", "source": "ux-skill-ban-list", "pattern": "\\b\\d{1,3}(?:,000|k)\\+"},
+    {"id": "stat-hundred-percent", "category": "marketing", "source": "ux-skill-ban-list", "phrases": ["100% satisfaction", "100% satisfied", "100% guaranteed"]},
+    {"id": "marketing-filler-verbs", "category": "marketing", "source": "ux-skill-ban-list", "phrases": ["empower", "empowers", "empowering", "leverage", "leverages", "leveraging", "unlock", "unlocks", "unlocking", "supercharge", "supercharges"]},
+    {"id": "marketing-revolutionize", "category": "marketing", "source": "ux-skill-ban-list", "phrases": ["revolutionize", "revolutionizes", "revolutionizing", "revolutionise", "reimagine", "reimagined", "reimagining"]},
+    {"id": "marketing-welcome-to", "category": "marketing", "source": "ux-skill-ban-list", "phrases": ["welcome to our", "we are excited to", "we're excited to"]},
+    {"id": "marketing-mission-statement", "category": "marketing", "source": "ux-skill-ban-list", "phrases": ["our mission is to"]},
+    {"id": "marketing-changed-business", "category": "marketing", "source": "ux-skill-ban-list", "phrases": ["changed our business", "changed my life", "game changer", "game-changer"]},
+    {"id": "marketing-faster-smarter", "category": "marketing", "source": "925studios-tells", "pattern": "\\b(?:build|ship|work|grow|move) (?:faster|smarter|better)\\b"},
+    {"id": "ai-vocabulary-delve", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["delve", "delves", "delving", "deep dive"]},
+    {"id": "ai-vocabulary-tapestry", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["tapestry", "interplay", "intricate", "intricacies"]},
+    {"id": "ai-vocabulary-testament", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["a testament to", "is a testament", "stands as a testament"]},
+    {"id": "ai-vocabulary-vibrant", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["vibrant"]},
+    {"id": "ai-vocabulary-meticulous", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["meticulous", "meticulously"]},
+    {"id": "ai-vocabulary-showcase", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["showcase", "showcases", "showcasing"]},
+    {"id": "ai-vocabulary-foster", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["foster", "fosters", "fostering", "garner", "garners", "bolstered"]},
+    {"id": "ai-vocabulary-enhance", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["enhance", "enhances", "enhancing", "robust"]},
+    {"id": "ai-vocabulary-landscape", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["evolving landscape", "ever-evolving", "ever-changing landscape", "in today's fast-paced"]},
+    {"id": "ai-vocabulary-pivotal", "category": "ai-vocabulary", "source": "wikipedia-signs", "phrases": ["pivotal", "crucial role", "vital role", "key role"]},
+    {"id": "significance-serves-as", "category": "significance", "source": "wikipedia-signs", "phrases": ["serves as a", "stands as a", "underscores the", "highlights the importance", "deeply rooted", "indelible mark"]},
+    {"id": "chat-residue", "category": "chat-residue", "source": "wikipedia-signs", "phrases": ["i hope this helps", "let me know if", "would you like me to", "feel free to"]},
+    {"id": "construction-not-just", "category": "construction", "source": "wikipedia-signs", "pattern": "\\bnot (?:just|only|merely) (?:a |an |about )?[^.!?\\n]{1,60}?(?:, |; | - |\\u2014 ?)(?:it's|it is|but|we're|we are)\\b"},
+    {"id": "construction-no-no-just", "category": "construction", "source": "wikipedia-signs", "pattern": "\\bno [a-z]{2,20}(?: [a-z]{2,20})?[,.] no [a-z]{2,20}(?: [a-z]{2,20})?[,.] (?:just|only)\\b"}
+  ]
+}
