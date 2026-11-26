@@ -186,13 +186,17 @@ def pipes():
                 sddl, 1, ctypes.byref(descriptor), None)
             attributes = Attributes(ctypes.sizeof(Attributes), descriptor, False)
         name = f"\\\\.\\pipe\\sibar-test-{label}-{uuid.uuid4().hex[:8]}"
-        for _ in range(2):  # an instance for each of the two opens
+        for _ in range(6):  # an instance for each open
             handle = kernel.CreateNamedPipeW(
                 name, 3, 0, 255, 4096, 4096, 0,
                 ctypes.byref(attributes) if attributes else None)
             assert handle != wintypes.HANDLE(-1).value, ctypes.get_last_error()
             handles.append(handle)
         names[label] = name
+    # The pipe with default security again, by its network paths.
+    tail = names["default"].rsplit("\\", 1)[-1]
+    names["via localhost"] = r"\\localhost\pipe" + "\\" + tail
+    names["via 127.0.0.1"] = r"\\127.0.0.1\pipe" + "\\" + tail
     yield names
     for handle in handles:
         kernel.CloseHandle(wintypes.HANDLE(handle))
@@ -200,13 +204,36 @@ def pipes():
 
 def test_pipes_of_other_processes_cannot_be_opened(pipes):
     answer, _ = probe(PIPES, {"pipes": pipes})
-    assert len(answer) == 6
+    assert len(answer) == 10
     assert all(value == 5 for value in answer.values()), answer  # access denied
 
 
 def test_control_unsandboxed_the_pipes_open(pipes):
     answer, _ = probe(PIPES, {"pipes": pipes}, isolation=OFF)
     assert all(answer[f"{label} read"] == "opened" for label in pipes), answer
+
+
+SHARES = """
+import json, os, sys
+a = json.loads(sys.argv[1])
+out = {}
+for label, path in (("IPC share", r"\\\\127.0.0.1\\IPC$"),
+                    ("admin share", r"\\\\127.0.0.1\\C$"),
+                    ("WebDAV", r"\\\\127.0.0.1@%d\\share" % a["tcp"])):
+    try:
+        os.listdir(path)
+        out[label] = "listed"
+    except OSError as error:
+        out[label] = error.winerror or error.errno
+print(json.dumps(out))
+"""
+
+
+def test_no_file_shares_or_webdav_on_this_machine(listener):
+    answer, _ = probe(SHARES, {"tcp": listener.tcp_port})
+    time.sleep(0.5)
+    assert all(value != "listed" for value in answer.values()), answer
+    assert listener.heard == []
 
 
 # --- Files: nothing outside the working folder -------------------------------------
@@ -751,3 +778,26 @@ print(json.dumps(out))
                                           "new": str(tools / "new.py")})
         assert set(answer.values()) <= {5, 13}, answer  # access denied
         assert (tools / "survey.py").read_bytes() == before
+
+
+CREDENTIALS = """
+import ctypes, json
+from ctypes import wintypes
+advapi = ctypes.WinDLL("advapi32", use_last_error=True)
+count, found = wintypes.DWORD(), ctypes.c_void_p()
+if advapi.CredEnumerateW(None, 0, ctypes.byref(count), ctypes.byref(found)):
+    advapi.CredFree(found)
+    print(json.dumps({"listed": count.value}))  # how many, never what
+else:
+    print(json.dumps({"error": ctypes.get_last_error()}))
+"""
+
+
+def test_stored_credentials_cannot_be_listed():
+    answer, _ = probe(CREDENTIALS)
+    assert "error" in answer and answer["error"] != 1168, answer  # 1168: none stored
+
+
+def test_control_unsandboxed_the_credential_manager_answers():
+    answer, _ = probe(CREDENTIALS, isolation=OFF)
+    assert "listed" in answer or answer["error"] == 1168, answer
