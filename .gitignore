@@ -1,0 +1,22 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# Private notes (full plan with private-catalogue references)
+plan.private.md
+*.private.md
+
+# Generated outputs stay local until provider terms are cleared (T6.3)
+data/
+runs/
+outputs/
+
+# Tooling
+node_modules/
+__pycache__/
+.venv/
+.claude/settings.local.json
