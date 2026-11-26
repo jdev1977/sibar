@@ -497,3 +497,119 @@ def test_a_count_of_payments_is_not_the_total_paid():
 def test_a_decision_under_another_case_is_not_graded():
     text = "## If the level were 5%\nWe reject H0."
     assert one("hypothesis-test", "L2", text, "decision_l2") == "could_not_determine"
+
+
+# --- review round 1 -----------------------------------------------------------
+
+DIFFERENCES = r"""One-sample t-test on the differences d = x - 50.
+
+Mean = 1.175
+Standard deviation: s = 0.858
+t = 1.175 / (0.858/√8) = 3.87, p = 0.0061, so we reject H0.
+95% confidence interval: (0.46, 1.89)
+"""
+
+
+def test_the_mean_of_the_differences_is_not_a_wrong_sample_mean():
+    result = check("hypothesis-test", "L0", DIFFERENCES)
+    assert statuses(result, "sample_mean", "ci95_low", "ci95_high") == dict.fromkeys(
+        ["sample_mean", "ci95_low", "ci95_high"], "could_not_determine")
+    assert result["verdict"] != "wrong"
+
+
+# One case for each quantity an assumption of the response's own moves.
+ASSUMED = [
+    ("heat-sink", "L2", "With a 10 °C safety margin on the junction:", [
+        ("Required plate area: 0.0388 m²", "plate_area"),
+        ("Final side length: 140 mm", "square_side"),
+        ("Resulting junction temperature: 114 °C", "junction_temperature")]),
+    ("pipe-and-pump", "L2", "I add a 10% safety margin to the head.", [
+        ("Friction loss: 2.03 m", "friction_loss"),
+        ("Total head: 8.63 m", "total_head"),
+        ("Hydraulic power: 127 W", "hydraulic_power"),
+        ("Electrical power: 317 W", "electrical_power"),
+        ("Battery current: 26.4 A", "battery_current")]),
+    ("cantilever-beam", "L2", "I keep a 10% margin on the load.", [
+        ("Required section modulus: 71,739 mm³", "required_section_modulus"),
+        ("Final width: 53 mm", "width"),
+        ("Tip deflection: 12.4 mm", "tip_deflection")]),
+    ("cantilever-beam", "L0", "A safety factor of 1.5 on the load is applied.", [
+        ("Maximum bending moment: 9 kN·m", "max_bending_moment"),
+        ("Reaction force: 6 kN", "reaction_force")]),
+    ("conveyor-gear-ratio", "L2", "Allowing for 2% belt slip:", [
+        ("Drum speed: 52.0 rpm", "drum_speed"),
+        ("Required ratio: 33.2", "exact_ratio")]),
+    ("shelf-bracket", "L2", "With a safety factor of 2 on the load:", [
+        ("Moment at the wall: 400 lb·in", "moment_at_wall"),
+        ("Downward force on each screw: 40 lb", "screw_downward_force")]),
+    ("compression-spring", "L2", "I include a 10% margin on the force.", [
+        ("Required spring rate: 6.6 lbf/in", "spring_rate")]),
+    ("loan-amortization", "L0", "This includes a monthly account fee of $5.", [
+        ("Monthly payment: $183.21", "monthly_payment")]),
+    ("titration-curve", "L0", "Using activity coefficients (Davies):", [
+        ("Initial pH: 2.95", "ph_0_ml")]),
+    ("least-squares-fit", "L0", "The last point is an outlier and is excluded.", [
+        ("Slope: 1.89", "slope")]),
+    ("projectile-drag", "L0", "Taking a launch height of 1.5 m.", [
+        ("Range without air resistance: 57.6 m", "range_no_air")]),
+]
+
+
+@pytest.mark.parametrize("task,level,assumption,line,name", [
+    (task, level, assumption, line, name)
+    for task, level, assumption, lines in ASSUMED for line, name in lines])
+def test_a_stated_assumption_keeps_a_mismatch_open(task, level, assumption, line, name):
+    assert one(task, level, line, name) == "wrong"
+    assert one(task, level, f"{assumption}\n\n{line}", name) == "could_not_determine"
+
+
+def test_a_bracket_after_a_value_does_not_replace_it():
+    for text in ("Monthly payment: $178.21 (rate = 0.5833)",
+                 "Total interest = $1,692.65 (60 payments, total = 10692.65)"):
+        result = check("loan-amortization", "L0", text)
+        assert "wrong" not in {r["status"] for r in result["quantities"].values()}
+        assert "correct" in {r["status"] for r in result["quantities"].values()}, result
+    text = "Total head: 7.84 m (static 6 m + friction = 1.84 m)"
+    assert one("pipe-and-pump", "L2", text, "total_head") == "correct"
+    chain = "Maximum total thermal resistance: (125 - 40)/20 = 4.25 °C/W"
+    assert one("heat-sink", "L2", chain, "total_resistance") == "correct"
+
+
+@pytest.mark.parametrize("text", [
+    "t* = 2.365", "t^* = 2.365", "t^{*} = 2.365",
+    "| Quantity | Value |\n|---|---|\n| t* | 2.365 |",
+])
+def test_a_starred_symbol_is_another_quantity(text):
+    assert one("hypothesis-test", "L0", text, "t_statistic") == "could_not_determine"
+
+
+@pytest.mark.parametrize("heading", [
+    "## Option B: 4 years", "**Scenario 2: 4 years**", "### Check at r = 9%",
+])
+def test_a_heading_with_a_number_still_covers_what_follows(heading):
+    text = f"{heading}\nMonthly payment: $215.52"
+    assert one("loan-amortization", "L0", text,
+               "monthly_payment") == "could_not_determine"
+
+
+@pytest.mark.parametrize("after", [
+    "Correction: the payment is actually 181.00.",
+    "Final answer: you pay 181 a month.",
+    "## Summary\nExpect to pay about $181 each month.",
+    "On reflection, it comes to 181.",
+])
+def test_an_unread_correction_puts_found_values_in_doubt(after):
+    text = f"Monthly payment: $178.21\n\n{after}"
+    assert one("loan-amortization", "L0", text,
+               "monthly_payment") == "could_not_determine"
+
+
+@pytest.mark.parametrize("after", [
+    "Final answer: $178.21.",
+    "## Summary\nYou repay 9000 over 5 years at 178.21 a month.",
+    "In summary, the loan is affordable.",
+    "## Summary\n- You pay $178.21 for 60 months\n- On $9,000 over 5 years",
+])
+def test_a_summary_that_repeats_the_values_changes_nothing(after):
+    text = f"Monthly payment: $178.21\n\n{after}"
+    assert one("loan-amortization", "L0", text, "monthly_payment") == "correct"

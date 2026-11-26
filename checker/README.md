@@ -60,6 +60,10 @@ grade, and `error` when it could not be (no reference file, no level, or a
 - `not_checkable`: the level has no reference answer. Side checks are still
   listed.
 
+A text item about a figure the response does not state (the conveyor's
+stated ratio and speed) is `not_applicable` when that quantity is
+`not_stated`.
+
 Items of a criterion that only a reader can judge (the kind of pump, the
 shape of an outline) stay undetermined until an answers file judges them. So
 the extractor alone never gives a level verdict of `correct` for pipe and
@@ -93,7 +97,8 @@ criteria:                      # a reader's judgement of an item
   those of the reference file. Inputs are numbers in the unit the reference
   file gives for them. A quantity with a unit needs one (a unit the reference
   lists); without it the value is not graded.
-- `complete: false` (default): what is missing is unknown. The values go over
+- `complete: false` (default): what is missing is unknown (a hypothesis
+  decision then needs `facts.level_percent`, unless the extractor ran). The values go over
   the extracted ones, quantity by quantity.
 - `complete: true`: the entry replaces the extracted values. A quantity left
   out is `not_stated`, a condition left out is not stated, the range for an
@@ -152,12 +157,24 @@ would print.
 | Bracket radius | Its label |
 | Screw positions `e`, `s`, `a`, `p`; tooth counts | Not extracted: answers file |
 | Pipe roughness, water temperature, viscosity, Hazen-Williams C, fittings | Not extracted: answers file |
-| Heat-sink interface and sink resistance, junction target | Not extracted: answers file. A mention of a margin keeps a differing resistance budget from being called wrong |
+| Heat-sink interface and sink resistance, junction target | Not extracted: answers file |
 | Force on the spring, solid length and stresses used by criteria; stated limits and allowables (beam, spring life, pump rating) | Not extracted: answers file |
 | Acid constants | Not extracted: answers file |
 | Load factor, self-weight, belt thickness | Not extracted. A mention keeps the matching alternative open |
 
 A criterion is never failed on an extracted input alone.
+
+### Assumptions of the response's own
+
+Where the text mentions one, an extracted value that differs is
+`could_not_determine`, not `wrong`, for the quantities that follow from it
+(the patterns are `DOUBTS` in [labels.py](labels.py)): a margin or safety
+allowance (heat sink, pipe and pump, beam, conveyor, bracket, spring), a
+load factor or self-weight (beam, bracket), belt slip or thickness, a
+preload, fees or extra payments, another temperature or activity
+corrections, points left out or weighted, a launch height or wind, and, for
+the mean and its interval, work on differences from 50. A right value is
+still `correct`.
 
 ### When it concludes nothing
 
@@ -166,8 +183,10 @@ only ones stand in a condition, comparison, check, option or trial; when
 statements disagree; when a labelled statement with a number cannot be read
 (a range, a decimal comma, a space as thousands separator, an unknown unit or
 trailing words); when a differing value was found but a matching number is
-also somewhere in the response; and, for any mismatch, when the response is
-cut off.
+also somewhere in the response; for any mismatch, when the response is cut
+off; and, for every extracted value, when a correction ("actually",
+"correction", "revised") or a summary holds a number that was neither read
+nor given.
 
 ### What is not extracted
 
@@ -186,6 +205,12 @@ can say it.
   form it does not read. The guards above narrow this; they cannot close it.
   Spot-check extracted `wrong` and `correct` results against the response
   before relying on counts.
+- Money is graded to the cent, as the references set it. A response that
+  rounds money in the labelled line itself ("Monthly payment: $178", "Total
+  interest: $1,693") is graded `wrong` unless the precise figure also appears
+  somewhere in it.
+- The words that put a value in doubt are a fixed list. A margin or
+  correction worded another way is not noticed.
 - Hedging and conditions are recognised by English words only. Replies in
   other languages, or numbers in images, are not read.
 - Whether an alternative's condition is stated is judged by the absence of a

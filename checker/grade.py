@@ -241,7 +241,9 @@ class _Grader:
 
     def decision(self, stated):
         tests = self.tests()
-        levels = self.answers.levels or (5.0,)
+        # 5% where none is stated, which only complete answers can show
+        # (the extractor gives it as a level where it finds none)
+        levels = self.answers.levels or ((5.0,) if self.answers.complete else ())
         if not tests or len(levels) != 1:
             return _result(UNKNOWN, "the test or the level is not established")
         level = levels[0]
@@ -329,6 +331,9 @@ class _Grader:
         if len(outcomes) != 1:
             return _result(UNKNOWN, "the response states values that grade differently")
         found = plain[0][1]
+        if found["status"] != UNKNOWN and any(s.unsettled for s in statements):
+            return _result(UNKNOWN, "a correction or summary in the response holds a "
+                                    "number that was not read")
         if found["status"] == WRONG:
             doubt = next((s.doubt for s in statements if s.doubt), None)
             if doubt:
@@ -365,6 +370,8 @@ class _Grader:
             source = quantities.get(ITEM_FROM_QUANTITY.get(key), {}).get("status")
             if source in RIGHT:
                 return PASS
+            if source == UNSTATED:
+                return NOT_APPLICABLE       # nothing stated to hold to the rule
             return FAIL if source == WRONG else UNKNOWN
         known = dict(self.answers.inputs)
         if self.answers.complete:
@@ -411,7 +418,7 @@ def _complete_verdict(entry, results):
     status = {name: result["status"] for name, result in results.items()}
     if WRONG in status.values():
         return WRONG
-    required = [status[name] for name in entry["quantities"]]
+    required = [status[name] for name in entry.get("quantities", ())]
     groups = [[status[name] for name in group] for group in entry.get("one_of", ())]
     # An extra value found but not settled could be a wrong one.
     unsettled = any(result["status"] == UNKNOWN and len(result.get("stated", ())) > 1

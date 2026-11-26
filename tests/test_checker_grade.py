@@ -467,7 +467,7 @@ def test_criteria_decide_with_the_answers():
     task = "engineering/conveyor-gear-ratio"
     bad = dict(right, inputs=dict(TEETH, z2=40))
     assert run(task, "L2", **bad)["verdict"] == "wrong"
-    unread = dict(right, criteria={})
+    unread = dict(right, criteria={}, complete=False)
     result = run(task, "L2", **unread)
     assert result["verdict"] == "could_not_determine"
     assert result["answers_verdict"] == "correct"
@@ -524,3 +524,31 @@ def test_a_quantity_the_task_does_not_have_is_refused():
 def test_every_formula_comes_through_the_shared_evaluator():
     import reference_checks
     assert reference_checks.evaluate is evaluate
+
+
+def test_the_default_level_is_not_assumed_for_a_part_answer():
+    answer = {"decision": q("reject")}
+    part = run("math/hypothesis-test", "L0", answer, complete=False,
+               facts={"test": "t"})
+    assert part["quantities"]["decision"]["status"] == "could_not_determine"
+    full = run("math/hypothesis-test", "L0", answer, facts={"test": "t"})
+    assert full["quantities"]["decision"]["status"] == "correct"
+
+
+def test_an_item_about_a_figure_never_stated_does_not_apply():
+    task = "engineering/conveyor-gear-ratio"
+    right = RIGHT[(task, "L2")]
+    result = run(task, "L2", **dict(right, criteria={}))
+    items = result["criteria"]["tooth_counts"]["items"]
+    assert items["stated_ratio_matches_counts"]["status"] == "not_applicable"
+    assert result["verdict"] == "correct", result
+    part = run(task, "L2", **dict(right, criteria={}, complete=False))
+    assert part["verdict"] == "could_not_determine"
+
+
+def test_a_level_with_only_alternative_groups_can_be_graded():
+    reference = dict(REFERENCE["math/hypothesis-test"])
+    level = {k: v for k, v in reference["levels"]["L0"].items() if k != "quantities"}
+    reference["levels"] = dict(reference["levels"], L0=level)
+    answers = answers_from_dict({"quantities": {"p_value": q(0.0061)}, "complete": True})
+    assert grade(reference, "L0", answers)["verdict"] == "correct"

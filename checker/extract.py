@@ -12,6 +12,7 @@ leaves room. What it finds and what it cannot is in checker/README.md.
 import datetime
 import math
 import re
+from dataclasses import replace
 from functools import lru_cache
 
 from checker import labels, units
@@ -39,6 +40,14 @@ _NO_AIR = re.compile(r"\b(?:no[- ](?:air|drag)|without (?:air|drag)|vacuum|drag[
                      r"ignoring (?:air|drag)|ideal)\b", re.IGNORECASE)
 _WITH_AIR = re.compile(r"\b(?:with (?:air|drag)|compar\w{0,6}|vs|versus|and)\b",
                        re.IGNORECASE)
+# A response that corrects itself, and one that sums itself up
+_CORRECTION = re.compile(r"\b(?:correction|corrected (?:value|answer|figure)|actually|"
+                         r"on reflection|revised)\b", re.IGNORECASE)
+_SUMMARY = re.compile(r"\b(?:final answers?|summary|in short|to summari[sz]e|"
+                      r"(?:in )?conclusion|bottom line|tl;?dr|update)\b", re.IGNORECASE)
+_LEVEL_PERCENTS = (1.0, 5.0, 95.0, 99.0)
+_STARRED = re.compile(r"(?:^|[\s(])[A-Za-zτσ]\w{0,3}[\^_]?\{?\\?\*\}?\)?\s*$")
+_VALUED = re.compile(r"=|≈|:\s{0,3}\S{0,20}\d")
 _HYPOTHESES = re.compile(r"H_?\{?[01a]\}?\b|hypothes", re.IGNORECASE)
 
 _CLAUSE = re.compile(r";|,(?=\s)|\band\b|\bwhich\b|\bso that\b|—|(?<=\.)\s")
@@ -133,8 +142,20 @@ def _value(text, kind):
     return value, _tidy(tail)
 
 
+def _uncommented(rest, kind):
+    """``rest`` cut at a bracket that follows a whole value: what the bracket
+    holds, ``(= ...)`` too, is a remark on it."""
+    for found in list(re.finditer(r"\(", rest))[:20]:
+        value = _value(re.split(r"=|≈|≃", rest[:found.start()])[-1], kind)
+        if value and (not value[1] or value[1] == "%" or units.canonical(value[1])
+                      or units.same(value[1], "currency")):
+            return rest[:found.start()]
+    return rest
+
+
 def _final(rest, kind):
     """The last part of a chain ``a = b = c``, cut at the end of the clause."""
+    rest = _uncommented(rest, kind)
     rest = _CLAUSE.split(rest, maxsplit=1)[0]
     part = re.split(r"=|≈|≃", rest)[-1].strip().rstrip(".")
     return part, _value(part, kind)
@@ -175,10 +196,12 @@ class _Reader:
                              *(b.body for b in blocks if b.language in PLAIN)])
         self.sentences, self.tables = read(working)
         self.truncated = truncated
-        doubt = labels.DOUBTS.get(self.task)
         self.doubts = {}
-        if doubt and re.search(doubt[0], text, re.IGNORECASE):
-            self.doubts = dict.fromkeys(doubt[1], doubt[2])
+        for pattern, names, reason in labels.DOUBTS.get(self.task, ()):
+            if re.search(pattern, text, re.IGNORECASE):
+                self.doubts.update(dict.fromkeys(names or self.listed, reason))
+        self.taken = set()        # the sentences and rows a value came from
+        self.keyed_tables = []
         self.wanted = {name: pattern for name, pattern
                        in labels.QUANTITIES[self.task].items() if name in self.listed}
         self.input_labels = labels.LABELLED_INPUTS.get(self.task, {})
@@ -221,9 +244,11 @@ class _Reader:
             return other or (None if not name.endswith("_no_air") else name)
         return name
 
-    def take(self, label, rest, heading, sentence, header_unit=None):
+    def take(self, label, rest, heading, sentence, route, key, header_unit=None):
         """Record the value in ``rest`` for every quantity or input whose
         label ``label`` is."""
+        if _STARRED.search(label):
+            return                  # "t*" is another quantity than "t"
         label, unit = _label(label)
         if not label or len(label) > MAX_LABEL:
             return
@@ -234,7 +259,7 @@ class _Reader:
             if kind in ("choice", "list"):
                 continue
             part, value = _final(rest, kind)
-            target = self.routed(name, heading if _NO_AIR.search(heading) else sentence)
+            target = self.routed(name, route if _NO_AIR.search(route) else sentence)
             if target is None:
                 continue
             if value is None:
@@ -245,6 +270,7 @@ class _Reader:
                     and kind != "date":
                 self.note_unreadable(target, part, kind)
                 continue
+            self.taken.add(key)
             self.add(target, value[0], own,
                      self.hedged(target, sentence, heading if target == name else ""))
         for name, (pattern, _) in self.input_labels.items():
@@ -277,14 +303,19 @@ class _Reader:
             for clause in _CLAUSE.split(text):
                 connector = _CONNECTOR.search(clause)
                 if connector:
+                    route = sentence.section
                     self.take(clause[:connector.start()], clause[connector.end():],
-                              heading, text)
+                              heading, text, "" if _VALUED.search(route) else route,
+                              text)
 
     # --- tables -------------------------------------------------------------
 
     def read_tables(self):
         for table in self.tables:
-            if self.keyed_table(table) or len(table.header) < 2:
+            if self.keyed_table(table):
+                self.keyed_tables.append(table)
+                continue
+            if len(table.header) < 2:
                 continue
             columns = self.value_columns(table.header)
             for row in table.rows:
@@ -299,9 +330,9 @@ class _Reader:
                     sentence = " ".join([table.header[index] if index < len(table.header)
                                          else "",
                                          *(c for i, c in enumerate(row) if i != index)])
-                    self.take(row[0], row[index],
-                              context or table.heading,
-                              f"{sentence} {row[index]}",
+                    self.take(row[0], row[index], table.heading,
+                              f"{sentence} {row[index]} {context}",
+                              context or table.section, row,
                               header_unit or unit_column)
 
     def value_columns(self, header):
@@ -526,6 +557,47 @@ class _Reader:
                 else:
                     self.add(name, "reject", "1", hedged)
 
+    # --- corrections and summaries ------------------------------------------
+
+    def unsettled(self):
+        """Whether a correction, or a part that sums up and gave no value,
+        holds a number that is neither found nor given."""
+        known = []
+        for statements in self.found.values():
+            for statement in statements:
+                if isinstance(statement.value, dict):
+                    known += [*statement.value, *statement.value.values()]
+                elif isinstance(statement.value, (int, float)):
+                    known.append(statement.value)
+        for values in self.inputs.values():
+            known += [v for v in values if v is not None]
+        for given in (*self.reference["givens"], *self.reference.get("l2_givens", ())):
+            value = given["value"]
+            if isinstance(value, list):
+                known += value
+            elif isinstance(value, (int, float)):
+                known.append(value)
+        # repeating a reference value takes nothing back, nor does naming a level
+        known += [q["value"] for q in self.reference["quantities"].values()
+                  if isinstance(q.get("value"), (int, float))]
+        if self.task == "hypothesis-test":
+            known += [0.01, 0.05]
+        pieces = [(s.text, s.heading, s.text) for s in self.sentences]
+        pieces += [(" | ".join(row), table.heading, row) for table in self.tables
+                   if table not in self.keyed_tables for row in table.rows]
+        for text, heading, key in pieces:
+            context = f"{heading} {text}"
+            if not (_CORRECTION.search(context)
+                    or _SUMMARY.search(context) and key not in self.taken):
+                continue
+            for match in list(NUMBER.finditer(text))[:50]:
+                value = parse(match).value
+                if value in _LEVEL_PERCENTS and text[match.end():].lstrip()[:1] == "%":
+                    continue
+                if not any(abs(value - k) <= 0.005 * abs(k) for k in known):
+                    return True
+        return False
+
     # --- facts and inputs ---------------------------------------------------
 
     def facts(self):
@@ -611,7 +683,9 @@ class _Reader:
         self.decisions()
         self.searched_inputs()
         tests, levels = self.facts()
-        quantities = {name: tuple(found) for name, found in sorted(self.found.items())
+        unsettled = self.unsettled()
+        quantities = {name: tuple(replace(s, unsettled=unsettled) for s in found)
+                      for name, found in sorted(self.found.items())
                       if name not in self.unreadable}
         inputs = {name: values.copy().pop() for name, values in sorted(self.inputs.items())
                   if len(values) == 1 and None not in values}

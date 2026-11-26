@@ -36,7 +36,8 @@ class Stated:
     ``value`` is a number, a word (a choice or a date) or, for a list, a
     mapping of key to number. ``hedged`` marks a statement the extractor
     found in a comparison, a condition or a check; ``doubt`` gives a reason
-    a mismatch must not be called wrong.
+    a mismatch must not be called wrong; ``unsettled`` marks a response with a
+    correction or summary holding a number that was not read.
     """
 
     value: object
@@ -45,6 +46,7 @@ class Stated:
     source: str = SUPPLIED
     hedged: bool = False
     doubt: object = None
+    unsettled: bool = False
 
 
 @dataclass(frozen=True)

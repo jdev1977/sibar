@@ -202,10 +202,51 @@ MENTIONS = {
     "wall_moment": r"bear", "net_section": r"net |through the (?:screw )?holes",
 }
 
-# A mention of these means a mismatch of these quantities is not called wrong.
+# A mention of these means the response may work from an assumption of its
+# own, so a mismatch of the quantities that follow from it is not called
+# wrong: task -> (pattern, quantities or None for all, reason).
+_MARGIN = (r"margin|contingency|allowance|headroom|oversiz|conservativ|service factor|"
+           r"derat")
+_LOAD = (r"|(?:load|dynamic|impact) factor|factored|design (?:load|moment)|"
+         r"self[- ]?weight|own weight")
+_LEFT_OUT = r"outlier|exclud|omit|discard"
+_OWN = "the response states an assumption or margin of its own"
 DOUBTS = {
-    "heat-sink": (r"margin|derat|(?:target|design|limit(?:ing)?) junction",
-                  ("total_resistance", "case_to_air_resistance",
-                   "plate_resistance_limit"),
-                  "the answer may size for a lower junction temperature"),
+    "heat-sink": ((
+        _MARGIN + r"|safety|(?:target|design|limit(?:ing)?) junction",
+        ("total_resistance", "case_to_air_resistance", "plate_resistance_limit",
+         "temperature_rise_allowed", "plate_area", "square_side", "square_side_exact",
+         "junction_temperature", "plate_resistance", "plate_temperature",
+         "case_temperature"), _OWN),),
+    "pipe-and-pump": ((
+        _MARGIN + r"|safety",
+        ("friction_loss", "equivalent_length", "total_head", "hydraulic_power",
+         "electrical_power", "battery_current"), _OWN),),
+    # The brief dictates a safety factor of 3 on the yield strength.
+    "cantilever-beam": ((
+        _MARGIN + _LOAD + r"|safety factor[^.\n]{0,20}?(?:on|to) the (?:load|moment|"
+        r"deflection)|safety factor(?: of| =|:)? ?(?!3(?![.\d]))\d", None, _OWN),),
+    "conveyor-gear-ratio": ((
+        _MARGIN + r"|slip|creep|belt thickness|lagging|(?:effective|pitch) diameter",
+        ("drum_speed", "drum_angular_speed", "overall_ratio", "exact_ratio",
+         "ratio_window_low", "ratio_window_high"), _OWN),),
+    "shelf-bracket": ((
+        _MARGIN + _LOAD + r"|safety factor|factor of safety", None, _OWN),),
+    "compression-spring": ((
+        _MARGIN + r"|safety factor|factor of safety|pre[- ]?load", None, _OWN),),
+    "loan-amortization": ((
+        r"\bfees?\b|insurance|\btax|deposit|down payment|extra payment|overpay|margin",
+        None, _OWN),),
+    "titration-curve": ((
+        r"activit(?:y|ies) coefficient|ionic strength|debye|davies|"
+        r"(?<![\d.])(?!25(?!\d))\d{1,2} ?°C", None, _OWN),),
+    "least-squares-fit": ((_LEFT_OUT + r"|\bweighted", None, _OWN),),
+    "hypothesis-test": (
+        (_LEFT_OUT, None, _OWN),
+        (r"differenc|deviations? from|d̄|\bd(?:_i)? ?= ?x",
+         ("sample_mean", "ci95_low", "ci95_high"),
+         "the response works on differences from 50")),
+    "projectile-drag": ((
+        r"(?:launch|initial|release|starting) height|from a height|\bwind|\bspin",
+        None, _OWN),),
 }
