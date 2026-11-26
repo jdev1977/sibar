@@ -24,6 +24,8 @@ Project documents. Present now:
 - [rubrics.md](rubrics.md): the rubric format, the items of each type, the
   split with the extractors, the versioning rule and how to calibrate the
   tagger (T2.4)
+- [tagger/README.md](../tagger/README.md): the tagger, its money safety and
+  crash recovery, the agreement command and the human tag file (T2.6)
 
 Added by later tasks in [tasks.md](../tasks.md):
 

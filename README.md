@@ -33,7 +33,7 @@ and the viewer are not built yet, and no results exist.
 | [extractors/](docs/extractors.md) | Python package: features parsed from outputs |
 | [analysis/](analysis/README.md) | Python package: the metrics and the stability check, with the data files they read (how each feature is counted, what each prompt dictates) |
 | [rubrics/](rubrics/README.md) | Versioned tagging rubrics, by project type |
-| [tagger/](docs/rubrics.md) | Python package: loads and checks the rubrics; the tagger itself is not written yet |
+| [tagger/](tagger/README.md) | Python package: loads and checks the rubrics, tags outputs through the providers' batch APIs, and measures agreement between taggings |
 | [checker/](checker/references/README.md) | Reference answers for the math and engineering tasks, with tolerances; the answer checker itself is not written yet |
 | [viewer/](viewer/README.md) | Local page for comparing outputs |
 | [docs/](docs/README.md) | Project documents |
