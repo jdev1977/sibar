@@ -37,6 +37,15 @@ class Defaults:
 
 
 @dataclass(frozen=True)
+class PriceTier:
+    """Rates for a whole call whose prompt is longer than the threshold."""
+
+    above_input_tokens: int
+    input_price_per_mtok_usd: float
+    output_price_per_mtok_usd: float
+
+
+@dataclass(frozen=True)
 class Model:
     id: str
     provider: str
@@ -51,6 +60,7 @@ class Model:
     sources: Tuple[str, ...]
     date_checked: datetime.date
     notes: Mapping[str, str]
+    price_tiers: Tuple[PriceTier, ...] = ()  # ascending by threshold
 
 
 @dataclass(frozen=True)
@@ -148,11 +158,39 @@ def _require_note(notes, where, key):
         raise ModelsError(f"{where}: null value needs a note under notes.{key}")
 
 
+def _price_tiers(raw, where, base):
+    """The tiers in ascending order; no tier is cheaper than the one below."""
+    _require(isinstance(raw, list) and raw, where, "price_tiers",
+             "a non-empty list, or left out")
+    _require(all(base[key] is not None for key in _PRICES), where,
+             "price_tiers", "left out when a base price is null")
+    below = {"above_input_tokens": 0, **base}
+    tiers = []
+    for index, entry in enumerate(raw):
+        at = f"{where}: price_tiers[{index}]"
+        _check_keys(entry, at, tuple(f.name for f in fields(PriceTier)))
+        threshold = entry["above_input_tokens"]
+        _require(
+            _is_count(threshold) and threshold > below["above_input_tokens"],
+            at, "above_input_tokens",
+            "a whole number above 0 and above the tier before",
+        )
+        for key in _PRICES:
+            _require(
+                _is_number(entry[key]) and entry[key] >= below[key],
+                at, key, "a number no lower than the price below this tier",
+            )
+        below = entry
+        tiers.append(PriceTier(**entry))
+    return tuple(tiers)
+
+
 def _model(raw, index):
     where = f"models[{index}]"
     names = tuple(field.name for field in fields(Model))
-    required = tuple(name for name in names if name != "notes")
-    _check_keys(raw, where, required, optional=("notes",))
+    optional = ("notes", "price_tiers")
+    required = tuple(name for name in names if name not in optional)
+    _check_keys(raw, where, required, optional=optional)
 
     for key in ("id", "provider", "display_name"):
         _require(_is_text(raw[key]), where, key, "non-empty text")
@@ -193,6 +231,10 @@ def _model(raw, index):
         else:
             _require(_is_number(value), where, key, "a number of at least 0")
         values[key] = value
+
+    if "price_tiers" in raw:
+        values["price_tiers"] = _price_tiers(
+            raw["price_tiers"], where, {key: raw[key] for key in _PRICES})
 
     for key in _RETIREMENT:
         value = raw[key]

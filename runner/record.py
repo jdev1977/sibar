@@ -695,6 +695,24 @@ def _ends_unterminated(path):
         return handle.read(1) != b"\n"
 
 
+def append_line(path, line):
+    """Append ``line`` (bytes without a newline) to the JSON Lines file at
+    ``path`` and flush it to disk before returning.
+
+    Creates the file and its directory if needed. Refuses (``RecordError``) a
+    file whose last line is unterminated: call :func:`repair_tail` first.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and _ends_unterminated(path):
+        raise RecordError(f"{path.name}: the last line has no newline (an "
+                          "interrupted write?); call repair_tail first")
+    with open(path, "ab") as handle:
+        handle.write(line + b"\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
 def append_record(path, record):
     """Validate ``record`` and append it as one line to the file at ``path``.
 
@@ -703,16 +721,7 @@ def append_record(path, record):
     disk. Refuses (``RecordError``) an invalid record, or a file whose last
     line is unterminated: call :func:`repair_tail` first. One writer per file.
     """
-    path = Path(path)
-    line = (dumps_record(record) + "\n").encode("ascii")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists() and _ends_unterminated(path):
-        raise RecordError(f"{path.name}: the last line has no newline (an "
-                          "interrupted write?); call repair_tail first")
-    with open(path, "ab") as handle:
-        handle.write(line)
-        handle.flush()
-        os.fsync(handle.fileno())
+    append_line(path, dumps_record(record).encode("ascii"))
 
 
 def repair_tail(path):
@@ -798,20 +807,28 @@ def _unique_pairs(pairs):
     return result
 
 
+def parse_json(line):
+    """Parse one line (bytes or text) of strict JSON; raise RecordError.
+
+    Rejects text that is not UTF-8, NaN, Infinity and repeated keys.
+    """
+    try:
+        if isinstance(line, bytes):
+            line = line.decode("utf-8")
+        return json.loads(line, parse_constant=_no_constant,
+                          object_pairs_hook=_unique_pairs)
+    except UnicodeDecodeError as error:
+        raise RecordError(f"not UTF-8: {error}") from error
+    except ValueError as error:  # includes json.JSONDecodeError
+        raise RecordError(f"not valid JSON: {error}") from error
+
+
 def parse_line(line):
     """Parse one line (bytes or text) into a record; raise RecordError.
 
     Rejects NaN and Infinity, repeated keys and invalid records.
     """
-    try:
-        if isinstance(line, bytes):
-            line = line.decode("utf-8")
-        record = json.loads(line, parse_constant=_no_constant,
-                            object_pairs_hook=_unique_pairs)
-    except UnicodeDecodeError as error:
-        raise RecordError(f"not UTF-8: {error}") from error
-    except ValueError as error:  # includes json.JSONDecodeError
-        raise RecordError(f"not valid JSON: {error}") from error
+    record = parse_json(line)
     _raise_if_invalid(record)
     return record
 
