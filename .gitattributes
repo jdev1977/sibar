@@ -1,2 +1,4 @@
 # Git for Windows runs hooks with sh, which needs LF line endings.
 .githooks/* text eol=lf
+# Hostile extractor fixtures hold raw bytes on purpose; never convert them.
+tests/fixtures/website/hostile/** -text

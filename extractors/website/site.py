@@ -110,6 +110,8 @@ class Site:
             for doc, element in self.elements():
                 found += [(token, doc, element) for token in element.classes]
             for script in self.scripts:
+                if script.jsx:
+                    continue  # its className values are read from the markup
                 for text in script.class_strings():
                     found += [(token, None, None) for token in text.split()]
             for sheet in self.sheets:
@@ -136,6 +138,12 @@ class Site:
         for script in self.scripts:
             texts += script.prose_strings()
         return texts
+
+    def meta(self, name):
+        """The ``content`` of each ``<meta name=...>`` in the HTML pages."""
+        return [element.attrs.get("content", "") for doc in self.docs
+                if not doc.fragment for element in doc.find("meta")
+                if element.attrs.get("name", "").strip().lower() == name]
 
     def attribute_texts(self):
         """Text in ``alt``, ``placeholder``, ``title`` and ``aria-label``."""
@@ -225,6 +233,7 @@ class _Builder:
         for spec in script.imports():
             self.reference("module", spec, origin)
         if jsx or script.looks_like_jsx():
+            script.jsx = True
             self.document(parse_html(text, origin, jsx=True), MAX_NESTED)
         if nested < MAX_NESTED:
             for markup in script.html_strings():

@@ -47,6 +47,7 @@ class Script:
     strings: list = field(default_factory=list)
     templates: set = field(default_factory=set)  # indexes of template literals
     truncated: bool = False
+    jsx: bool = False  # also parsed as JSX markup, which holds its classes
 
     def imports(self):
         """Module specifiers, in order of appearance."""

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crumb &amp; Crust Bakery</title>
+  <link rel="icon" href="img/favicon.svg">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <nav class="nav">
+      <a href="#menu">Menu</a>
+      <a href="#about">About</a>
+      <button class="theme-toggle" aria-label="Toggle dark mode"><i class="fa-solid fa-moon"></i></button>
+    </nav>
+  </header>
+  <main id="main">
+    <section id="hero" class="hero">
+      <h1>Baked before sunrise</h1>
+      <p>Sourdough, rye and morning buns from our wood oven.</p>
+      <a class="btn" href="#order">Order for Saturday</a>
+    </section>
+    <section id="menu">
+      <h2>Our breads</h2>
+      <div class="cards">
+        <article class="card"><img src="img/loaf.jpg" alt="Country loaf"><h3>Country loaf</h3><p>$9</p></article>
+        <article class="card"><img src="img/rye.jpg" alt="Seeded rye"><h3>Seeded rye</h3><p>$10</p></article>
+        <article class="card"><img src="img/bun.jpg" alt=""><h3>Morning bun</h3><p>$4.50</p></article>
+        <article class="card"><img src="img/focaccia.jpg" alt="Focaccia"><h3>Focaccia</h3><p>$8</p></article>
+      </div>
+    </section>
+    <section id="about">
+      <h2>About us</h2>
+      <p>Two bakers, one oven, since 2019.</p>
+    </section>
+    <section id="order">
+      <h2>Pre-order</h2>
+      <form>
+        <label for="name">Name</label>
+        <input id="name" type="text">
+        <label>Email <input type="email"></label>
+        <select><option>Saturday</option><option>Sunday</option></select>
+        <input type="hidden" value="1">
+        <button type="submit">Place order</button>
+      </form>
+    </section>
+  </main>
+  <footer>
+    <p>Open Wed–Sun. <a href="#hero">here</a></p>
+  </footer>
+  <script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en-US" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loafly — Fresh Bread Delivered</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍞</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } }
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-white text-gray-900 dark:bg-gray-950 dark:text-white antialiased">
+  <header class="sticky top-0 z-50 backdrop-blur bg-white/80 border-b border-gray-200">
+    <nav class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <a href="#" class="text-xl font-extrabold">Loafly</a>
+      <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-100"><i data-lucide="moon"></i></button>
+    </nav>
+  </header>
+
+  <section class="relative overflow-hidden bg-gradient-to-br from-indigo-600 to-purple-600 py-24">
+    <div class="max-w-7xl mx-auto px-6 text-center">
+      <span class="inline-block rounded-full bg-white/20 px-4 py-1 text-sm text-white">✨ New this week</span>
+      <h1 class="mt-6 text-5xl md:text-7xl font-extrabold bg-gradient-to-r from-pink-400 to-yellow-300 bg-clip-text text-transparent">Bread That Changes Everything</h1>
+      <p class="mt-6 text-lg text-indigo-100">Not just bread — it's a daily ritual. Lorem ipsum dolor sit amet.</p>
+      <a href="#pricing" class="mt-8 inline-block rounded-xl bg-white px-8 py-3 font-semibold text-indigo-600 shadow-lg">Get Started</a>
+    </div>
+  </section>
+
+  <section id="features" class="py-20">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 px-6">
+      <div class="rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-900">
+        <div class="text-4xl">🚀</div>
+        <h3 class="mt-4 text-xl font-semibold">Lightning Fast Delivery</h3>
+        <p class="mt-2 text-gray-600">Warm loaves at your door by seven.</p>
+      </div>
+      <div class="rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-900">
+        <div class="text-4xl">🌾</div>
+        <h3 class="mt-4 text-xl font-semibold">Locally Milled Flour</h3>
+        <p class="mt-2 text-gray-600">Grain from farms within fifty miles.</p>
+      </div>
+      <div class="rounded-2xl bg-white p-8 shadow-lg dark:bg-gray-900">
+        <div class="text-4xl">💚</div>
+        <h3 class="mt-4 text-xl font-semibold">Zero Waste Packaging</h3>
+        <p class="mt-2 text-gray-600">Paper bags, returned and reused.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="testimonials" class="bg-gray-50 py-20">
+    <div class="max-w-3xl mx-auto px-6">
+      <h2 class="text-3xl font-bold text-center">What our customers say</h2>
+      <blockquote class="mt-8 rounded-2xl bg-white p-6 shadow">
+        <p>"Honestly the best sourdough in town."</p>
+        <cite>John Doe</cite>
+      </blockquote>
+      <img src="avatar.png" class="mt-4 h-12 w-12 rounded-full">
+    </div>
+  </section>
+
+  <section id="pricing" class="py-20">
+    <h2 class="text-3xl font-bold text-center">Simple pricing</h2>
+    <form class="max-w-md mx-auto mt-8">
+      <input type="email" placeholder="you@example.com" class="w-full rounded-lg border px-4 py-2 focus:ring-2 focus:ring-indigo-500">
+      <button type="submit" class="mt-4 w-full rounded-lg bg-indigo-600 py-2 text-white">Subscribe</button>
+    </form>
+  </section>
+
+  <footer class="border-t py-10 text-center text-sm text-gray-500">
+    <p>© 2026 Loafly. Learn more about our bakers.</p>
+  </footer>
+  <script>
+    lucide.createIcons();
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', 'dark');
+    });
+  </script>
+</body>
+</html>
