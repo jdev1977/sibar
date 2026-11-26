@@ -26,6 +26,9 @@ Project documents. Present now:
   tagger (T2.4)
 - [tagger/README.md](../tagger/README.md): the tagger, its money safety and
   crash recovery, the agreement command and the human tag file (T2.6)
+- [sandbox.md](sandbox.md): running generated code: setup, use, outcomes,
+  boundaries and their tests, the threat model and what it does not defend,
+  task fixtures and measurements (T2.7)
 
 Added by later tasks in [tasks.md](../tasks.md):
 
