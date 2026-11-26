@@ -11,14 +11,16 @@ Public interface:
 
 - :func:`build_record` makes a valid record, filling defaults.
 - :func:`validate_record` returns every problem with a record (empty if valid).
-- :func:`append_record`, :func:`read_records`, :func:`repair_tail` handle the
-  JSON Lines file; :func:`dumps_record` gives the exact line written and
-  :func:`parse_line` reads one.
+- :func:`append_record`, :func:`read_records`, :func:`repair_tail` and
+  :func:`write_records` (atomic rewrite) handle the JSON Lines file;
+  :func:`dumps_record` gives the exact line written and :func:`parse_line`
+  reads one.
 - :func:`format_timestamp` and :func:`utc_now` give record timestamps.
 - :func:`cell_key` names the grid cell a record fills, for resuming.
 - :func:`files_dir`, :func:`file_entry`, :func:`check_files` handle the files
   stored beside a record.
-- :func:`with_features` adds or replaces one extractor's features.
+- :func:`with_features` adds or replaces one extractor's features and marks
+  that it ran.
 
 Run ``python -m runner.record [--files] FILE...`` to validate files.
 """
@@ -31,6 +33,7 @@ import math
 import os
 import re
 import sys
+import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,12 +54,12 @@ KNOWN_PROJECT_TYPES = ("website", "pipeline", "math", "engineering")
 # Every top-level field, in the order records are written. All are required;
 # a field that does not apply holds null (or an empty list).
 FIELDS = (
-    "schema_version", "record_id", "source", "source_note",
+    "schema_version", "record_id", "batch_id", "source", "source_note",
     "project_type", "task_id", "prompt_set_version", "level", "wording",
-    "run_index", "prompt_text", "provider", "model_id", "surface",
-    "system_prompt", "settings", "timestamp", "tokens", "cost_usd",
-    "status", "error", "stop_reason", "raw_response",
-    "files", "checks", "features",
+    "run_index", "prompt_text", "provider", "gateway", "model_id",
+    "model_id_returned", "surface", "system_prompt", "settings", "timestamp",
+    "tokens", "cost_usd", "status", "error", "stop_reason", "request_id",
+    "raw_response", "files", "checks", "extractors", "features",
 )
 # Fields that may be null only on an uncontrolled import, whose source did not
 # follow the level / wording / run grid.
@@ -65,6 +68,12 @@ TOKEN_FIELDS = ("input", "output", "reasoning")
 FILE_FIELDS = ("path", "sha256", "size")
 CHECK_FIELDS = ("name", "tool", "tool_version", "outcome", "detail", "files")
 FEATURE_FIELDS = ("name", "value", "extractor", "extractor_version")
+EXTRACTOR_FIELDS = ("extractor", "extractor_version")
+# Windows refuses these file names, with or without an extension.
+RESERVED_STEMS = frozenset(
+    ["CON", "PRN", "AUX", "NUL"]
+    + [f"COM{n}" for n in range(1, 10)] + [f"LPT{n}" for n in range(1, 10)]
+)
 
 
 class RecordError(ValueError):
@@ -81,10 +90,16 @@ class RecordError(ValueError):
 
 
 class CellKey(NamedTuple):
-    """The grid cell a record fills; a resumed run skips completed cells."""
+    """The grid cell a record fills; a resumed run skips completed cells.
 
+    It includes the batch and prompt-set version, so a new batch or a revised
+    prompt set never counts older records as filling its cells.
+    """
+
+    batch_id: Optional[str]
     project_type: str
     task_id: str
+    prompt_set_version: Optional[str]
     level: Optional[str]
     wording: Optional[str]
     model_id: str
@@ -107,7 +122,8 @@ SLUG = "a slug (lower-case letters, digits, '.', '_' or '-')"
 WORD = "text with no spaces"
 TEXT = "non-empty text"
 COUNT = "a whole number of at least 0"
-PATH = ("a relative path using / with no empty, '.' or '..' parts, "
+PATH = ("a relative path using / with no empty, '.' or '..' parts, no part "
+        "ending in a space or dot, no Windows reserved name (CON, NUL, COM1...), "
         "and no drive, colon or backslash")
 JSON_VALUE = ("JSON (finite numbers, text, true/false, null, lists, "
               "objects with text keys)")
@@ -137,7 +153,9 @@ def _is_relative_path(value):
     if not isinstance(value, str) or not value:
         return False
     return all(
-        _PATH_PART.fullmatch(part) and part not in (".", "..")
+        _PATH_PART.fullmatch(part)
+        and not part.endswith((" ", "."))  # also rules out "." and ".."
+        and part.split(".")[0].rstrip(" ").upper() not in RESERVED_STEMS
         for part in value.split("/")
     )
 
@@ -173,6 +191,8 @@ def _timestamp_problem(value):
                 "such as 2026-11-25T14:03:07Z")
     if match.group(2) is None:
         return "has no time zone (naive); it must end in Z"
+    if match.group(2) == "-00:00":  # RFC 3339: "UTC time, local offset unknown"
+        return "must be in UTC (Z or +00:00)"
     try:
         moment = datetime.datetime.fromisoformat(value)
     except ValueError:
@@ -222,9 +242,12 @@ def _check_file_list(problems, entries, where, seen_paths):
         if "path" in entry:
             path = entry["path"]
             if problems.expect(_is_relative_path(path), f"{at}.path", PATH):
-                if path in seen_paths:
-                    problems.add(at, f"repeats the file path {path!r}")
-                seen_paths.add(path)
+                # Windows and macOS file systems ignore case by default.
+                folded = path.casefold()
+                if folded in seen_paths:
+                    problems.add(at, f"repeats the file path {path!r} "
+                                     "(compared ignoring case)")
+                seen_paths.add(folded)
         if "sha256" in entry:
             problems.expect(
                 isinstance(entry["sha256"], str)
@@ -259,11 +282,40 @@ def _check_checks(problems, entries, seen_paths):
             _check_file_list(problems, entry["files"], f"{at}.files", seen_paths)
 
 
-def _check_features(problems, entries):
+def _check_extractors(problems, entries):
+    """Check the ``extractors`` list; return {extractor: version}, or None if
+    the list is too broken to check features against."""
+    if not problems.expect(isinstance(entries, list), "extractors", "a list"):
+        return None
+    listed, whole = {}, True
+    for index, entry in enumerate(entries):
+        at = f"extractors[{index}]"
+        if not _keys(problems, entry, at, EXTRACTOR_FIELDS):
+            whole = False
+            continue
+        valid = True
+        if "extractor" in entry:
+            valid &= problems.expect(_is_slug(entry["extractor"]),
+                                     f"{at}.extractor", SLUG)
+        if "extractor_version" in entry:
+            valid &= problems.expect(_is_word(entry["extractor_version"]),
+                                     f"{at}.extractor_version", WORD)
+        if not valid or any(key not in entry for key in EXTRACTOR_FIELDS):
+            whole = False
+            continue
+        name = entry["extractor"]
+        if name in listed:
+            problems.add(at, f"repeats extractor {name!r}")
+            whole = False
+            continue
+        listed[name] = entry["extractor_version"]
+    return listed if whole else None
+
+
+def _check_features(problems, entries, listed):
     if not problems.expect(isinstance(entries, list), "features", "a list"):
         return
     seen = set()
-    versions = {}
     for index, entry in enumerate(entries):
         at = f"features[{index}]"
         if not _keys(problems, entry, at, FEATURE_FIELDS):
@@ -286,10 +338,13 @@ def _check_features(problems, entries):
         if (extractor, name) in seen:
             problems.add(at, f"repeats feature {name!r} from extractor {extractor!r}")
         seen.add((extractor, name))
-        first = versions.setdefault(extractor, version)
-        if first != version:
-            problems.add(at, f"extractor {extractor!r} appears with versions "
-                             f"{first!r} and {version!r}")
+        if listed is None:
+            continue
+        if extractor not in listed:
+            problems.add(at, f"extractor {extractor!r} is not listed in extractors")
+        elif listed[extractor] != version:
+            problems.add(at, f"extractor {extractor!r} version {version!r} does not "
+                             f"match extractors ({listed[extractor]!r})")
 
 
 def validate_record(record):
@@ -328,11 +383,21 @@ def validate_record(record):
         problems.expect(get("source_note") is None or _is_text(get("source_note")),
                         "source_note", TEXT + " or null")
 
+    if has("batch_id"):
+        problems.expect(get("batch_id") is None or _is_word(get("batch_id")),
+                        "batch_id", WORD + " or null")
     for name in ("project_type", "task_id", "provider"):
         if has(name):
             problems.expect(_is_slug(get(name)), name, SLUG)
+    if has("gateway"):
+        problems.expect(get("gateway") is None or _is_slug(get("gateway")),
+                        "gateway", SLUG + " or null")
     if has("model_id"):
         problems.expect(_is_word(get("model_id")), "model_id", WORD)
+    for name in ("model_id_returned", "request_id"):
+        if has(name):
+            problems.expect(get(name) is None or _is_word(get(name)),
+                            name, WORD + " or null")
     if has("prompt_text"):
         problems.expect(_is_text(get("prompt_text")), "prompt_text", TEXT)
 
@@ -408,16 +473,19 @@ def validate_record(record):
         raw = get("raw_response")
         if problems.expect(raw is None or isinstance(raw, str),
                            "raw_response", "text or null"):
-            if status_ok and status == "ok" and not raw:
-                problems.add("raw_response", "an ok record needs the raw response")
+            # Stored unedited; stripping is only for this test.
+            if status_ok and status == "ok" and not (raw or "").strip():
+                problems.add("raw_response", "an ok record needs the raw response "
+                                             "(not empty or only whitespace)")
 
     seen_paths = set()
     if has("files"):
         _check_file_list(problems, get("files"), "files", seen_paths)
     if has("checks"):
         _check_checks(problems, get("checks"), seen_paths)
+    listed = _check_extractors(problems, get("extractors")) if has("extractors") else None
     if has("features"):
-        _check_features(problems, get("features"))
+        _check_features(problems, get("features"), listed)
 
     return problems.items
 
@@ -471,19 +539,26 @@ def build_record(
     files=(),
     checks=(),
     features=(),
+    extractors=None,
     record_id=None,
+    batch_id=None,
+    gateway=None,
+    model_id_returned=None,
+    request_id=None,
 ):
     """Return a new valid record; raise :class:`RecordError` listing all problems.
 
     ``timestamp`` may be a timezone-aware datetime or record timestamp text and
     defaults to now. ``tokens`` may give only the counts that are known.
-    ``record_id`` defaults to a new random UUID. Inputs are copied.
+    ``record_id`` defaults to a new random UUID. ``extractors`` defaults to
+    the extractors named in ``features``. Inputs are copied.
     """
     if isinstance(timestamp, datetime.datetime):
         timestamp = format_timestamp(timestamp)
     record = {
         "schema_version": SCHEMA_VERSION,
         "record_id": record_id if record_id is not None else str(uuid.uuid4()),
+        "batch_id": batch_id,
         "source": source,
         "source_note": source_note,
         "project_type": project_type,
@@ -494,7 +569,9 @@ def build_record(
         "run_index": run_index,
         "prompt_text": prompt_text,
         "provider": provider,
+        "gateway": gateway,
         "model_id": model_id,
+        "model_id_returned": model_id_returned,
         "surface": surface,
         "system_prompt": system_prompt,
         "settings": {} if settings is None else settings,
@@ -504,9 +581,12 @@ def build_record(
         "status": status,
         "error": error,
         "stop_reason": stop_reason,
+        "request_id": request_id,
         "raw_response": raw_response,
         "files": list(files),
         "checks": list(checks),
+        "extractors": (_extractors_of(features) if extractors is None
+                       else list(extractors)),
         "features": list(features),
     }
     record = copy.deepcopy(record)
@@ -514,17 +594,41 @@ def build_record(
     return record
 
 
+def _extractors_of(features):
+    """The extractors named in feature entries, first appearance first."""
+    listed = {}
+    for entry in features:
+        if isinstance(entry, dict):
+            listed.setdefault(entry.get("extractor"), entry.get("extractor_version"))
+    return [{"extractor": name, "extractor_version": version}
+            for name, version in listed.items()]
+
+
 def cell_key(record):
-    """The :class:`CellKey` of a record: type, task, level, wording, model,
-    surface and run index."""
+    """The :class:`CellKey` of a record: batch, type, task, prompt-set
+    version, level, wording, model, surface and run index."""
     return CellKey(*(record[name] for name in CellKey._fields))
 
 
 def with_features(record, extractor, extractor_version, values):
     """A copy of ``record`` whose features from ``extractor`` are replaced by
     ``values`` (a mapping of feature name to JSON value), all at
-    ``extractor_version``. Entries from other extractors are kept."""
+    ``extractor_version``, and whose ``extractors`` entry for it is set to that
+    version. Empty ``values`` records that the extractor ran and found nothing.
+    Entries from other extractors are kept. To store the result, rewrite the
+    file with :func:`write_records`."""
     record = copy.deepcopy(record)
+    marker = {"extractor": extractor, "extractor_version": extractor_version}
+    listed = record.get("extractors", [])
+    if not isinstance(listed, list):
+        listed = []
+    for index, entry in enumerate(listed):
+        if isinstance(entry, dict) and entry.get("extractor") == extractor:
+            listed[index] = marker
+            break
+    else:
+        listed.append(marker)
+    record["extractors"] = listed
     kept = [entry for entry in record.get("features", [])
             if not (isinstance(entry, dict) and entry.get("extractor") == extractor)]
     added = [
@@ -623,6 +727,58 @@ def repair_tail(path):
         handle.flush()
         os.fsync(handle.fileno())
     return data[keep:]
+
+
+def write_records(path, records, *, discard_problem_lines=False):
+    """Replace the file at ``path`` with ``records``, atomically.
+
+    For rewriting a file, such as after re-running an extractor over every
+    record. All records are validated (and record ids checked for repeats)
+    before anything is written. The new content goes to a temporary file in
+    the same directory, is flushed to disk, then replaces the old file with
+    ``os.replace``, so a crash leaves either the old file or the new one.
+
+    If the existing file has bad lines or an unterminated last line, they are
+    not in ``records`` and would be lost, so this raises :class:`RecordError`
+    unless ``discard_problem_lines`` is true. One writer per file.
+    """
+    path = Path(path)
+    records = list(records)
+    errors, seen = [], {}
+    for index, record in enumerate(records):
+        errors += [f"records[{index}]: {message}"
+                   for message in validate_record(record)]
+        if isinstance(record, dict) and isinstance(record.get("record_id"), str):
+            first = seen.setdefault(record["record_id"], index)
+            if first != index:
+                errors.append(f"records[{index}]: repeats record_id "
+                              f"{record['record_id']} from records[{first}]")
+    if errors:
+        raise RecordError(errors)
+    if path.exists() and not discard_problem_lines:
+        existing = read_records(path)
+        lost = list(existing.problems)
+        if existing.truncated_tail:
+            lost.append(existing.truncated_tail)
+        if lost:
+            lines = ", ".join(str(problem.line) for problem in lost)
+            raise RecordError(f"{path.name}: lines {lines} are not valid records "
+                              "and would be lost; fix them or pass "
+                              "discard_problem_lines=True")
+    data = b"".join((dumps_record(record) + "\n").encode("ascii")
+                    for record in records)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = tempfile.NamedTemporaryFile(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False)
+    try:
+        with handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(handle.name, path)
+    except BaseException:
+        Path(handle.name).unlink(missing_ok=True)
+        raise
 
 
 def _no_constant(name):

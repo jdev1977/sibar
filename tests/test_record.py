@@ -25,6 +25,7 @@ from runner.record import (
     repair_tail,
     validate_record,
     with_features,
+    write_records,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,6 +148,7 @@ def test_rejects_naive_timestamp(good):
     "timestamp, reason",
     [
         ("2026-11-25T15:03:07+01:00", "must be in UTC"),
+        ("2026-11-25T14:03:07-00:00", "must be in UTC"),
         ("2026-11-25", "must be an ISO 8601"),
         ("2026-02-30T10:00:00Z", "not a real date"),
         ("yesterday", "must be an ISO 8601"),
@@ -189,12 +191,33 @@ def test_rejects_file_path_with_parent_or_empty_parts(good, path):
     assert "files[0].path:" in errors_for(good)
 
 
+@pytest.mark.parametrize(
+    "path",
+    ["index.html.", "src /a.js", "a/b ", "CON", "con.txt", "src/nul.js",
+     "COM1.js", "lpt9", "Aux .txt", "prn.tar.gz"],
+)
+def test_rejects_trailing_space_or_dot_and_windows_reserved_names(good, path):
+    good["files"][0]["path"] = path
+    assert "files[0].path: must be a relative path" in errors_for(good)
+
+
+@pytest.mark.parametrize("path", ["console.js", "com10.js", "conx/a.js", ".github/x.yml", "a b.txt"])
+def test_accepts_names_close_to_reserved_ones(good, path):
+    good["files"][0]["path"] = path
+    assert validate_record(good) == []
+
+
+def test_rejects_file_paths_differing_only_in_case(good):
+    good["checks"][0]["files"][0]["path"] = "INDEX.html"
+    assert "repeats the file path 'INDEX.html' (compared ignoring case)" in errors_for(good)
+
+
 def test_rejects_bad_path_in_check_files(good):
     good["checks"][0]["files"][0]["path"] = "../shot.png"
     assert "checks[0].files[0].path:" in errors_for(good)
 
 
-@pytest.mark.parametrize("raw", [None, ""])
+@pytest.mark.parametrize("raw", [None, "", "  \n\t "])
 def test_rejects_ok_record_without_raw_response(good, raw):
     good["raw_response"] = raw
     assert "raw_response: an ok record needs the raw response" in errors_for(good)
@@ -328,9 +351,42 @@ def test_rejects_repeated_feature(good):
     assert "features[1]: repeats feature 'fonts' from extractor 'website-css'" in errors_for(good)
 
 
-def test_rejects_two_versions_of_one_extractor(good):
+def test_rejects_feature_version_not_matching_extractors(good):
     good["features"][1]["extractor_version"] = "2"
-    assert "features[1]: extractor 'website-css' appears with versions" in errors_for(good)
+    assert ("features[1]: extractor 'website-css' version '2' does not match "
+            "extractors ('1')") in errors_for(good)
+
+
+def test_rejects_feature_from_unlisted_extractor(good):
+    good["extractors"] = [good["extractors"][1]]
+    assert "features[0]: extractor 'website-css' is not listed in extractors" in errors_for(good)
+
+
+def test_rejects_repeated_extractor(good):
+    good["extractors"].append({"extractor": "website-css", "extractor_version": "2"})
+    assert "extractors[2]: repeats extractor 'website-css'" in errors_for(good)
+
+
+def test_extractor_that_found_nothing_is_recorded(good):
+    assert {"extractor": "website-icons", "extractor_version": "1"} in good["extractors"]
+    assert not any(f["extractor"] == "website-icons" for f in good["features"])
+    assert validate_record(good) == []
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [("batch_id", "pilot 1"), ("gateway", "Some Gateway"),
+     ("model_id_returned", "a b"), ("request_id", 5)],
+)
+def test_rejects_bad_optional_identifiers(good, key, value):
+    good[key] = value
+    assert f"{key}:" in errors_for(good)
+
+
+def test_optional_identifiers_may_be_null(good):
+    good.update(batch_id=None, gateway="some-gateway", model_id_returned=None,
+                request_id=None)
+    assert validate_record(good) == []
 
 
 # --- Building records --------------------------------------------------------
@@ -346,6 +402,9 @@ def test_build_record_fills_defaults():
     assert record["settings"] == {}
     assert record["tokens"] == {"input": None, "output": None, "reasoning": None}
     assert record["files"] == record["checks"] == record["features"] == []
+    assert record["extractors"] == []
+    for key in ("batch_id", "gateway", "model_id_returned", "request_id"):
+        assert record[key] is None
     assert record["timestamp"].endswith("Z")
     assert list(record) == list(json.loads(FIXTURE.read_text(encoding="utf-8")))
 
@@ -373,6 +432,13 @@ def test_build_record_raises_with_every_error():
     assert "level:" in str(caught.value)
 
 
+def test_build_record_lists_extractors_from_features():
+    feature = {"name": "fonts", "value": [], "extractor": "website-css",
+               "extractor_version": "3"}
+    record = minimal(features=[feature])
+    assert record["extractors"] == [{"extractor": "website-css", "extractor_version": "3"}]
+
+
 def test_build_record_copies_its_inputs():
     settings = {"max_tokens": 10}
     record = minimal(settings=settings)
@@ -385,7 +451,8 @@ def test_build_record_copies_its_inputs():
 
 def test_cell_key(good):
     assert cell_key(good) == CellKey(
-        project_type="website", task_id="bakery", level="L0", wording="A",
+        batch_id="pilot-1", project_type="website", task_id="bakery",
+        prompt_set_version="1", level="L0", wording="A",
         model_id="example-model-1", surface="api", run_index=1,
     )
 
@@ -395,8 +462,11 @@ def test_cell_key_ignores_fields_outside_the_cell(good):
     other.update(record_id="00000000-0000-4000-8000-000000000000", status="failed",
                  timestamp="2027-01-01T00:00:00Z")
     assert cell_key(other) == cell_key(good)
-    other["run_index"] = 2
-    assert cell_key(other) != cell_key(good)
+    for key, value in (("run_index", 2), ("batch_id", "pilot-2"),
+                       ("prompt_set_version", "2")):
+        changed = copy.deepcopy(other)
+        changed[key] = value
+        assert cell_key(changed) != cell_key(good), key
 
 
 # --- JSON Lines files ----------------------------------------------------------
@@ -562,9 +632,21 @@ def test_with_features_replaces_one_extractors_entries(good):
         {"name": "fonts", "value": ["Inter"], "extractor": "website-css", "extractor_version": "2"},
         {"name": "radius_px", "value": 8, "extractor": "website-css", "extractor_version": "2"},
     ]
+    assert updated["extractors"] == [
+        {"extractor": "website-css", "extractor_version": "2"},
+        {"extractor": "website-icons", "extractor_version": "1"},
+    ]
     both = with_features(updated, "website-html", "1", {"headings": 3})
     assert len(both["features"]) == 3
+    assert both["extractors"][-1] == {"extractor": "website-html", "extractor_version": "1"}
     assert validate_record(both) == []
+
+
+def test_with_features_marks_an_extractor_that_found_nothing(good):
+    updated = with_features(good, "website-css", "2", {})
+    assert updated["features"] == []
+    assert {"extractor": "website-css", "extractor_version": "2"} in updated["extractors"]
+    assert validate_record(updated) == []
 
 
 def test_with_features_validates(good):
@@ -606,3 +688,51 @@ def test_cli_checks_files_on_disk_when_asked(tmp_path, good):
     result = run_cli("--files", path)
     assert result.returncode == 1
     assert "index.html is missing" in result.stdout
+
+
+# --- Rewriting a file --------------------------------------------------------------
+
+
+def test_write_records_rewrites_after_re_extraction(tmp_path, good):
+    path = tmp_path / "runs.jsonl"
+    append_record(path, good)
+    append_record(path, minimal(run_index=2))
+    records = read_records(path).records
+    updated = [with_features(r, "website-html", "1", {"headings": 1}) for r in records]
+    write_records(path, updated)
+    assert read_records(path).records == updated
+    assert [p.name for p in tmp_path.iterdir()] == ["runs.jsonl"]  # no temp file left
+
+
+def test_write_records_creates_a_new_file(tmp_path, good):
+    path = tmp_path / "new" / "runs.jsonl"
+    write_records(path, [good])
+    assert read_records(path).records == [good]
+
+
+def test_write_records_validates_everything_before_writing(tmp_path, good):
+    path = tmp_path / "runs.jsonl"
+    append_record(path, good)
+    before = path.read_bytes()
+    bad = minimal(run_index=2)
+    bad["level"] = "L8"
+    with pytest.raises(RecordError) as caught:
+        write_records(path, [good, bad, copy.deepcopy(good)])
+    message = str(caught.value)
+    assert "records[1]: level:" in message
+    assert "records[2]: repeats record_id" in message
+    assert path.read_bytes() == before
+
+
+def test_write_records_refuses_to_drop_problem_lines(tmp_path, good):
+    path = tmp_path / "runs.jsonl"
+    append_record(path, good)
+    with open(path, "ab") as handle:
+        handle.write(b'garbage\n{"partial')
+    before = path.read_bytes()
+    with pytest.raises(RecordError, match="lines 2, 3"):
+        write_records(path, [good])
+    assert path.read_bytes() == before
+    write_records(path, [good], discard_problem_lines=True)
+    result = read_records(path)
+    assert result.records == [good] and result.ok and result.truncated_tail is None

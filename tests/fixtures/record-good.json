@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "record_id": "3f2b8c1e-7d4a-4e9b-9c5f-0a1b2c3d4e5f",
+  "batch_id": "pilot-1",
   "source": "controlled",
   "source_note": null,
   "project_type": "website",
@@ -11,7 +12,9 @@
   "run_index": 1,
   "prompt_text": "Make a website for a bakery.",
   "provider": "example",
+  "gateway": null,
   "model_id": "example-model-1",
+  "model_id_returned": "example-model-1-20261101",
   "surface": "api",
   "system_prompt": null,
   "settings": {"max_tokens": 16000},
@@ -21,6 +24,7 @@
   "status": "ok",
   "error": null,
   "stop_reason": "end_turn",
+  "request_id": "req_0123456789abcdef",
   "raw_response": "Here is a website for a bakery.\n\n```html\n<!doctype html>\n<html lang=\"en\">\n<head><title>Golden Crust Bakery</title></head>\n<body><h1>Golden Crust Bakery</h1></body>\n</html>\n```\n",
   "files": [
     {
@@ -44,6 +48,10 @@
         }
       ]
     }
+  ],
+  "extractors": [
+    {"extractor": "website-css", "extractor_version": "1"},
+    {"extractor": "website-icons", "extractor_version": "1"}
   ],
   "features": [
     {
