@@ -289,3 +289,70 @@ def test_pyyaml_is_pinned():
     text = (ROOT / "requirements.txt").read_text(encoding="utf-8")
 
     assert re.search(r"^PyYAML==\d+\.\d+\.\d+$", text, re.MULTILINE)
+
+
+# Price tiers above a prompt-size threshold.
+
+def tier(above, input_price=3, output_price=14):
+    return {
+        "above_input_tokens": above,
+        "input_price_per_mtok_usd": input_price,
+        "output_price_per_mtok_usd": output_price,
+    }
+
+
+def test_price_tiers_default_to_none(tmp_path):
+    assert load(tmp_path, document()).get("a").price_tiers == ()
+
+
+def test_price_tiers_are_typed(tmp_path):
+    data = document()
+    data["models"][0]["price_tiers"] = [tier(1000), tier(2000, 4, 15)]
+
+    first, second = load(tmp_path, data).get("a").price_tiers
+
+    assert (first.above_input_tokens, first.input_price_per_mtok_usd,
+            first.output_price_per_mtok_usd) == (1000, 3, 14)
+    assert second.above_input_tokens == 2000
+
+
+@pytest.mark.parametrize("tiers", [
+    None, [], {}, "above 100K", [5],
+    [tier(0)], [tier(-1)], [tier(1.5)], [tier("100K")], [tier(True)],
+    [tier(1000, None)], [tier(1000, 3, None)], [tier(1000, "3")],
+    [tier(1000, 3, float("inf"))],
+    [{"above_input_tokens": 1000, "input_price_per_mtok_usd": 3}],
+    [dict(tier(1000), extra=1)],
+    [tier(2000), tier(1000)], [tier(1000), tier(1000)],
+    # a longer prompt is never cheaper
+    [tier(1000, 1.4, 14)], [tier(1000, 3, 6)],
+    [tier(1000), tier(2000, 2, 15)],
+])
+def test_rejects_bad_price_tiers(tmp_path, tiers):
+    data = document()
+    data["models"][0]["price_tiers"] = tiers
+    rejects(tmp_path, data, "price_tiers")
+
+
+@pytest.mark.parametrize("key", ["input_price_per_mtok_usd",
+                                 "output_price_per_mtok_usd"])
+def test_rejects_price_tiers_without_a_base_price(tmp_path, key):
+    data = document()
+    data["models"][0][key] = None
+    data["models"][0]["notes"][key] = "could not be verified"
+    data["models"][0]["price_tiers"] = [tier(1000)]
+    rejects(tmp_path, data, "price_tiers")
+
+
+def test_committed_price_tiers_match_the_notes(committed):
+    tiers = {
+        m.id: [(t.above_input_tokens, t.input_price_per_mtok_usd,
+                t.output_price_per_mtok_usd) for t in m.price_tiers]
+        for m in committed.models if m.price_tiers
+    }
+
+    assert tiers == {
+        "claude-haiku-5-5": [(100000, 0.50, 2.50)],
+        "gpt-6.2-sol": [(272000, 4.00, 15.00)],
+        "gpt-6-luna": [(272000, 0.20, 0.75)],
+    }
