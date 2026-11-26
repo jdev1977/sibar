@@ -80,6 +80,12 @@ there is a conflict ..., the additional terms will control for that conflict."
   settings, Google uses your chats to respond to you and help protect Google,
   our users, and the public, including with help from human reviewers." With
   history off, chats are still "saved for around 2 months".
+- Training exception: with the setting off, "Your future chats won't be used to
+  train generative AI models, unless you provide feedback." If you submit
+  feedback with History off, Google collects "your feedback" and "context that
+  can help us better understand your feedback, including the last 24 hours of
+  your chats"; reviewed feedback and associated conversations are "retained for
+  up to 3 years".
 
 ## Reading (not legal advice)
 

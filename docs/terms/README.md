@@ -50,7 +50,7 @@ and keeps interpretation under a separate "Reading" heading.
 |---|---|---|---|
 | Automation | forbidden except through an API key | no automatic or programmatic extraction | no automated access against robots-style instructions |
 | Ownership | assigned to user | user owns | Google claims no ownership |
-| Chats used for training | yes unless opted out; even then feedback and chats flagged for safety review | yes unless opted out | per Gemini History settings; used for safety with human review regardless |
+| Chats used for training | yes unless opted out; even then feedback and chats flagged for safety review | yes unless opted out | per Gemini History settings; with the setting off, still used for training if you provide feedback; used for safety with human review regardless |
 | Publication duties | none found beyond the Usage Policy (no plagiarism, no misleading origin) | Sharing & Publication Policy applies: review each one, attribute, label as AI | do not mislead others that AI content was made by a human |
 | Training other models on outputs | not to develop competing products, "including to develop or train any artificial intelligence or machine learning algorithms or models"; Usage Policy distillation rule | not for substitute models (Usage Policies); "Use Output to develop models that compete with OpenAI" | not "to develop machine learning models or related AI technology", with no competition limit |
 
@@ -63,9 +63,10 @@ automation rules.
    case: the APIs Terms limit distributing "content returned from the APIs"
    without the content owner's permission, and Google names no owner.
 2. Explicit disclosure duties come from DeepSeek (label and verify) and OpenAI
-   (review, attribute, label; for the API and for ChatGPT alike). A visible AI-generated label on every published
-   record, with model and date, appears to meet the labelling part for all
-   four; it does not cover review, verification or attribution.
+   (review, attribute, label; for the API and for ChatGPT alike). A visible
+   AI-generated label on every published record, with model and date, appears
+   to meet the labelling part for all four; it does not cover review,
+   verification or attribution.
 3. Through the API, Anthropic, OpenAI and Google forbid training competing (or,
    for OpenAI, substitute) models on outputs; a public dataset lets anyone do
    that. Anthropic's §D.4(c) ("support any third party's attempt") and OpenAI's
@@ -127,8 +128,10 @@ Data handling
 - [ ] Whether DeepSeek is acceptable, given storage in China, PRC law and terms
   that do not settle training on API data.
 - [ ] Account settings for T5.1: training opt-out on or off; temporary or
-  incognito chats; no thumbs-up or thumbs-down ratings (Claude.ai counts them as
-  Feedback used for training even after opting out).
+  incognito chats; no thumbs-up or thumbs-down ratings or other feedback
+  (Claude.ai counts ratings as Feedback used for training even after opting
+  out; Gemini Apps uses chats for training, with the setting off, "unless you
+  provide feedback").
 - [ ] Whether sibar's own tagger or scoring (T2.5, T4) may be run on T5.1
   outputs from Gemini Apps and Claude.ai, given their consumer training rules,
   and whether those outputs may be published.

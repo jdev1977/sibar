@@ -74,10 +74,10 @@ other automatic setups" (§3.5(3)).
   third-party-training concern.
 - Its terms also impose duties on publication, as OpenAI's Sharing &
   Publication Policy does: every published DeepSeek output must be marked as
-  AI-generated and checked for accuracy first. For a dataset of default outputs, "verify the authenticity and
-  accuracy" cannot mean correcting them (sibar stores them unedited); a clear
-  notice that outputs are unverified AI text is the nearest fit, but the text
-  does not say whether that suffices.
+  AI-generated and checked for accuracy first. For a dataset of default
+  outputs, "verify the authenticity and accuracy" cannot mean correcting them
+  (sibar stores them unedited); a clear notice that outputs are unverified AI
+  text is the nearest fit, but the text does not say whether that suffices.
 - §5.2 read literally forbids using the name "DeepSeek" "in any way" without
   permission, which would cover naming the model in a public record. §5.3
   suggests the aim is brand misuse, but there is no exception for factual
