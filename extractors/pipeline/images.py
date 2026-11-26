@@ -28,7 +28,8 @@ _ORIENTATION = tuple((name, re.compile(pattern, flags)) for name, pattern, flags
     ("auto-orient", r"auto[-_]?orient|\bautorot|\bAutoOrientation\b", re.IGNORECASE),
     ("orientation-tag", r"\b0x0112\b|[\"']Orientation[\"']|\bOrientation\b ?[\])=:]|"
                         r"\bget\( ?274\b|\[ ?274 ?\]|"
-                        r"(?<![A-Za-z])ORIENTATION(?![A-Za-z])", 0),
+                        r"(?<![A-Za-z_])(?:EXIF_)?ORIENTATION(?:_TAG|_KEY|_ID)?"
+                        r"(?![A-Za-z_])", 0),
 ))
 _SHARP_ROTATE = re.compile(r"\.rotate\(\s?\)")
 # an ``exif`` keyword argument of a call, not a variable that holds the data
@@ -48,8 +49,10 @@ _METADATA = tuple((name, kind, re.compile(pattern, flags))
                             r"\bpiexif\.(?:insert|transplant)\(", 0),
     ("with-metadata", "keeps", r"\.(?:withMetadata|keepMetadata|keepExif)\(", 0),
 ))
-# a parameter's default is no call
-_DEFINITION = re.compile(r"^[ \t]{0,40}(?:async )?def [^\n]*$", re.MULTILINE)
+# a parameter's default is no call, on one line or several
+_DEFINITION = re.compile(
+    r"^[ \t]{0,40}(?:async )?def \w{1,80} ?\((?:[^()]|\([^()]{0,100}\)){0,600}\)",
+    re.MULTILINE)
 
 # --- saving an image in Python --------------------------------------------------
 
@@ -126,5 +129,5 @@ def images(inputs):
     })
 
 
-EXTRACTOR = Extractor("pipeline.images", "2", "pipeline", images,
+EXTRACTOR = Extractor("pipeline.images", "3", "pipeline", images,
                       "image libraries, orientation and metadata handling")

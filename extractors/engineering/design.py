@@ -8,6 +8,7 @@ from extractors.base import Extractor
 from extractors.common import code, units
 from extractors.common.numbers import NUMBER, canonical, normalise, parse
 from extractors.common.response import NO_INPUT, get_doc, result
+from runner.files import EXTENSIONS
 
 MAX_HITS = 500
 _CODE = code.PROGRAMMING | code.SCRIPTING | {"openscad"}
@@ -48,18 +49,26 @@ def _one(values, none="not-stated"):
 # --- units --------------------------------------------------------------------
 
 
+def _block_language(block):
+    suffix = EXTENSIONS.get(block.language, "txt" if not block.language else "")
+    return code.language_of(f"block.{suffix}", block.body) if suffix else None
+
+
 def _read_quantities(doc):
-    """Quantities of the working, and of code outside its strings: the text of
-    a plot label is not a dimension, and its closing quote is not inches."""
-    found = units.quantities(normalise(doc.working).replace("$", ""))
-    for source in doc.files:
-        if source.language not in _CODE:
+    """Quantities of the prose and of every block. A program is read outside
+    its strings: the text of a plot label is not a dimension, and its closing
+    quote is not inches. Every other block (data, notes, drawings) is read
+    whole."""
+    whole, found = [doc.prose], []
+    for block in doc.blocks:
+        language = _block_language(block)
+        if language not in _CODE:
+            whole.append(block.body)
             continue
-        parts = code.split("c" if source.language == "openscad" else source.language,
-                           source.text)
+        parts = code.split("c" if language == "openscad" else language, block.body)
         outside = "\n".join((parts.bare, *parts.comments))
         found += units.quantities(normalise(outside), quotes=False)
-    return found
+    return units.quantities(normalise("\n".join(whole)).replace("$", "")) + found
 
 
 def _found_quantities(inputs):
@@ -375,7 +384,7 @@ def _cad(inputs, doc, text):
             "cad_parameters": sorted(parameters)[:100]}
 
 
-_VERSIONS = {"units": "2", "safety": "2", "quantities": "2"}
+_VERSIONS = {"units": "3", "safety": "2", "quantities": "3"}
 EXTRACTORS = tuple(
     Extractor(f"engineering.{name}", _VERSIONS.get(name, "1"), "engineering",
               _extractor_values(build), summary)

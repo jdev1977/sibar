@@ -237,6 +237,6 @@ EXTRACTORS = (
               "logging library or print"),
     Extractor("pipeline.config", "1", "pipeline", config,
               "configuration sources and where a key is read from"),
-    Extractor("pipeline.operations", "2", "pipeline", operations,
+    Extractor("pipeline.operations", "3", "pipeline", operations,
               "retries, file reading, output formats, parallel work"),
 )

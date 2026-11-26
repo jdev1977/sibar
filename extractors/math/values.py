@@ -210,7 +210,24 @@ def _acid(symbol):
             rf" ?(?:=|≈|:|\||\bis\b|\bof\b) ?{_VALUE}")
 
 
-_POWER_OF_TEN = re.compile(r"10 ?\^ ?[{(]?(-\d{1,3})")
+# 10^-14 or 10^-4.76, and the decimal the sentence may go on to give for it
+_POWER_OF_TEN = re.compile(r"10 ?\^ ?[{(]?(-\d{1,3}(?:\.\d{1,6})?)(?!\.?\d)")
+_THEN = re.compile(r"[)}]? ?(?:=|≈) ?")
+
+
+def _power(text, match):
+    """The value of a power of ten. With a whole exponent it is exact; with a
+    decimal one, the number written for it, else three figures of it."""
+    exponent = float(match[1])
+    if exponent.is_integer():
+        return float(f"1e{int(exponent)}")
+    then = _THEN.match(text, match.end())
+    written = then and NUMBER.match(text, then.end())
+    if written:
+        value = parse(written).value
+        if value > 0 and abs(value / 10 ** exponent - 1) < 0.05:
+            return value
+    return float(f"{10 ** exponent:.3g}")
 
 
 # feature -> (relevance, patterns, lowest, highest, units to SI factor)
@@ -248,7 +265,7 @@ def _constant(text, patterns, low, high, factors):
             if not match:
                 continue
             power = _POWER_OF_TEN.match(text, hit.end())    # Kw = 10^-14
-            value = float(f"1e{power[1]}") if power else parse(match).value
+            value = _power(text, power) if power else parse(match).value
             unit = ""
             if factors:
                 after = _UNIT.match(text, match.end())
@@ -316,12 +333,12 @@ def code_features(inputs):
 
 
 EXTRACTORS = (
-    Extractor("math.precision", "2", "math", precision,
+    Extractor("math.precision", "3", "math", precision,
               "significant figures and decimals of the results"),
-    Extractor("math.units", "2", "math", unit_features,
+    Extractor("math.units", "3", "math", unit_features,
               "unit system and the writing of compound units"),
     Extractor("math.methods", "1", "math", methods, "named methods as keywords"),
-    Extractor("math.constants", "2", "math", constants,
+    Extractor("math.constants", "3", "math", constants,
               "the values of constants the answer assumes"),
     Extractor("math.code", "1", "math", code_features,
               "code and plotting code present"),

@@ -26,6 +26,10 @@ _METHOD_MODE = re.compile(
 # words that name a file, or what it holds, as configuration
 _CONFIGURATION = re.compile(
     r"config|setting|(?<![a-z])(?:cfg|conf)(?![a-z])|rules|schema", re.IGNORECASE)
+_LITERAL = re.compile(r"""(["'])([^"'\n]{0,200})\1""")
+# cfg["input"]: an entry looked up in an object
+_ENTRY = re.compile(r"(?<![\w.])([A-Za-z_][\w.]{0,100})\[[^\[\]\n]{0,100}\]")
+_CHAIN = re.compile(r"(?<![\w.])\.?[A-Za-z_]\w{0,60}(?:\.[A-Za-z_]\w{0,60}){0,8}")
 _CONFIG_LOAD = re.compile(
     r"\b(?:tomllib\.load|tomli\.load|toml\.load|yaml\.(?:safe_load|load|full_load)|"
     r"\w{0,20}(?:config|parser)\w{0,10}\.read_file)\( ?(\w{1,60})")
@@ -83,6 +87,24 @@ def _line_before(code, position):
     return code[max(position - 200, 0):position].rsplit("\n", 1)[-1]
 
 
+def _names_configuration(expression):
+    """Whether an expression names a configuration file: in a string
+    (``'config.json'``) or a name (``CONFIG_PATH``, ``args.config``). A value
+    taken from a configuration object (``config.input_path``,
+    ``settings['input']``) is a path to data."""
+    expression = _ENTRY.sub(
+        lambda m: " " if _CONFIGURATION.search(m[1]) else m[0], expression)
+    if any(_CONFIGURATION.search(m[2]) for m in _LITERAL.finditer(expression)):
+        return True
+    for match in _CHAIN.finditer(_LITERAL.sub(" ", expression)):
+        *objects, last = match[0].split(".")
+        if any(_CONFIGURATION.search(name) for name in objects if name != "self"):
+            continue
+        if _CONFIGURATION.search(last):
+            return True
+    return False
+
+
 def _opened(code):
     """``(handles, configuration handles)`` of the files opened for reading."""
     handles, configs = [], {m[1] for m in _hits(_CONFIG_LOAD, code)}
@@ -92,7 +114,7 @@ def _opened(code):
             if _IMAGE_OPEN.search(code[max(match.start() - 10, 0):match.end()]) \
                     or _WRITE_MODE.search(match["args"]) or _METHOD_MODE.search(call):
                 continue
-            if _CONFIGURATION.search(match["args"]) or _CONFIGURATION.search(name):
+            if _names_configuration(match["args"]) or _CONFIGURATION.search(name):
                 configs.add(name)
             elif name not in handles:
                 handles.append(name)
@@ -107,14 +129,17 @@ def reading(code):
     stream = {name for name, pattern in _STREAM if pattern.search(code)}
     for match in _hits(_JSON_LOAD, code):
         argument = code[match.end():match.end() + 150].split("\n")[0]
-        first = re.match(r" ?(\w{0,60})", argument)[1]
-        if (first in configs or _CONFIGURATION.search(argument)
-                or _CONFIGURATION.search(_line_before(code, match.start()))):
-            configs.add(first)
+        # the handle itself, as in json.load(f), not an object's attribute
+        handle = re.match(r" ?(\w{1,60}) ?[,)]", argument)
+        first = handle[1] if handle else ""
+        if (first in configs or _names_configuration(argument)
+                or _names_configuration(_line_before(code, match.start()))):
+            if first:
+                configs.add(first)
         else:
             whole.add("json-load")
     for match in _hits(_READ_TEXT, code):
-        if not _CONFIGURATION.search(_line_before(code, match.start())):
+        if not _names_configuration(_line_before(code, match.start())):
             whole.add("read-text")
     for match in _hits(_TABLE_READ, code):
         arguments = code[match.end():match.end() + 300].split("\n")[0]

@@ -44,6 +44,8 @@ PIECES = {
     "image-assign": "from PIL import Image\na = a.resize(",
     "in-memory": "a = b ", "acid": "Ka (", "acid-of": "Ka of ", "fraction": "1/",
     "mixed-fraction": "1 1/", "safety-n": "safety factor, n", "exif": "(exif = ",
+    "definition": "def f(", "entry": "config[", "chain": "a.",
+    "config-open": "with open(a.b[c].config.", "power": "Ka = 10^-4.",
 }
 
 

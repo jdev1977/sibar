@@ -23,12 +23,12 @@ outcome:
 
 extractor_versions:
   engineering.reply: "1"
-  engineering.units: "2"
+  engineering.units: "3"
   engineering.safety: "2"
   engineering.standards: "1"
   engineering.checks: "1"
   engineering.materials: "1"
-  engineering.quantities: "2"
+  engineering.quantities: "3"
   engineering.cad: "1"
   rubric.engineering: "1@*"
 

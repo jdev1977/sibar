@@ -600,10 +600,12 @@ Code: [extractors/common/](../extractors/common/),
 [extractors/pipeline/](../extractors/pipeline/),
 [extractors/math/](../extractors/math/),
 [extractors/engineering/](../extractors/engineering/). Versions are `1`,
-except `2` for `pipeline.operations`, `pipeline.images`, `pipeline.ci`,
-`math.precision`, `math.units`, `math.constants`, `engineering.units`,
-`engineering.safety` and `engineering.quantities` (review round 1). Which choice goes to an extractor and which to the model-read rubric is
-set in [rubrics.md](rubrics.md), "The split with the extractors".
+except where a review raised them: `2` for `pipeline.ci` and
+`engineering.safety`; `3` for `pipeline.operations`, `pipeline.images`,
+`math.precision`, `math.units`, `math.constants`, `engineering.units` and
+`engineering.quantities`. Which choice goes to an extractor and which to the
+model-read rubric is set in [rubrics.md](rubrics.md), "The split with the
+extractors".
 
 ### What is read
 
@@ -709,7 +711,7 @@ pipeline.
 |---|---|---|---|
 | `retry_present` | boolean | a retry library, or `retry`, `backoff`, `max_attempts` or a loop over attempts in the code, strings and comments aside. `urllib3` counts only where its `Retry` object is made | a retry under other words; whether it waits is the rubric's `retry_policy` |
 | `retry_libraries` | set | `tenacity`, `backoff`, `urllib3`, `p-retry` and others, by import | |
-| `file_reading` | categorical | `whole-file`, `streaming`, `both`, `none`, or `null` where a file is opened and no known read follows. Streaming: a loop over a file, `open(...)`, `fileinput` or `sys.stdin`, chunks, or a streaming call. A loop over content already read whole (`read().splitlines()`) is not streaming. Loading a configuration file (by its name, its handle or the variable it fills: `config`, `settings`, `cfg`, `conf`, `rules`, `schema`) counts for neither, and `Image.open` is not a text file | this is the second reading of "one line at a time"; the first is the sandbox's. A data file named like a configuration file is not counted; a loop over a parameter is seen only when its variable is named `line` |
+| `file_reading` | categorical | `whole-file`, `streaming`, `both`, `none`, or `null` where a file is opened and no known read follows. Streaming: a loop over a file, `open(...)`, `fileinput` or `sys.stdin`, chunks, or a streaming call. A loop over content already read whole (`read().splitlines()`) is not streaming. Loading a configuration file (by a file name in a string, a plain name such as `CONFIG_PATH` or `args.config`, its handle or the variable it fills: `config`, `settings`, `cfg`, `conf`, `rules`, `schema`) counts for neither; a path taken from a configuration object (`config.input_path`, `settings['input']`) is data, and `Image.open` is not a text file | this is the second reading of "one line at a time"; the first is the sandbox's. A data file named like a configuration file is not counted; a loop over a parameter is seen only when its variable is named `line` |
 | `read_calls` | set | the calls behind it: `read`, `readlines`, `read-text`, `table-read`, `json-load`, `list-of-rows`, `read-file`, `line-loop`, `readline`, `chunked`, `stream-api` | a loop over a parameter is seen only when its variable is named `line` |
 | `output_formats` | set | writing calls: `csv`, `json`, `jsonl`, `parquet`, `database`, `excel`, `html`, `plot`, `image`, `printed`. In Python with an image library, `image` is a `save` of an object made from an image call (or with a usual name such as `img`) | files written as plain text with a suffix chosen at run time; `json.dumps` for a log line counts as `json`; an image passed in under an unusual name and no type annotation |
 | `parallel_work` | set | `process-pool`, `thread-pool`, `asyncio` (`gather`, `TaskGroup`, `create_task`, `as_completed`, `wait`; `asyncio.run` alone is not parallel work), `promise-all`, `worker-threads`, `goroutines`, `rayon`, `shell-parallel` | parallelism inside a library |
@@ -797,7 +799,7 @@ about a titration). Values outside a plausible range are ignored.
 | `air_density` | `1.225` | `ρ =`, "air density ..." |
 | `projectile_mass` | `0.145 kg` | "mass ...", `m =`, with kg or g |
 | `projectile_diameter` | `0.074 m` | "diameter ...", `d =`, with m, cm or mm |
-| `ka_value`, `pka_value`, `kw_value` | `1.8e-05`, `4.74`, `1e-14` | `K_a`, `Kₐ`, `pK_a`, `K_w`, followed by `=`, `:`, "is" or "of", with a bracket or "of/for ..." between if need be; `10^-14` alone is a value |
+| `ka_value`, `pka_value`, `kw_value` | `1.8e-05`, `4.74`, `1e-14` | `K_a`, `Kₐ`, `pK_a`, `K_w`, followed by `=`, `:`, "is" or "of", with a bracket or "of/for ..." between if need be; a power of ten alone is a value (`10^-14`; with a decimal exponent, `10^-4.76`, the decimal written after it, else three figures) |
 
 Blind spots: a value given only in code or only in a table without a symbol
 or name beside it; a radius given instead of a diameter reads as
@@ -806,9 +808,13 @@ or name beside it; a radius given instead of a diameter reads as
 ### engineering.units, engineering.safety, engineering.standards
 
 The engineering extractors read the whole reply, code and comments included.
-Quantities are the exception: they are read from the working, the code's
-comments and the code outside its strings, so that a plot label or its closing
-quote is no dimension. A fraction is read whole (`1 1/2 in` is 1.5 in), and
+Quantities are the exception for programs only: a block of code (OpenSCAD and
+SQL included) is read in its comments and outside its strings, so that a plot
+label or its closing quote is no dimension; the prose and every other block
+(YAML, CSV, JSON, notes, drawings) are read whole. A number written straight
+after a comma (`plate,4 mm`) is not read. An inch fraction is read whole
+(`1 1/2 in` is 1.5 in; denominators 2, 4, 8, 16, 32 and 64, before inches
+only, so `12/24 V` is read as 24 V), and
 `2g` closed up is twice gravity and is not read (so two grams written `2g` are
 missed).
 

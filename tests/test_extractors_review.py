@@ -67,6 +67,21 @@ CASES = {
     "engineering/spring-given-factor": {"safety.safety_factor": "1.5"},
     "engineering/bracket-fractions": {"units.unit_system": "us-customary"},
     "engineering/pipe-velocity-head": {"safety.safety_factor": "1.2"},
+    # round 2
+    "pipeline/config-object-paths": {
+        "operations.file_reading": "whole-file",
+        "operations.read_calls": ["json-load", "read-text"]},
+    "math/titration-decimal-exponent": {
+        "constants.ka_value": "1.74e-05", "constants.pka_value": "4.76",
+        "constants.kw_value": "1e-14"},
+    "engineering/spec-in-data-blocks": {
+        "units.unit_system": "metric",
+        "quantities.quantities": ["200 N", "300 mm", "4 mm", "5 mm", "5.5 mm", "6 mm"]},
+    "engineering/slashed-ratings": {
+        "quantities.quantities": ["0.375 in", "1.25 in", "200 mm", "24 V"]},
+    "pipeline/image-multiline-default": {
+        "images.metadata_handling": "unmentioned", "images.metadata_calls": [],
+        "images.orientation_handling": "absent"},
 }
 
 
@@ -230,6 +245,64 @@ def test_a_quote_mark_in_a_code_string_is_not_inches():
             'plt.legend(["Tip load 4"])  # span 1500 mm\n```\n')
     out = reply("engineering", text)
     assert out["units.us_mentions"] == 0 and out["units.metric_mentions"] == 2
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("with open(config.input_path) as f:\n    data = json.load(f)\n", "whole-file"),
+    ("with open(config['input']) as f:\n    for line in f:\n        pass\n",
+     "streaming"),
+    ("with open(settings.INPUT_FILE) as f:\n    text = f.read()\n", "whole-file"),
+    ("text = Path(cfg.input).read_text()\n", "whole-file"),
+    ("with open(self.config.csv_path) as f:\n    rows = list(csv.DictReader(f))\n",
+     "whole-file"),
+    ("data = json.load(open(cfg.source))\n", "whole-file"),
+    ("with open(CONFIG_PATH) as f:\n    c = json.load(f)\n", "none"),
+    ("with open(args.config) as f:\n    c = json.load(f)\n", "none"),
+    ("with open(paths['config']) as f:\n    c = json.load(f)\n", "none"),
+    ("with open(base / 'config.json') as f:\n    c = json.load(f)\n", "none"),
+    ("c = json.loads(config_path.read_text())\n", "none"),
+])
+def test_a_value_taken_from_a_config_object_is_data(text, expected):
+    assert source(text)["operations.file_reading"] == expected
+
+
+@pytest.mark.parametrize("text, value", [
+    ("Ka = 10^-4.76", "1.74e-05"),
+    (r"$K_a = 10^{-4.76} = 1.74 \times 10^{-5}$", "1.74e-05"),
+    ("Ka = 10^(-4.76) ≈ 1.75e-5", "1.75e-05"),
+    ("Ka = 10^-5", "1e-05"),
+])
+def test_a_decimal_power_of_ten(text, value):
+    assert reply("math", "Titration. " + text)["constants.ka_value"] == value
+
+
+@pytest.mark.parametrize("block", ["yaml", "csv", "markdown", "json", "toml", "text",
+                                   "svg", "cron"])
+def test_quantities_of_a_block_that_is_no_program(block):
+    out = reply("engineering", f"See below.\n\n```{block}\nwidth = 40 mm\n```\n")
+    assert out["quantities.quantities"] == ["40 mm"]
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("a 12/24 V supply", ["24 V"]),
+    ("a 100/200 mm range", ["200 mm"]),
+    ("a 3/4 m rod", ["4 m"]),
+    ("a 5/16 in hole.", ["0.3125 in"]),
+    ("a 3/5 in hole.", ["5 in"]),
+])
+def test_only_inch_fractions_are_fractions(text, expected):
+    assert reply("engineering", text)["quantities.quantities"] == expected
+
+
+@pytest.mark.parametrize("line, present", [
+    ("LOG_ORIENTATION = True", False),
+    ("PAGE_ORIENTATION_NAME = 'x'", False),
+    ("ORIENTATION = 274", True),
+    ("EXIF_ORIENTATION_TAG = 274", True),
+])
+def test_an_orientation_constant(line, present):
+    out = source(f"from PIL import Image\n{line}\n")
+    assert out["images.orientation_handling"] == ("present" if present else "absent")
 
 
 def test_a_urllib3_retry_object_is_still_a_retry():

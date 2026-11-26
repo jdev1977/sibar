@@ -35,17 +35,21 @@ _QUOTE_FOLLOWS = re.compile(
 _SPLIT = re.compile(r"[·⋅*/\- .]+(?!\d)")
 _POWERS = re.compile(r"\^[({]?-?\d[)}]?")
 MAX_QUANTITIES = 20_000
-# the "1 1/" before the "2" of a fraction
-_FRACTION = re.compile(r"(?:(?<![\d./])(\d{1,3})[ \-])?(?<![\d./])(\d{1,3})/\Z")
+# the "1 3/" before the "8" of an inch fraction
+_FRACTION = re.compile(r"(?:(?<![\d./])(\d{1,3})[ \-])?(?<![\d./])(\d{1,2})/\Z")
+# the divisions of an inch: "12/24 V" and "100/200 mm" are two ratings
+_DENOMINATORS = frozenset({"2", "4", "8", "16", "32", "64"})
+_INCHES = frozenset({"in", "inch", "inches"})
 
 
-def _value(text, match):
-    """The number of a match, as the whole fraction it may end."""
+def _value(text, match, unit):
+    """The number of a match, or, before inches, the fraction it ends."""
     number = parse(match)
+    if unit.split("^")[0] not in _INCHES or number.mantissa not in _DENOMINATORS:
+        return number.value
     start = match.start()
     fraction = _FRACTION.search(text[max(start - 9, 0):start])
-    if fraction and number.mantissa.isdigit() \
-            and int(fraction[2]) < int(number.mantissa):
+    if fraction and int(fraction[2]) < int(number.mantissa):
         return int(fraction[1] or 0) + int(fraction[2]) / number.value
     return number.value
 
@@ -73,7 +77,7 @@ def quantities(text, quotes=True):
             if unit == "g" and match["mantissa"] == "2" \
                     and after.start("unit") == match.end():
                 continue
-        found.append((canonical(_value(text, match)), unit))
+        found.append((canonical(_value(text, match, unit)), unit))
         if len(found) >= MAX_QUANTITIES:
             return found
     for match in _BRACKETED.finditer(text):
