@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fixture event</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter&amp;display=swap">
+  <style>
+    /* This page has no dark mode. */
+    body { margin: 0; background: #eef4ff; color: #14213d; font-family: Inter, sans-serif; }
+    section { min-height: 600px; padding: 32px 16px; border-bottom: 4px solid #14213d; }
+    .reveal { opacity: 0; transition: opacity 1s; }
+    .reveal.seen { opacity: 1; }
+    .spin { width: 40px; height: 40px; background: #fca311; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <section><h1>Spring fair</h1><div class="spin"></div><p id="count"></p></section>
+  <section class="reveal"><h2>Stalls</h2><p>Forty local stalls.</p></section>
+  <section class="reveal"><h2>Music</h2><p>Three bands.</p></section>
+  <section class="reveal"><h2>Tickets</h2><p>Free entry.</p></section>
+  <script src="https://cdn.example.com/confetti.js?v=1"></script>
+  <script>
+    const seen = new IntersectionObserver((entries) => {
+      for (const entry of entries) if (entry.isIntersecting) entry.target.classList.add("seen");
+    });
+    document.querySelectorAll(".reveal").forEach((node) => seen.observe(node));
+    const days = Math.ceil((new Date("2027-03-20T10:00:00Z") - Date.now()) / 86400000);
+    document.getElementById("count").textContent = `${days} days to go (${Math.random().toFixed(6)})`;
+  </script>
+</body>
+</html>

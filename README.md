@@ -15,8 +15,8 @@ levels of direction (L0 bare, L1 brief, L2 directed) and run several times.
 - [tasks.md](tasks.md): the task list, with IDs such as T0.1.
 
 **Status:** early setup (Phase 0). The repository layout, the secret scan, the
-model list, the run record format, the cost ledger and the generation runner
-are in place. The runner has been tested only with a fake transport: no
+model list, the run record format, the cost ledger, the generation runner and
+the offline renderer are in place. The runner has been tested only with a fake transport: no
 provider has been called yet (see [docs/runner.md](docs/runner.md)). Prompts,
 extractors, rubrics and viewer are not built yet, and no results exist.
 
@@ -27,6 +27,7 @@ extractors, rubrics and viewer are not built yet, and no results exist.
 | [models.yaml](models.yaml) | The models under test: IDs, prices, defaults and sources |
 | [prompts/](prompts/README.md) | Task prompts, by project type |
 | [runner/](runner/README.md) | Python package: run record format and generation runs |
+| [renderer/](docs/renderer.md) | Python package: offline screenshots of generated pages |
 | [extractors/](extractors/README.md) | Python package: features parsed from outputs |
 | [rubrics/](rubrics/README.md) | Versioned tagging rubrics, by project type |
 | [viewer/](viewer/README.md) | Local page for comparing outputs |
@@ -43,9 +44,11 @@ You need Git and Python 3.13. From the repository root, in a Windows shell (use
 
     python -m venv .venv
     .venv/Scripts/python -m pip install -r requirements.txt
+    .venv/Scripts/python -m playwright install chromium
     git config core.hooksPath .githooks
 
-The last command turns on the pre-commit and pre-push secret scan. Run it once
+The Chromium download is for the [renderer](docs/renderer.md); it goes to the
+user profile. The last command turns on the pre-commit and pre-push secret scan. Run it once
 per clone. See [docs/secrets.md](docs/secrets.md).
 
 API keys are read from environment variables only. `.env.example` lists the

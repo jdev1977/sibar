@@ -1,3 +1,6 @@
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "browser: needs Playwright's Chromium; skipped with a message if it cannot start",
+]
