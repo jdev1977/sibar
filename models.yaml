@@ -11,7 +11,11 @@
 #          line that is generally available with no announced shutdown.
 #
 # Prices are USD per 1M tokens: standard (not batch, cached or priority) rate,
-# shortest prompt-length tier. Notes record other tiers.
+# shortest prompt-length tier. Notes record other tiers. price_tiers (optional)
+# repeats the longer-prompt rates for the cost ledger: a whole call whose prompt
+# has more than above_input_tokens tokens is charged at that tier. "272K" is
+# read as 272000, the reading that applies the higher rate sooner. Where a price
+# varies by time of day (DeepSeek), the price here is the highest.
 #
 # In defaults, max_output_tokens is the most a synchronous call can produce and
 # default_max_tokens is the limit applied when the request sends none.
@@ -74,6 +78,10 @@ models:
     display_name: Claude Haiku 5.5
     input_price_per_mtok_usd: 0.10
     output_price_per_mtok_usd: 0.50
+    price_tiers:
+      - above_input_tokens: 100000
+        input_price_per_mtok_usd: 0.50
+        output_price_per_mtok_usd: 2.50
     defaults:
       temperature: null
       thinking_on_by_default: true
@@ -116,6 +124,10 @@ models:
     display_name: GPT-6.2 Sol
     input_price_per_mtok_usd: 2.00
     output_price_per_mtok_usd: 10.00
+    price_tiers:
+      - above_input_tokens: 272000
+        input_price_per_mtok_usd: 4.00
+        output_price_per_mtok_usd: 15.00
     defaults:
       temperature: null
       thinking_on_by_default: true
@@ -166,6 +178,10 @@ models:
     display_name: GPT-6 Luna
     input_price_per_mtok_usd: 0.10
     output_price_per_mtok_usd: 0.50
+    price_tiers:
+      - above_input_tokens: 272000
+        input_price_per_mtok_usd: 0.20
+        output_price_per_mtok_usd: 0.75
     defaults:
       temperature: null
       thinking_on_by_default: true
