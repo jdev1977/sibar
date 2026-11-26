@@ -147,7 +147,7 @@ class Theme:
     def __init__(self, site):
         self.colors, self.fonts = {}, {}
         self.other_names = set()  # fontSize and backgroundImage keys
-        resolver = Resolver(site.declarations())
+        resolver = Resolver(site.declarations(), dark=site.forced_dark())
         for script in _config_scripts(site):
             for count, match in enumerate(_KEYS.finditer(script.code)):
                 if count >= MAX_OBJECTS:

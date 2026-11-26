@@ -12,7 +12,7 @@ from extractors.website.values import (
     Resolver, color_nodes, most_common, px_text, substitute_vars, to_px, visible,
 )
 
-NAME, VERSION = "website.corners-shadows", "3"
+NAME, VERSION = "website.corners-shadows", "4"
 FULL_PX = 999  # a radius this large draws a pill or circle
 SOFT_BLUR_PX = 10
 

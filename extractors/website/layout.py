@@ -10,7 +10,7 @@ from extractors.website.css import selector_parts, significant
 from extractors.website.site import get_site
 from extractors.website.values import to_px
 
-NAME, VERSION = "website.layout", "3"
+NAME, VERSION = "website.layout", "4"
 MAX_SECTIONS = 30
 MAX_UNWRAP = 6
 MIN_CARDS = 3
@@ -185,7 +185,9 @@ def blocks(doc):
                 items = [e for e in _children(doc, htmls[0]) if e.tag != "head"]
     for _ in range(MAX_UNWRAP):
         if len(items) == 1 and not items[0].component and items[0].tag in WRAPPERS \
-                and _named_kind(items[0]) is None and items[0].children:
+                and _named_kind(items[0]) is None and items[0].children \
+                and not any(doc.elements[i].tag in ("h2", "h3")
+                            for i in items[0].children):
             items = _children(doc, items[0])
         else:
             break

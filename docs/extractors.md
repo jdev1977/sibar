@@ -222,14 +222,23 @@ colour properties, or as a custom property's whole value), `rgb() rgba()
 hsl() hsla() hwb() oklab() oklch()` in legacy and modern syntax, and
 `var()` followed to custom properties (four levels). A custom property takes
 its value from `:root`, `html`, `body` or `@theme` outside `@media`, else from
-any other selector that does not mention dark. Counted as
+any other selector that does not mention dark; on a page that starts dark
+(`forced_dark`), values on `.dark`, `html.dark` or `[data-theme="dark"]`
+win, for CSS rules and for Tailwind theme values alike. Counted as
 `unparsed_colors`: `lab() lch() color() color-mix() light-dark()` and
 `var()` with no value or fallback.
+
+Following `var()` is bounded so hostile stylesheets stay linear: each custom
+property is expanded once (its own top-level `var()`s substituted) and its
+colours read once, then reused; a value that expands past 200 component
+values, or past 300 characters when substituted as text inside a colour
+function, is treated as unreadable; at most 50 colours are taken from one
+property; a cycle reads as unknown.
 
 ## The website extractors
 
 Versions: palette, fonts, layout, corners-shadows, gradients and dark-mode
-`3`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
+`4`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
 extractor returns `status: no-input`.
 
 ### website.palette
@@ -368,7 +377,8 @@ A single wrapper is unwrapped only when its own name (component name, id,
 classes, `aria-label`) gives no kind; its headings are not consulted, so a
 React root `<div>` or a `<div class="min-h-screen">` holding the whole page
 no longer collapses it into one section. `<section>` and `<article>` are
-never unwrapped.
+never unwrapped, and neither is a wrapper with an `<h2>` or `<h3>` among
+its own children (it is a section with a heading, not a wrapper).
 
 Blind spots: section kinds from keywords miss blocks named in other
 languages or by content alone (they become `other`); order across separate

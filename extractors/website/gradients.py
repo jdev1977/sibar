@@ -11,7 +11,7 @@ from extractors.website.values import (
     Resolver, color_nodes, substitute_vars, visible,
 )
 
-NAME, VERSION = "website.gradients", "3"
+NAME, VERSION = "website.gradients", "4"
 GRADIENTS = {"linear-gradient": "linear", "radial-gradient": "radial",
              "conic-gradient": "conic", "repeating-linear-gradient": "linear",
              "repeating-radial-gradient": "radial",
@@ -94,7 +94,7 @@ def extract(inputs):
                 directions.add(direction or "to-bottom")
             found, _ = color_nodes(node.arguments, "background-image", resolver)
             hexes = visible(found)
-            hues.update(colors.hue_of(colors.classify(h)) for h in hexes)
+            hues.update(colors.hue_of(colors.classify(h)) for h in set(hexes))
             pair = _pair(hexes)
             if pair:
                 pairs.add(pair)
@@ -129,7 +129,7 @@ def extract(inputs):
         if gradient[0] == "linear":
             directions.add(gradient[1] or "to-bottom")
         hexes = [stops[k] for k in ("from", "via", "to") if k in stops]
-        hues.update(colors.hue_of(colors.classify(h)) for h in hexes)
+        hues.update(colors.hue_of(colors.classify(h)) for h in set(hexes))
         pair = _pair(hexes)
         if pair:
             pairs.add(pair)

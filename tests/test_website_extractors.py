@@ -874,3 +874,66 @@ def test_unreadable_theme_background_with_nothing_else_is_unknown():
             '</script><body class="bg-surface"><p>x</p></body>')
     values = only("palette", page)
     assert values["background"] is None and values["base_scheme"] is None
+
+
+
+# --- Fix round 3 ------------------------------------------------------------------
+
+
+def test_forced_dark_theme_colour_reads_the_dark_variables():
+    # N1: <html class="dark">, bg-background = hsl(var(--background)), with
+    # light values on :root and dark ones on .dark.
+    page = ('<html class="dark"><head><script src="https://cdn.tailwindcss.com">'
+            "</script><script>tailwind.config={darkMode:'class',theme:{extend:"
+            "{colors:{background:'hsl(var(--background))'}}}}</script><style>"
+            ":root{--background:0 0% 100%}.dark{--background:222 47% 11%}"
+            '</style></head><body class="bg-background"><p>x</p></body></html>')
+    values = only("palette", page)
+    assert values["base_scheme"] == "dark"
+    assert values["background_hex"] == "#0f1729"
+    # The same through a v4 @theme colour.
+    page = ('<html data-theme="dark"><script src="https://cdn.jsdelivr.net/npm/'
+            '@tailwindcss/browser@4"></script><style>:root{--bg:#ffffff}'
+            '[data-theme="dark"]{--bg:#111827}@theme{--color-page:var(--bg)}'
+            '</style><body class="bg-page"><p>x</p></body></html>')
+    values = only("palette", page)
+    assert values["background_hex"] == "#111827" and values["base_scheme"] == "dark"
+
+
+VAR_BOMBS = {
+    # Each var refers to the next 40 times: 40**4 expansions if not memoised.
+    "fan-out": ":root{" + "".join(
+        "--v%d:%s;" % (n, " ".join(["var(--v%d)" % (n + 1)] * 40)) for n in range(4))
+    + "--v4:red}" + "".join(
+        ".a%d{color:rgb(var(--v0));box-shadow:var(--v0);border-radius:var(--v0);"
+        "background:linear-gradient(var(--v0),var(--v0));font-family:var(--v0)}" % i
+        for i in range(50)),
+    # A 30 KB value used by 100 rules inside colour functions.
+    "huge-value": ":root{--big:" + "1 " * 15000 + "}" + "".join(
+        ".b%d{color:hsl(var(--big));background:linear-gradient(var(--big),red)}" % i
+        for i in range(100)),
+    # Gradients nesting gradients through variables.
+    "nested": "".join(
+        ":root{--%s:linear-gradient(%s)}" % (name, ",".join(["var(--%s)" % inner] * 40))
+        for name, inner in (("a", "b"), ("b", "c"), ("c", "d")))
+    + ":root{--d:red}" + "".join(
+        ".c%d{background:var(--a);color:rgb(var(--a))}" % i for i in range(200)),
+}
+
+
+@pytest.mark.parametrize("name", sorted(VAR_BOMBS))
+def test_var_resolution_is_bounded(name):
+    # N2: following var() must stay linear on hostile custom properties.
+    page = ('<html class="dark"><style>%s</style><body class="bg-background">'
+            "<p>x</p></body></html>" % VAR_BOMBS[name]).encode()
+    start = time.perf_counter()
+    results = run_extractors(WEBSITE, Inputs([InputFile("index.html", page)]))
+    assert time.perf_counter() - start < 10
+    assert all(values["status"] == "ok" for _, values in results.values())
+
+
+def test_wrapper_with_its_own_heading_is_not_unwrapped():
+    # N3: a wrapper whose direct children include an h2 is a section itself.
+    page = ("<body><div><h2>Pricing</h2><div class='grid'><div><h3>Free</h3>"
+            "</div><div><h3>Pro</h3></div></div></div></body>")
+    assert only("layout", page)["sections"] == ["pricing"]

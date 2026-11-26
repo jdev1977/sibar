@@ -25,6 +25,7 @@ legacy and modern syntax. Not read (counted as unparsed): ``lab()``,
 """
 
 import math
+from functools import lru_cache
 
 from extractors.website.tailwind_palette import PALETTE
 
@@ -260,6 +261,7 @@ def hue_angle(rgb):
     return angle % 360
 
 
+@lru_cache(maxsize=8192)
 def classify(hex_color):
     """The coarse class of a ``#rrggbb`` colour, such as ``indigo-mid``."""
     rgb = rgb_of(hex_color)

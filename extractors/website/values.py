@@ -23,6 +23,14 @@ COLOR_PROPERTIES = frozenset({
     "-webkit-text-fill-color", "-webkit-text-stroke-color", "-webkit-text-stroke",
 })
 MAX_VAR_DEPTH = 4
+# Bounds on following var(): a custom property whose value, with its own
+# var()s substituted, passes MAX_EXPANDED nodes (or MAX_TEXT characters as
+# text) is treated as unreadable; each property is expanded once and its
+# colours read once (memoised), so fan-out (--a: var(--b) var(--b) ...) and
+# huge values cost linear time.
+MAX_EXPANDED = 200
+MAX_TEXT = 300
+MAX_VAR_COLORS = 50
 FONT_SIZE_PX = 16  # rem and em are read as 16px
 
 
@@ -49,11 +57,62 @@ class Resolver:
             elif "dark" not in declaration.selector.lower():
                 other[declaration.prop] = declaration
         self.values = {**other, **page, **forced}
+        self._expanded, self._text, self._colors = {}, {}, {}
 
     def lookup(self, name):
         declaration = self.values.get(name.lower() if name.startswith("--")
                                       else name)
         return declaration.value if declaration is not None else None
+
+    def expanded(self, name, depth=0):
+        """The value of ``name`` with its top-level ``var()``s substituted,
+        or None if unknown, cyclic or over :data:`MAX_EXPANDED` nodes."""
+        key = name.lower()
+        if key in self._expanded:
+            return self._expanded[key]
+        self._expanded[key] = None  # in progress: a cycle reads as unknown
+        value = self.lookup(key)
+        result = None
+        if value is not None:
+            result = []
+            for node in value:
+                inner = None
+                if (node.type == "function" and node.lower_name == "var"
+                        and depth < MAX_VAR_DEPTH):
+                    args = significant(node.arguments)
+                    if args and args[0].type == "ident":
+                        inner = self.expanded(args[0].value, depth + 1)
+                if inner is None:
+                    result.append(node)
+                else:
+                    result += inner
+                if len(result) > MAX_EXPANDED:
+                    result = None
+                    break
+        self._expanded[key] = result
+        return result
+
+    def text(self, name):
+        """:meth:`expanded` as text, or None when over :data:`MAX_TEXT`."""
+        key = name.lower()
+        if key not in self._text:
+            nodes = self.expanded(key)
+            text = serialize(nodes) if nodes is not None else ""
+            self._text[key] = text if text and len(text) <= MAX_TEXT else None
+        return self._text[key]
+
+    def colors_of(self, name, prop, depth):
+        """``color_nodes`` of a property's value, read once per property."""
+        words = prop in COLOR_PROPERTIES or prop.startswith("--")
+        key = (name.lower(), words)
+        if key not in self._colors:
+            nodes = self.expanded(name)
+            if nodes is None:
+                self._colors[key] = None
+            else:
+                found, unread = color_nodes(nodes, prop, self, depth + 1)
+                self._colors[key] = (found[:MAX_VAR_COLORS], unread)
+        return self._colors[key]
 
 
 def color_nodes(nodes, prop, resolver=None, depth=0):
@@ -80,11 +139,12 @@ def color_nodes(nodes, prop, resolver=None, depth=0):
             name = node.lower_name
             if name in colors.COLOR_FUNCTIONS:
                 parsed = colors.parse_function(node)
-                if parsed is None and resolver and "var(" in node.serialize():
+                if parsed is None and resolver:
                     # hsl(var(--primary)) with --primary: 221 83% 53% (shadcn)
-                    hex_color = parse_color_text(resolve_text(node.serialize(),
-                                                              resolver))
-                    parsed = (hex_color, 1.0) if hex_color else None
+                    text = node.serialize()
+                    if "var(" in text and len(text) <= MAX_TEXT:
+                        hex_color = parse_color_text(resolve_text(text, resolver))
+                        parsed = (hex_color, 1.0) if hex_color else None
                 if parsed:
                     found.append(parsed)
                 else:
@@ -96,12 +156,11 @@ def color_nodes(nodes, prop, resolver=None, depth=0):
             elif name == "var":
                 args = significant(node.arguments)
                 target = args[0].value if args and args[0].type == "ident" else ""
-                value = resolver.lookup(target) if resolver and depth < MAX_VAR_DEPTH \
-                    else None
-                if value is not None:
-                    inner, missing = color_nodes(value, prop, resolver, depth + 1)
-                    found += inner
-                    unread += missing
+                read = (resolver.colors_of(target, prop, depth)
+                        if resolver and target and depth < MAX_VAR_DEPTH else None)
+                if read is not None:
+                    found += read[0]
+                    unread += read[1]
                     skip.update(id(n) for n in walk(node.arguments))
                 elif not any(a.type == "literal" and a.value == "," for a in args):
                     unread += 1
@@ -116,10 +175,10 @@ def substitute_vars(nodes, resolver, depth=0):
     for node in nodes or ():
         if node.type == "function" and node.lower_name == "var" and resolver:
             args = significant(node.arguments)
-            value = (resolver.lookup(args[0].value)
+            value = (resolver.expanded(args[0].value)
                      if args and args[0].type == "ident" else None)
-            if value is not None and depth < MAX_VAR_DEPTH:
-                result += substitute_vars(value, resolver, depth + 1)
+            if value is not None:
+                result += value
                 continue
         result.append(node)
     return result
@@ -130,15 +189,16 @@ _VAR_TEXT = re.compile(r"var\(\s*(--[\w-]{1,100})\s*(?:,[^()]{0,200})?\)")
 
 def resolve_text(text, resolver):
     """``text`` with each ``var(--name)`` replaced by the text of its value
-    (four rounds at most, so a cycle stops)."""
-    for _ in range(MAX_VAR_DEPTH):
-        if "var(" not in text:
-            break
+    (four rounds at most, so a cycle stops). Text longer than
+    :data:`MAX_TEXT`, before or after a round, is returned as it is: it is
+    not a colour."""
+    def value(match):
+        return resolver.text(match.group(1)) or match.group(0)
 
-        def value(match):
-            nodes = resolver.lookup(match.group(1))
-            return serialize(nodes) if nodes is not None else match.group(0)
-        changed = _VAR_TEXT.sub(value, text[:2000])
+    for _ in range(MAX_VAR_DEPTH):
+        if "var(" not in text or len(text) > MAX_TEXT:
+            break
+        changed = _VAR_TEXT.sub(value, text)
         if changed == text:
             break
         text = changed
