@@ -304,10 +304,14 @@ async def _guard(context, page, root, files, entry_url, budget, log):
         except Error:
             pass
 
+    def target_created(event):
+        target = event["targetInfo"]
+        if target["type"] == "page" and "openerId" in target:
+            log.result.popups += 1
+
     async def popup(other):
         if other == page:
             return
-        log.result.popups += 1
         try:
             await other.close()
         except Error:
@@ -319,6 +323,13 @@ async def _guard(context, page, root, files, entry_url, budget, log):
     await context.route("**/*", handle)
     await context.route_web_socket(lambda url: True, socket_opened)
     context.on("page", popup)
+    # Popups are counted from the browser's own list of targets. Playwright
+    # reports a page only once it has loaded a document, which a popup whose
+    # navigation is refused never does: it is reported, if at all, as the
+    # browser closes.
+    targets = await context.browser.new_browser_cdp_session()
+    targets.on("Target.targetCreated", target_created)
+    await targets.send("Target.setDiscoverTargets", {"discover": True})
     page.on("console", console)
     page.on("dialog", dialog)
     page.on("download", download)
