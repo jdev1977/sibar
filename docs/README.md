@@ -18,6 +18,9 @@ Project documents. Present now:
   sensitivity, intervals, the stability rule and their worked examples (T1.5)
 - [analysis/README.md](../analysis/README.md): how to compute them from
   record files, and the stability check command (T1.6)
+- [references/](references/README.md): worked reference solutions for the
+  math and engineering tasks, with assumptions and tolerances (T2.3). The
+  engineering ones are study data, not designs
 
 Added by later tasks in [tasks.md](../tasks.md):
 

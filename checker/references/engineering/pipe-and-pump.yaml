@@ -1,0 +1,362 @@
+# Reference answers: pipe pressure drop and pump choice (T2.3).
+# Worked solution: docs/references/engineering/pipe-and-pump.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: engineering
+task_id: pipe-and-pump
+prompt_set_version: "1"
+title: Pressure drop for 1.5 L/s of water lifted 6 m through 35 m of 40 mm pipe, and a pump for it
+study_data_note: Study data, not a design. These values exist to grade answers collected for a study of model defaults. Do not build from them.
+givens:
+  - {id: flow, text: "1.5 L/s", value: 1.5, unit: L/s}
+  - {id: lift, text: "6 m", value: 6, unit: m}
+  - {id: pipe_length, text: "35 m", value: 35, unit: m}
+  - {id: inside_diameter, text: "40 mm", value: 40, unit: mm}
+l2_givens:
+  - {id: hazen_williams_c, text: "C = 140", value: 140, unit: "1"}
+  - {id: fittings_equivalent_length, text: "8 m", value: 8, unit: m}
+  - {id: water_temperature, text: "15 °C", value: 15, unit: °C}
+  - {id: battery_voltage, text: "12 V", value: 12, unit: V}
+  - {id: efficiency, text: "40%", value: 40, unit: percent}
+assumptions:
+  - Steady flow of fresh water in a full, round pipe of constant bore. g = 9.81 m/s².
+  - The 6 m is the difference in water level between the source and the outlet, both open to the air, so the static head is 6 m whatever the route of the pipe.
+  - "Water properties from standard tables: kinematic viscosity 1.307, 1.139, 1.004 and 0.893 mm²/s and density 999.7, 999.1, 998.2 and 997.0 kg/m³ at 10, 15, 20 and 25 °C."
+  - "L0 and L1: pipe material, fittings and water temperature are the model's choices. Friction is graded against the roughness and temperature the answer states. The reference friction figures are for the 35 m of straight pipe alone, by the Darcy-Weisbach equation with the Colebrook friction factor."
+  - "L2: the Hazen-Williams equation in SI form, h = 10.67 L Q^1.852 / (C^1.852 d^4.8704), with L = 35 + 8 = 43 m. The velocity head at the outlet (0.07 m) is not added to the pump head."
+  - "L2: the wire-to-water efficiency is hydraulic power over electrical power, and the current is electrical power over 12 V."
+levels:
+  L0:
+    checkable: true
+    partial: true
+    note: >-
+      Partly checkable: only the velocity and the static head have reference
+      values that hold for every answer, and neither is the pressure drop the
+      prompt asks for. A correct result at this level says those two are
+      right. The Reynolds number follows from the givens and the stated
+      temperature. Friction depends on the roughness, the temperature and
+      any fittings the model assumes; grade it against those, and record
+      them. The pump is a choice with pass criteria. "Pressure drop" is read
+      by some as friction alone and by others as friction plus the lift;
+      grade whichever the answer gives.
+    quantities: [flow_velocity, static_head]
+    if_reported: [reynolds_number, flow_regime, velocity_head, friction_head_straight_pipe, friction_head_from_factor, fitting_loss, total_head_for_stated_losses, hydraulic_power_for_stated_head, input_power_for_stated_efficiency]
+    criteria: [pump_choice]
+  L1:
+    checkable: true
+    partial: true
+    note: As L0.
+    quantities: [flow_velocity, static_head]
+    if_reported: [reynolds_number, flow_regime, velocity_head, friction_head_straight_pipe, friction_head_from_factor, fitting_loss, total_head_for_stated_losses, hydraulic_power_for_stated_head, input_power_for_stated_efficiency]
+    criteria: [pump_choice]
+  L2:
+    checkable: true
+    note: The friction method, its coefficient, the fittings, the supply and the efficiency are dictated, so the six numbers are fixed. The kind of pump is a choice with pass criteria.
+    quantities: [flow_velocity, friction_loss, total_head, hydraulic_power, electrical_power, battery_current]
+    if_reported: [static_head, equivalent_length, velocity_head, reynolds_number_l2, flow_regime]
+    criteria: [pump_kind]
+quantities:
+  flow_velocity:
+    description: Mean velocity of the water in the pipe, Q / (π d²/4)
+    kind: fixed
+    unit: m/s
+    value: 1.1937
+    exact: "0.0015 / (π × 0.040² / 4)"
+    tolerance: {rel: 0.01, why: "Accepts 1.19 and 1.2."}
+    other_units:
+      - {unit: ft/s, factor: 3.28084}
+    accepted_examples:
+      - {value: 1.19, why: Three significant figures}
+      - {value: 1.2, why: Two significant figures}
+    not_accepted:
+      - {value: 0.298, why: "The diameter used as the radius"}
+      - {value: 1194, why: "Liters not converted to cubic meters"}
+  velocity_head:
+    description: Velocity head, v² / (2 g)
+    kind: fixed
+    unit: m
+    value: 0.07262
+    tolerance: {rel: 0.02, why: "Accepts 0.073 and 0.0726."}
+  static_head:
+    description: Static head the pump must overcome, the lift
+    kind: fixed
+    unit: m
+    value: 6.0
+    tolerance: {rel: 0.005, why: "A given. In kPa the density and g used move it by 0.2%."}
+    other_units:
+      - {unit: kPa, factor: 9.79}
+      - {unit: bar, factor: 0.0979}
+      - {unit: psi, factor: 1.420}
+      - {unit: ft, factor: 3.28084}
+  reynolds_number:
+    description: Reynolds number of the flow, v d / ν, for the viscosity the answer uses
+    kind: conditional
+    unit: "1"
+    inputs:
+      viscosity_mm2_per_s: {description: Kinematic viscosity of the water as the answer states it or as its stated temperature gives, unit: mm²/s}
+    formula: "1.19366 * 0.040 / (viscosity_mm2_per_s * 1e-6)"
+    value: 47556
+    tolerance: {rel: 0.05, why: "Property tables differ by a percent or two, and answers round the viscosity."}
+    range: {low: 34700, high: 56100, applies: "No temperature stated: any water temperature from 10 to 25 °C, with the tolerance already added at each end."}
+    examples:
+      - {inputs: {viscosity_mm2_per_s: 1.307}, value: 36531, note: "10 °C"}
+      - {inputs: {viscosity_mm2_per_s: 1.139}, value: 41920, note: "15 °C"}
+      - {inputs: {viscosity_mm2_per_s: 1.004}, value: 47556, note: "20 °C, the reference's standard value"}
+      - {inputs: {viscosity_mm2_per_s: 1.0}, value: 47746, note: "1.0 × 10^-6 m²/s, a common round value"}
+      - {inputs: {viscosity_mm2_per_s: 0.893}, value: 53468, note: "25 °C"}
+  reynolds_number_l2:
+    description: Reynolds number at the L2 water temperature of 15 °C (not needed by the Hazen-Williams equation)
+    kind: fixed
+    unit: "1"
+    value: 41920
+    tolerance: {rel: 0.05, why: Property tables differ by a percent or two.}
+  flow_regime:
+    description: Whether the flow is laminar or turbulent
+    kind: fixed
+    type: choice
+    unit: "1"
+    choices: [laminar, transitional, turbulent]
+    value: turbulent
+    rule: The Reynolds number is from 3.1 × 10^4 to 6.0 × 10^4 for water from 5 to 30 °C, far above 4000.
+  friction_head_straight_pipe:
+    description: Friction loss in the 35 m of straight pipe, for the roughness and the water temperature the answer states
+    kind: conditional
+    unit: m
+    inputs:
+      roughness_mm: {description: "Absolute roughness of the pipe wall (0 for a smooth pipe)", unit: mm}
+      temperature_c: {description: "Water temperature; the reference tables hold 5, 10, 15, 20, 25 and 30", unit: °C}
+    method: >-
+      Darcy-Weisbach, h = f (L / d) v² / (2 g), with L = 35 m, d = 0.040 m,
+      v = 1.19366 m/s and g = 9.81 m/s². f is the Colebrook factor, the root
+      of 1/sqrt(f) = −2 log10((roughness / d) / 3.7 + 2.51 / (Re sqrt(f))),
+      found by repeating that formula from f = 0.02, with Re = v d / ν and ν
+      the kinematic viscosity of water at the stated temperature.
+    tolerance: {rel: 0.06, why: "Explicit formulas for the friction factor (Swamee-Jain, Haaland, Blasius) are within 2% of Colebrook here, and a factor read from a chart to two figures is within about 5%."}
+    range: {low: 1.23, high: 1.68, applies: "No roughness or temperature stated: any pipe from smooth to commercial steel (0.045 mm) with water from 15 to 25 °C, which gives 1.31 to 1.59 m, with the tolerance already added at each end."}
+    other_units:
+      - {unit: kPa, factor: 9.79}
+      - {unit: bar, factor: 0.0979}
+      - {unit: psi, factor: 1.420}
+    alternatives:
+      - id: hazen_williams
+        condition: The answer uses the Hazen-Williams equation and states its coefficient C.
+        inputs:
+          c: {description: Hazen-Williams coefficient as the answer states it, unit: "1"}
+        formula: "10.67 * 35 * 0.0015**1.852 / (c**1.852 * 0.040**4.8704)"
+        tolerance: {rel: 0.03, why: "Printed forms of the equation differ by up to 1.2% from this one."}
+        examples:
+          - {inputs: {c: 150}, value: 1.3206, note: Smooth plastic}
+          - {inputs: {c: 140}, value: 1.5006}
+          - {inputs: {c: 130}, value: 1.7213}
+          - {inputs: {c: 120}, value: 1.9964, note: Steel}
+          - {inputs: {c: 100}, value: 2.7982, note: Old iron}
+    examples:
+      - {inputs: {roughness_mm: 0, temperature_c: 20}, value: 1.3425, note: "Smooth pipe; f = 0.0211"}
+      - {inputs: {roughness_mm: 0.0015, temperature_c: 20}, value: 1.3508, note: Drawn tubing or plastic}
+      - {inputs: {roughness_mm: 0.007, temperature_c: 20}, value: 1.3806, note: A figure often quoted for plastic pipe}
+      - {inputs: {roughness_mm: 0.045, temperature_c: 20}, value: 1.5581, note: "Commercial steel; f = 0.0245"}
+      - {inputs: {roughness_mm: 0.15, temperature_c: 20}, value: 1.9149, note: Galvanized steel}
+      - {inputs: {roughness_mm: 0, temperature_c: 10}, value: 1.4254}
+      - {inputs: {roughness_mm: 0, temperature_c: 15}, value: 1.3812}
+      - {inputs: {roughness_mm: 0.0015, temperature_c: 15}, value: 1.3890}
+      - {inputs: {roughness_mm: 0.045, temperature_c: 15}, value: 1.5854}
+      - {inputs: {roughness_mm: 0, temperature_c: 25}, value: 1.3079}
+      - {inputs: {roughness_mm: 0.045, temperature_c: 25}, value: 1.5346}
+      - {inputs: {roughness_mm: 0.045, temperature_c: 10}, value: 1.6175}
+  friction_head_from_factor:
+    description: Friction loss for the friction factor and the length the answer states, f (L / d) v² / (2 g)
+    kind: conditional
+    unit: m
+    inputs:
+      friction_factor: {description: Darcy friction factor as the answer states it, unit: "1"}
+      length_m: {description: "Pipe length the answer uses, with any equivalent length for fittings", unit: m}
+    formula: "friction_factor * length_m / 0.040 * 1.19366**2 / (2 * 9.81)"
+    tolerance: {rel: 0.02, why: Rounding of the velocity head.}
+    other_units:
+      - {unit: kPa, factor: 9.79}
+      - {unit: bar, factor: 0.0979}
+      - {unit: psi, factor: 1.420}
+    examples:
+      - {inputs: {friction_factor: 0.021, length_m: 35}, value: 1.3344}
+      - {inputs: {friction_factor: 0.022, length_m: 35}, value: 1.3980}
+      - {inputs: {friction_factor: 0.025, length_m: 40}, value: 1.8155}
+  fitting_loss:
+    description: Loss in fittings for the total loss coefficient the answer states, K v² / (2 g)
+    kind: conditional
+    unit: m
+    inputs:
+      k_total: {description: "Sum of the loss coefficients of the fittings, entry and exit the answer counts", unit: "1"}
+    formula: "k_total * 1.19366**2 / (2 * 9.81)"
+    tolerance: {rel: 0.02, why: Rounding of the velocity head.}
+    other_units:
+      - {unit: kPa, factor: 9.79}
+    examples:
+      - {inputs: {k_total: 1}, value: 0.07262}
+      - {inputs: {k_total: 5}, value: 0.36311}
+  total_head_for_stated_losses:
+    description: Head the pump must deliver, the lift plus the losses the answer states (before any margin it adds)
+    kind: conditional
+    unit: m
+    inputs:
+      losses_m: {description: "Friction and fitting losses as the answer states them, together", unit: m}
+    formula: "6 + losses_m"
+    tolerance: {abs: 0.05, why: Rounding.}
+    other_units:
+      - {unit: kPa, factor: 9.79}
+      - {unit: bar, factor: 0.0979}
+      - {unit: psi, factor: 1.420}
+    examples:
+      - {inputs: {losses_m: 1.34}, value: 7.34}
+      - {inputs: {losses_m: 2.0}, value: 8.0}
+  hydraulic_power_for_stated_head:
+    description: Power delivered to the water, ρ g Q H, for the head the answer states
+    kind: conditional
+    unit: W
+    inputs:
+      head_m: {description: Total head as the answer states it, unit: m}
+    formula: "998.2 * 9.81 * 0.0015 * head_m"
+    tolerance: {rel: 0.015, why: "Density taken as 1000 kg/m³ and g as 9.8 m/s² each move it by under 0.2%."}
+    examples:
+      - {inputs: {head_m: 7.34}, value: 107.81}
+      - {inputs: {head_m: 8.0}, value: 117.51}
+  input_power_for_stated_efficiency:
+    description: Power the pump draws, hydraulic power over the efficiency the answer assumes
+    kind: conditional
+    unit: W
+    inputs:
+      hydraulic_w: {description: Hydraulic power as the answer states it, unit: W}
+      efficiency: {description: "Pump (or pump and motor) efficiency the answer assumes, as a fraction", unit: "1"}
+    formula: "hydraulic_w / efficiency"
+    tolerance: {rel: 0.015, why: Rounding.}
+    examples:
+      - {inputs: {hydraulic_w: 108, efficiency: 0.5}, value: 216.0}
+      - {inputs: {hydraulic_w: 115.31, efficiency: 0.4}, value: 288.28}
+  equivalent_length:
+    description: Pipe length used for friction at L2, straight pipe plus the fittings' equivalent length
+    kind: fixed
+    unit: m
+    value: 43.0
+    exact: "35 + 8"
+    tolerance: {abs: 0.05, why: Exact.}
+  friction_loss:
+    description: Friction loss at L2, by the Hazen-Williams equation with C = 140 over 43 m
+    kind: fixed
+    unit: m
+    value: 1.8435
+    exact: "10.67 × 43 × 0.0015^1.852 / (140^1.852 × 0.040^4.8704)"
+    tolerance: {rel: 0.02, why: "Printed forms of the Hazen-Williams equation (other constants, the velocity form, forms in US units) give 1.826 to 1.864 m; 2% accepts them all and 1.84."}
+    other_units:
+      - {unit: kPa, factor: 9.801}
+      - {unit: bar, factor: 0.09801}
+      - {unit: psi, factor: 1.4216}
+      - {unit: ft, factor: 3.28084}
+    accepted_examples:
+      - {value: 1.84, why: Three significant figures}
+      - {value: 1.826, why: "The form with 10.583 and d^4.87"}
+      - {value: 1.864, why: "The US form, 0.2083 (100/C)^1.852 q^1.852 / d^4.8655 per 100 ft"}
+    not_accepted:
+      - {value: 1.50, why: "Fittings left out: 35 m of pipe"}
+      - {value: 1.71, why: "Darcy-Weisbach with the Colebrook factor, not the dictated equation"}
+      - {value: 2.45, why: "C = 120"}
+  total_head:
+    description: Total head the pump must deliver at L2, the lift plus the friction loss
+    kind: fixed
+    unit: m
+    value: 7.8435
+    tolerance: {abs: 0.05, why: "Follows the spread of the friction loss (7.83 to 7.86 m) and accepts 7.84 and 7.8."}
+    other_units:
+      - {unit: kPa, factor: 9.801}
+      - {unit: bar, factor: 0.09801}
+      - {unit: psi, factor: 1.4216}
+      - {unit: ft, factor: 3.28084}
+    alternatives:
+      - id: with_velocity_head
+        condition: The answer adds the velocity head at the pipe outlet (0.073 m) to the pump head.
+        value: 7.9162
+    accepted_examples:
+      - {value: 7.84, why: Three significant figures}
+    not_accepted:
+      - {value: 7.50, why: Fittings left out}
+      - {value: 1.84, why: The lift left out}
+      - {value: 14.0, why: "The 8 m of equivalent length added to the head: 6 + 8"}
+  hydraulic_power:
+    description: Power delivered to the water at L2, ρ g Q H with water at 15 °C
+    kind: fixed
+    unit: W
+    value: 115.31
+    exact: "999.1 × 9.81 × 0.0015 × 7.8435"
+    tolerance: {rel: 0.015, why: "Follows the spread of the friction loss (115.1 to 115.6 W); a density of 1000 kg/m³ gives 115.4 W. Accepts 115."}
+    other_units:
+      - {unit: kW, factor: 0.001}
+    alternatives:
+      - id: with_velocity_head
+        condition: The answer adds the velocity head at the pipe outlet to the pump head.
+        value: 116.38
+    accepted_examples:
+      - {value: 115, why: Three significant figures}
+    not_accepted:
+      - {value: 110.3, why: Fittings left out}
+      - {value: 27.1, why: The lift left out}
+      - {value: 11.76, why: "g left out: ρ Q H"}
+  electrical_power:
+    description: Electrical power the pump draws at L2, hydraulic power over 0.40
+    kind: fixed
+    unit: W
+    value: 288.28
+    tolerance: {rel: 0.015, why: "As for the hydraulic power. Accepts 288 and 289."}
+    other_units:
+      - {unit: kW, factor: 0.001}
+    alternatives:
+      - id: with_velocity_head
+        condition: The answer adds the velocity head at the pipe outlet to the pump head.
+        value: 290.95
+    accepted_examples:
+      - {value: 288, why: Three significant figures}
+    not_accepted:
+      - {value: 46.1, why: "Multiplied by the efficiency in place of divided"}
+      - {value: 115.3, why: Efficiency left out}
+  battery_current:
+    description: Current drawn from the 12 V battery at L2
+    kind: fixed
+    unit: A
+    value: 24.024
+    tolerance: {rel: 0.015, why: "As for the hydraulic power. Accepts 24 and 24.0."}
+    alternatives:
+      - id: with_velocity_head
+        condition: The answer adds the velocity head at the pipe outlet to the pump head.
+        value: 24.246
+    accepted_examples:
+      - {value: 24.0, why: Three significant figures}
+    not_accepted:
+      - {value: 9.61, why: "Hydraulic power over 12 V: efficiency left out"}
+      - {value: 3.84, why: "Multiplied by the efficiency in place of divided"}
+criteria:
+  pump_choice:
+    description: The pump chosen at L0 or L1. Its kind, its supply and any margin are choices being measured; record them.
+    pass_when:
+      - id: duty_point_stated
+        text: The answer states the duty the pump must meet, as a flow of 1.5 L/s (90 L/min, 5.4 m³/h, 23.8 US gal/min) and a head or pressure.
+      - id: duty_head_matches_working
+        text: The head in that duty is the answer's own total head (6 m plus its losses), or more if it says it adds a margin.
+        inputs:
+          duty_head_m: {description: Head of the duty point the answer states, unit: m}
+          losses_m: {description: "Friction and fitting losses as the answer states them", unit: m}
+        check: "duty_head_m >= 6 + losses_m - 0.05"
+      - id: pump_covers_duty
+        text: If the answer names a pump rating, it is at least 1.5 L/s at the duty head.
+        inputs:
+          rated_flow_l_per_s: {description: Flow of the named pump at the duty head, unit: L/s}
+        check: "rated_flow_l_per_s >= 1.5"
+      - id: kind_suits_duty
+        text: The kind of pump suits a moderate flow at a low head. A centrifugal pump does. A positive-displacement pump is unusual for this duty; pass it only with a stated reason, and mark it for a reader.
+  pump_kind:
+    description: The kind of pump chosen at L2. The reference's choice is a 12 V DC centrifugal pump, mounted at or below pond level or submersible. Other kinds can pass.
+    pass_when:
+      - id: kind_named
+        text: The answer names a kind of pump.
+      - id: reason_uses_duty
+        text: The reason refers to the duty, a moderate flow (1.5 L/s) at a low head (about 7.8 m), or to the 12 V supply and its current (about 24 A).
+      - id: kind_suits_duty
+        text: The kind suits that duty. A centrifugal pump does. A positive-displacement pump (diaphragm, piston, helical rotor) is unusual for this duty; pass it only with a stated reason, and mark it for a reader.
+      - id: runs_from_supply
+        text: The pump runs from 12 V DC, directly or through a stated converter.

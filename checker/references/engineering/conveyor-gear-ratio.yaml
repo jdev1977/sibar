@@ -1,0 +1,202 @@
+# Reference answers: the gear ratio for a conveyor (T2.3).
+# Worked solution: docs/references/engineering/conveyor-gear-ratio.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: engineering
+task_id: conveyor-gear-ratio
+prompt_set_version: "1"
+title: Gear ratio for a conveyor with a 0.4 m/s belt on a 150 mm drive drum
+study_data_note: Study data, not a design. These values exist to grade answers collected for a study of model defaults. Do not build from them.
+givens:
+  - {id: belt_speed, text: "0.4 m/s", value: 0.4, unit: m/s}
+  - {id: drum_diameter, text: "150 mm", value: 150, unit: mm}
+l2_givens:
+  - {id: motor_speed, text: "1725 rpm", value: 1725, unit: rpm}
+  - {id: tooth_range_low, text: "12", value: 12, unit: teeth}
+  - {id: tooth_range_high, text: "72", value: 72, unit: teeth}
+  - {id: speed_tolerance, text: "2%", value: 2, unit: percent}
+assumptions:
+  - The belt does not slip on the drum, and the belt speed is the speed of the drum's surface. The 150 mm is taken as the diameter the belt runs on; belt thickness is left out.
+  - The gear ratio is the reduction, motor speed divided by drum speed.
+  - "L0 and L1: the motor speed is the model's choice. The ratio is graded against the speed the answer states."
+  - "L2: the toothed belt and the roller chain do not slip, so each stage's ratio is its driven tooth count over its driving tooth count. Tooth counts are whole numbers from 12 to 72, both ends included."
+  - "L2: \"within 2%\" includes 2% itself, so the belt speed may be from 0.392 to 0.408 m/s."
+levels:
+  L0:
+    checkable: true
+    note: The drum speed follows from the givens. The overall ratio depends on the motor speed the model assumes; grade it against that stated speed, and record the speed.
+    quantities: [drum_speed, overall_ratio]
+    if_reported: [drum_angular_speed, belt_speed_for_stated_ratio]
+  L1:
+    checkable: true
+    note: As L0.
+    quantities: [drum_speed, overall_ratio]
+    if_reported: [drum_angular_speed, belt_speed_for_stated_ratio]
+  L2:
+    checkable: true
+    note: The drum speed and the exact ratio are fixed. The tooth counts are a choice with pass criteria; only 17 sets of counts meet them, listed under the criterion. How the answer explains the split between the stages is not graded here.
+    quantities: [drum_speed, exact_ratio]
+    if_reported: [drum_angular_speed, ratio_window_low, ratio_window_high, tooth_ratio, belt_speed_for_teeth]
+    criteria: [tooth_counts]
+quantities:
+  drum_speed:
+    description: Rotation speed of the drive drum, v / (π D)
+    kind: fixed
+    unit: rpm
+    value: 50.930
+    exact: "0.4 × 60 / (π × 0.150)"
+    tolerance: {rel: 0.005, why: "Accepts 50.9 and 51 (0.14% high). π as 3.14 moves it by 0.05%."}
+    other_units:
+      - {unit: rev/s, factor: 0.0166667}
+      - {unit: rad/s, factor: 0.104720}
+    alternatives:
+      - id: belt_thickness
+        condition: The answer adds a stated belt thickness to the drum diameter, taking the belt speed at the middle of the belt.
+        inputs:
+          belt_thickness_mm: {description: Belt thickness as the answer states it, unit: mm}
+        formula: "0.4 * 60 / (pi * (0.150 + belt_thickness_mm / 1000))"
+        examples:
+          - {inputs: {belt_thickness_mm: 3}, value: 49.931}
+    accepted_examples:
+      - {value: 50.9, why: Three significant figures}
+      - {value: 51, why: Two significant figures}
+    not_accepted:
+      - {value: 25.46, why: "The diameter used as the radius: v / (2 π D)"}
+      - {value: 0.849, why: "Revolutions per second reported as rpm"}
+      - {value: 5.333, why: "Radians per second reported as rpm"}
+  drum_angular_speed:
+    description: Angular speed of the drum, v / (D / 2)
+    kind: fixed
+    unit: rad/s
+    value: 5.3333
+    exact: "0.4 / 0.075"
+    tolerance: {rel: 0.005, why: Exact.}
+  overall_ratio:
+    description: Overall reduction from the motor to the drum, for the motor speed the answer states
+    kind: conditional
+    unit: "1"
+    inputs:
+      motor_rpm: {description: Motor speed as the answer states it, unit: rpm}
+    formula: "motor_rpm * pi * 0.150 / (0.4 * 60)"
+    tolerance: {rel: 0.01, why: "Accepts a ratio from the drum speed rounded to 51 rpm, and π as 3.14. A ratio then rounded to a standard part (28.47 to 30) is a different, chosen value: grade the belt speed it gives with belt_speed_for_stated_ratio."}
+    examples:
+      - {inputs: {motor_rpm: 1450}, value: 28.471, note: "4-pole motor on 50 Hz mains, under load"}
+      - {inputs: {motor_rpm: 1500}, value: 29.452, note: "4-pole, 50 Hz, synchronous"}
+      - {inputs: {motor_rpm: 1725}, value: 33.870, note: The L2 motor}
+      - {inputs: {motor_rpm: 1750}, value: 34.361, note: "4-pole motor on 60 Hz mains, under load"}
+      - {inputs: {motor_rpm: 1800}, value: 35.343, note: "4-pole, 60 Hz, synchronous"}
+      - {inputs: {motor_rpm: 3000}, value: 58.905, note: "2-pole, 50 Hz, synchronous"}
+  belt_speed_for_stated_ratio:
+    description: Belt speed that results from the motor speed and the ratio the answer settles on
+    kind: conditional
+    unit: m/s
+    inputs:
+      motor_rpm: {description: Motor speed as the answer states it, unit: rpm}
+      ratio: {description: The reduction the answer settles on, unit: "1"}
+    formula: "pi * 0.150 * motor_rpm / ratio / 60"
+    tolerance: {rel: 0.01, why: Rounding.}
+    examples:
+      - {inputs: {motor_rpm: 1450, ratio: 30}, value: 0.37961}
+      - {inputs: {motor_rpm: 1750, ratio: 35}, value: 0.39270}
+      - {inputs: {motor_rpm: 1450, ratio: 28}, value: 0.40672}
+  exact_ratio:
+    description: Exact overall reduction for the 1725 rpm motor
+    kind: fixed
+    unit: "1"
+    value: 33.870
+    exact: "1725 × π × 0.150 / 24"
+    tolerance: {rel: 0.005, why: "Accepts 33.9 and 33.87, and a ratio from the drum speed rounded to 50.9 rpm (33.89)."}
+    accepted_examples:
+      - {value: 33.9, why: Three significant figures}
+      - {value: 33.89, why: "1725 / 50.9"}
+    not_accepted:
+      - {value: 34.36, why: A 1750 rpm motor}
+      - {value: 67.74, why: "The diameter used as the radius"}
+      - {value: 0.0295, why: "The ratio turned over: drum speed over motor speed"}
+  ratio_window_low:
+    description: Smallest overall ratio that keeps the belt speed at or under 0.408 m/s
+    kind: fixed
+    unit: "1"
+    value: 33.206
+    exact: "33.870 / 1.02"
+    tolerance: {rel: 0.005, why: Rounding.}
+  ratio_window_high:
+    description: Largest overall ratio that keeps the belt speed at or over 0.392 m/s
+    kind: fixed
+    unit: "1"
+    value: 34.562
+    exact: "33.870 / 0.98"
+    tolerance: {rel: 0.005, why: Rounding.}
+  tooth_ratio:
+    description: Overall ratio given by the tooth counts the answer states
+    kind: conditional
+    unit: "1"
+    inputs:
+      z1: {description: Teeth on the motor pulley (toothed belt stage), unit: teeth}
+      z2: {description: Teeth on the driven pulley, unit: teeth}
+      z3: {description: Teeth on the driving sprocket (chain stage), unit: teeth}
+      z4: {description: Teeth on the drum sprocket, unit: teeth}
+    formula: "(z2 / z1) * (z4 / z3)"
+    tolerance: {rel: 0.005, why: Rounding of a ratio of whole numbers.}
+    examples:
+      - {inputs: {z1: 12, z2: 68, z3: 12, z4: 72}, value: 34.0}
+      - {inputs: {z1: 12, z2: 70, z3: 12, z4: 70}, value: 34.028}
+      - {inputs: {z1: 13, z2: 72, z3: 12, z4: 72}, value: 33.231}
+      - {inputs: {z1: 15, z2: 72, z3: 15, z4: 72}, value: 23.04, note: "Out of tolerance: belt speed 0.588 m/s"}
+  belt_speed_for_teeth:
+    description: Belt speed given by the 1725 rpm motor and the tooth counts the answer states
+    kind: conditional
+    unit: m/s
+    inputs:
+      z1: {description: Teeth on the motor pulley, unit: teeth}
+      z2: {description: Teeth on the driven pulley, unit: teeth}
+      z3: {description: Teeth on the driving sprocket, unit: teeth}
+      z4: {description: Teeth on the drum sprocket, unit: teeth}
+    formula: "pi * 0.150 * 1725 / ((z2 / z1) * (z4 / z3)) / 60"
+    tolerance: {rel: 0.005, why: Rounding.}
+    examples:
+      - {inputs: {z1: 12, z2: 68, z3: 12, z4: 72}, value: 0.39847}
+      - {inputs: {z1: 12, z2: 70, z3: 12, z4: 70}, value: 0.39815}
+      - {inputs: {z1: 13, z2: 72, z3: 12, z4: 72}, value: 0.40770}
+      - {inputs: {z1: 15, z2: 72, z3: 15, z4: 72}, value: 0.58803, note: Out of tolerance}
+criteria:
+  tooth_counts:
+    description: The tooth counts chosen for the two stages at L2. Any set that meets these passes; there is no single right set.
+    pass_when:
+      - id: counts_in_range
+        text: All four tooth counts are whole numbers from 12 to 72.
+        inputs: &teeth
+          z1: {description: Teeth on the motor pulley, unit: teeth}
+          z2: {description: Teeth on the driven pulley, unit: teeth}
+          z3: {description: Teeth on the driving sprocket, unit: teeth}
+          z4: {description: Teeth on the drum sprocket, unit: teeth}
+        check: "12 <= z1 <= 72 and 12 <= z2 <= 72 and 12 <= z3 <= 72 and 12 <= z4 <= 72"
+      - id: belt_speed_within_two_percent
+        text: The belt speed the counts give at 1725 rpm is from 0.392 to 0.408 m/s. That needs an overall ratio from 33.21 to 34.56, so each stage must reduce by 5.54 to 6.00 and each driving wheel has 12 or 13 teeth.
+        inputs: *teeth
+        check: "abs(pi * 0.150 * 1725 / ((z2 / z1) * (z4 / z3)) / 60 - 0.4) <= 0.008"
+      - id: stated_ratio_matches_counts
+        text: The actual ratio the answer states equals the product of its two stage ratios, within 0.5% (see tooth_ratio).
+      - id: stated_speed_matches_counts
+        text: The belt speed the answer states equals the speed its counts give, within 0.5% (see belt_speed_for_teeth).
+    all_passing:
+      note: Every set of tooth counts that passes both checks, found by trying every set from 12 to 72 teeth. Fifteen have 12 teeth on both driving wheels; two have 13 on one of them.
+      inputs: [z1, z2, z3, z4]
+      sets:
+        - [12, 67, 12, 72]
+        - [12, 68, 12, 71]
+        - [12, 68, 12, 72]
+        - [12, 69, 12, 70]
+        - [12, 69, 12, 71]
+        - [12, 69, 12, 72]
+        - [12, 70, 12, 69]
+        - [12, 70, 12, 70]
+        - [12, 70, 12, 71]
+        - [12, 71, 12, 68]
+        - [12, 71, 12, 69]
+        - [12, 71, 12, 70]
+        - [12, 72, 12, 67]
+        - [12, 72, 12, 68]
+        - [12, 72, 12, 69]
+        - [12, 72, 13, 72]
+        - [13, 72, 12, 72]

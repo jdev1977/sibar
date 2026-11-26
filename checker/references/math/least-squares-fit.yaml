@@ -1,0 +1,253 @@
+# Reference answers: a least-squares straight line through seven points (T2.3).
+# Worked solution: docs/references/math/least-squares-fit.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: math
+task_id: least-squares-fit
+prompt_set_version: "1"
+title: Least-squares straight line through seven points
+givens:
+  - {id: point_1, text: "(1, 2.3)", value: [1, 2.3], unit: "1"}
+  - {id: point_2, text: "(2, 4.1)", value: [2, 4.1], unit: "1"}
+  - {id: point_3, text: "(3, 5.8)", value: [3, 5.8], unit: "1"}
+  - {id: point_4, text: "(4, 8.2)", value: [4, 8.2], unit: "1"}
+  - {id: point_5, text: "(5, 9.9)", value: [5, 9.9], unit: "1"}
+  - {id: point_6, text: "(6, 11.6)", value: [6, 11.6], unit: "1"}
+  - {id: point_7, text: "(7, 14.1)", value: [7, 14.1], unit: "1"}
+l2_givens:
+  - {id: confidence, text: "95%", value: 95, unit: percent}
+assumptions:
+  - "Ordinary least squares of y on x: the line y = a + b x that makes the sum of squared vertical distances smallest. The line has an intercept; it is not forced through the origin."
+  - All points have equal weight. The x values have no error. The L2 brief says both; at L0 and L1 they are the standard reading.
+  - "L2: standard errors use the residual variance SSE / (n − 2), and the interval uses Student's t with n − 2 = 5 degrees of freedom."
+  - "L2: a residual is the measured y minus the fitted y."
+  - "L2: x is in newtons and y in millimeters, so the slope is in mm/N and the spring constant is 1 / slope in N/mm, which is 1000 / slope in N/m. The intercept is not used for it."
+levels:
+  L0:
+    checkable: true
+    note: Slope and intercept are graded to two decimals, the precision the givens support.
+    quantities: [slope, intercept]
+    if_reported: [r_squared, correlation, x_mean, y_mean, sxx, sxy, syy, residuals, residual_sum_of_squares, se_slope, se_intercept]
+  L1:
+    checkable: true
+    note: As L0.
+    quantities: [slope, intercept]
+    if_reported: [r_squared, correlation, x_mean, y_mean, sxx, sxy, syy, residuals, residual_sum_of_squares, se_slope, se_intercept]
+  L2:
+    checkable: true
+    note: Everything asked for is fixed by the data. Results are asked to 4 significant figures; a right value given to fewer figures still passes here, and the precision is read elsewhere.
+    quantities: [slope, intercept, se_slope, se_intercept, slope_ci95_low, slope_ci95_high, residuals, r_squared, spring_constant]
+    if_reported: [x_mean, y_mean, sxx, sxy, syy, residual_sum_of_squares, residual_sd, t_critical_95, slope_ci95_half_width, correlation, spring_constant_se, spring_constant_ci95_low, spring_constant_ci95_high]
+quantities:
+  slope:
+    description: Slope of the fitted line, Sxy / Sxx
+    kind: fixed
+    unit: "1"
+    value: 1.9464
+    exact: "109/56"
+    tolerance: {abs: 0.005, why: "Accepts 1.95, 1.946 and 1.9464. The givens have two or three significant figures. The same at L2: a right slope given to three figures is still right, and whether the four figures asked for were given is read elsewhere."}
+    other_units:
+      - {unit: mm/N, factor: 1}
+    accepted_examples:
+      - {value: 1.946, why: Four significant figures}
+    not_accepted:
+      - {value: 1.9893, why: Line forced through the origin}
+      - {value: 0.5124, why: "x regressed on y: the reciprocal direction"}
+      - {value: 1.9667, why: "Slope of the line through the first and last points"}
+  intercept:
+    description: Intercept of the fitted line, ȳ − slope × x̄
+    kind: fixed
+    unit: "1"
+    value: 0.2143
+    exact: "3/14"
+    tolerance: {abs: 0.005, why: "Accepts 0.21, 0.214 and 0.2143, at every level."}
+    other_units:
+      - {unit: mm, factor: 1}
+    accepted_examples:
+      - {value: 0.2143, why: Four significant figures}
+    not_accepted:
+      - {value: 0.0, why: Line forced through the origin}
+      - {value: 0.3333, why: "Intercept of the line through the first and last points"}
+  x_mean:
+    description: Mean of the x values
+    kind: fixed
+    unit: "1"
+    value: 4.0
+    tolerance: {abs: 0.0005, why: Exact.}
+  y_mean:
+    description: Mean of the y values
+    kind: fixed
+    unit: "1"
+    value: 8.0
+    tolerance: {abs: 0.0005, why: Exact.}
+  sxx:
+    description: Centered sum of squares of x
+    kind: fixed
+    unit: "1"
+    value: 28.0
+    tolerance: {abs: 0.0005, why: Exact.}
+  sxy:
+    description: Centered sum of products of x and y
+    kind: fixed
+    unit: "1"
+    value: 54.5
+    tolerance: {abs: 0.005, why: Exact.}
+  syy:
+    description: Centered sum of squares of y
+    kind: fixed
+    unit: "1"
+    value: 106.36
+    tolerance: {abs: 0.05, why: "Exact; accepts 106.4, the value to four significant figures."}
+  residuals:
+    description: Residual of each point, measured y minus fitted y
+    kind: fixed
+    type: list
+    unit: "1"
+    value: [0.139286, -0.007143, -0.253571, 0.2, -0.046429, -0.292857, 0.260714]
+    keyed_by:
+      description: The x of the point each residual belongs to. Pair a response's residuals with these by point, whatever order it lists them in.
+      values: [1, 2, 3, 4, 5, 6, 7]
+    exact: "39/280, −1/140, −71/280, 1/5, −13/280, −41/140, 73/280"
+    tolerance: {abs: 0.005, why: "Accepts values rounded to two decimals, and values worked from a slope and intercept already rounded to four significant figures (up to 0.003 off at x = 7)."}
+    alternatives:
+      - id: fitted_minus_measured
+        condition: The answer says it defines a residual as fitted y minus measured y.
+        value: [-0.139286, 0.007143, 0.253571, -0.2, 0.046429, 0.292857, -0.260714]
+    other_units:
+      - {unit: mm, factor: 1}
+  residual_sum_of_squares:
+    description: Sum of the squared residuals
+    kind: fixed
+    unit: "1"
+    value: 0.27964
+    exact: "783/2800"
+    tolerance: {rel: 0.01, why: "Accepts 0.280 and 0.2796."}
+  residual_sd:
+    description: Residual standard deviation, sqrt(SSE / 5)
+    kind: fixed
+    unit: "1"
+    value: 0.23649
+    tolerance: {rel: 0.01, why: "Accepts 0.236 and 0.2365."}
+    not_accepted:
+      - {value: 0.19987, why: "Divided by n = 7 in place of n − 2 = 5"}
+  se_slope:
+    description: Standard error of the slope, s / sqrt(Sxx)
+    kind: fixed
+    unit: "1"
+    value: 0.044693
+    tolerance: {rel: 0.01, why: "Four significant figures are asked: 0.04469. One percent also accepts 0.0447 and 0.045. A standard error built on n in place of n − 2 (0.0378) is 15% away."}
+    other_units:
+      - {unit: mm/N, factor: 1}
+    accepted_examples:
+      - {value: 0.04469, why: Four significant figures}
+      - {value: 0.0447, why: Three significant figures}
+    not_accepted:
+      - {value: 0.03777, why: Residual variance divided by n in place of n − 2}
+  se_intercept:
+    description: Standard error of the intercept, s × sqrt(1/n + x̄² / Sxx)
+    kind: fixed
+    unit: "1"
+    value: 0.19987
+    tolerance: {rel: 0.01, why: "Four significant figures are asked: 0.1999. One percent accepts 0.200."}
+    other_units:
+      - {unit: mm, factor: 1}
+    accepted_examples:
+      - {value: 0.1999, why: Four significant figures}
+      - {value: 0.200, why: Three significant figures}
+  t_critical_95:
+    description: Two-sided 5% critical value of t with 5 degrees of freedom
+    kind: fixed
+    unit: "1"
+    value: 2.5706
+    tolerance: {abs: 0.002, why: "Tables print 2.571 or 2.5706."}
+    not_accepted:
+      - {value: 1.960, why: The normal value}
+      - {value: 2.447, why: "6 degrees of freedom (n − 1)"}
+  slope_ci95_half_width:
+    description: Half-width of the 95% confidence interval for the slope
+    kind: fixed
+    unit: "1"
+    value: 0.11489
+    tolerance: {rel: 0.01, why: "Accepts 0.1149 and 0.115."}
+  slope_ci95_low:
+    description: Lower end of the 95% confidence interval for the slope
+    kind: fixed
+    unit: "1"
+    value: 1.8315
+    tolerance: {abs: 0.002, why: "Four significant figures: 1.832. Accepts an interval built from rounded parts (1.946 − 0.115 = 1.831)."}
+    other_units:
+      - {unit: mm/N, factor: 1}
+    not_accepted:
+      - {value: 1.8588, why: "The normal value 1.96 used in place of t = 2.571"}
+      - {value: 1.8371, why: "t for 6 degrees of freedom"}
+  slope_ci95_high:
+    description: Upper end of the 95% confidence interval for the slope
+    kind: fixed
+    unit: "1"
+    value: 2.0613
+    tolerance: {abs: 0.002, why: "Four significant figures: 2.061."}
+    other_units:
+      - {unit: mm/N, factor: 1}
+    not_accepted:
+      - {value: 2.0340, why: "The normal value 1.96 used in place of t = 2.571"}
+  r_squared:
+    description: Coefficient of determination, 1 − SSE / Syy
+    kind: fixed
+    unit: "1"
+    value: 0.99737
+    exact: "297025/297808"
+    tolerance: {abs: 0.0005, why: "Accepts 0.997, 0.9974 and 0.99737, at every level. The correlation coefficient, 0.9987, fails."}
+    accepted_examples:
+      - {value: 0.9974, why: Four significant figures}
+    not_accepted:
+      - {value: 0.99868, why: The correlation coefficient r reported as R²}
+  correlation:
+    description: Correlation coefficient r
+    kind: fixed
+    unit: "1"
+    value: 0.99868
+    tolerance: {abs: 0.0003, why: "Accepts 0.9987 and 0.999."}
+  spring_constant:
+    description: Spring constant from the slope, 1000 / slope with the slope in mm/N
+    kind: fixed
+    unit: N/m
+    value: 513.76
+    exact: "56000/109"
+    tolerance: {rel: 0.005, why: "Four significant figures are asked: 513.8. Half a percent accepts 514 and a value from the rounded slope 1.946 (513.9)."}
+    other_units:
+      - {unit: N/mm, factor: 0.001}
+      - {unit: kN/m, factor: 0.001}
+      - {unit: N/cm, factor: 0.01}
+    accepted_examples:
+      - {value: 513.8, why: Four significant figures}
+      - {value: 514, why: Three significant figures}
+    not_accepted:
+      - {value: 502.7, why: Slope of a line forced through the origin}
+      - {value: 1946, why: "The slope taken as N/mm and multiplied by 1000: the reciprocal was not taken"}
+      - {value: 0.5138, why: "N/mm reported as N/m"}
+  spring_constant_se:
+    description: Standard error of the spring constant, k × (standard error of the slope / slope)
+    kind: fixed
+    unit: N/m
+    value: 11.797
+    tolerance: {rel: 0.02, why: "Accepts 11.8 and 12."}
+  spring_constant_ci95_low:
+    description: Lower end of the 95% interval for the spring constant, 1000 / (upper end of the slope interval)
+    kind: fixed
+    unit: N/m
+    value: 485.13
+    tolerance: {rel: 0.005, why: "Accepts 485 and 485.1."}
+    alternatives:
+      - id: symmetric_interval
+        condition: The answer builds the interval as k ± t × (standard error of k).
+        value: 483.44
+  spring_constant_ci95_high:
+    description: Upper end of the 95% interval for the spring constant, 1000 / (lower end of the slope interval)
+    kind: fixed
+    unit: N/m
+    value: 545.99
+    tolerance: {rel: 0.005, why: "Accepts 546 and 546.0."}
+    alternatives:
+      - id: symmetric_interval
+        condition: The answer builds the interval as k ± t × (standard error of k).
+        value: 544.09

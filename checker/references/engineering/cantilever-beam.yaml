@@ -1,0 +1,308 @@
+# Reference answers: size a cantilever beam with a load at its tip (T2.3).
+# Worked solution: docs/references/engineering/cantilever-beam.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: engineering
+task_id: cantilever-beam
+prompt_set_version: "1"
+title: Size a cantilever beam 1.5 m long with 4 kN at its free end
+study_data_note: Study data, not a design. These values exist to grade answers collected for a study of model defaults. Do not build from them.
+givens:
+  - {id: length, text: "1.5 m", value: 1.5, unit: m}
+  - {id: tip_load, text: "4 kN", value: 4, unit: kN}
+l2_givens:
+  - {id: youngs_modulus, text: "68.9 GPa", value: 68.9, unit: GPa}
+  - {id: yield_strength, text: "276 MPa", value: 276, unit: MPa}
+  - {id: safety_factor, text: "safety factor of 3", value: 3, unit: "1"}
+  - {id: deflection_limit, text: "15 mm", value: 15, unit: mm}
+assumptions:
+  - The beam is straight and of constant section, fully fixed at one end and free at the other.
+  - The 4 kN acts at the free end, across the beam, and is a static working load with no load factor.
+  - The beam's own weight is left out. The L2 brief says the tip load is the only load; at L0 and L1 an answer that adds its own weight is graded by the alternative.
+  - Small deflections of a slender elastic beam (Euler-Bernoulli); shear deflection is left out.
+  - "L2: the section is b wide and 2b deep, bent about the axis that uses the depth, so S = 2b³/3 and I = 2b⁴/3. b is a whole number of millimeters and the depth is exactly twice it."
+levels:
+  L0:
+    checkable: true
+    partial: true
+    note: "Partly checkable: only the reaction and the largest bending moment, which follow from statics, have reference values. The sizing itself, which is what the prompt asks for, has none: the section depends on the material, shape, safety factor and limits the model chooses. Check it with the formulas and the criterion, against the answer's own numbers. A correct result at this level says the statics are right, not that the size is."
+    quantities: [reaction_force, max_bending_moment]
+    if_reported: [max_shear, stress_for_stated_section, deflection_for_stated_section, section_modulus_for_stated_allowable]
+    criteria: [section_meets_its_own_limits]
+  L1:
+    checkable: true
+    partial: true
+    note: As L0.
+    quantities: [reaction_force, max_bending_moment]
+    if_reported: [max_shear, stress_for_stated_section, deflection_for_stated_section, section_modulus_for_stated_allowable]
+    criteria: [section_meets_its_own_limits]
+  L2:
+    checkable: true
+    note: Material, shape, safety factor and deflection limit are dictated, so the section is fixed. The textbook named for each formula is not graded here.
+    quantities: [required_section_modulus, required_second_moment, width, depth, governing_limit, bending_stress, tip_deflection]
+    if_reported: [reaction_force, max_shear, max_bending_moment, allowable_stress, min_width_for_stress, min_width_for_deflection, section_modulus_chosen, second_moment_chosen]
+quantities:
+  reaction_force:
+    description: Vertical reaction at the fixed end
+    kind: fixed
+    unit: kN
+    value: 4.0
+    tolerance: {rel: 0.005, why: Statics; exact.}
+    other_units:
+      - {unit: N, factor: 1000}
+      - {unit: lbf, factor: 224.809}
+    alternatives:
+      - id: with_self_weight
+        condition: The answer adds the beam's own weight and states it as a load per length.
+        levels: [L0, L1]
+        inputs:
+          weight_kn_per_m: {description: Weight of the beam per meter as the answer states it, unit: kN/m}
+        formula: "4.0 + weight_kn_per_m * 1.5"
+        examples:
+          - {inputs: {weight_kn_per_m: 0.20}, value: 4.3}
+      - id: factored_load
+        condition: The answer applies a stated load factor to the 4 kN before sizing.
+        levels: [L0, L1]
+        inputs:
+          load_factor: {description: Load factor as the answer states it, unit: "1"}
+        formula: "4.0 * load_factor"
+        examples:
+          - {inputs: {load_factor: 1.5}, value: 6.0}
+          - {inputs: {load_factor: 1.6}, value: 6.4}
+  max_shear:
+    description: Largest shear force, the same along the whole beam
+    kind: fixed
+    unit: kN
+    value: 4.0
+    tolerance: {rel: 0.005, why: Statics; exact.}
+    other_units:
+      - {unit: N, factor: 1000}
+  max_bending_moment:
+    description: Largest bending moment, at the fixed end (also the moment reaction there)
+    kind: fixed
+    unit: kN·m
+    value: 6.0
+    exact: "4 kN × 1.5 m"
+    tolerance: {rel: 0.005, why: Statics; exact.}
+    other_units:
+      - {unit: N·m, factor: 1000}
+      - {unit: N·mm, factor: 1000000}
+      - {unit: lbf·ft, factor: 737.562}
+      - {unit: lbf·in, factor: 8850.75}
+    alternatives:
+      - id: with_self_weight
+        condition: The answer adds the beam's own weight and states it as a load per length.
+        levels: [L0, L1]
+        inputs:
+          weight_kn_per_m: {description: Weight of the beam per meter as the answer states it, unit: kN/m}
+        formula: "4.0 * 1.5 + weight_kn_per_m * 1.5**2 / 2"
+        examples:
+          - {inputs: {weight_kn_per_m: 0.20}, value: 6.225}
+      - id: factored_load
+        condition: The answer applies a stated load factor to the 4 kN before sizing.
+        levels: [L0, L1]
+        inputs:
+          load_factor: {description: Load factor as the answer states it, unit: "1"}
+        formula: "4.0 * 1.5 * load_factor"
+        examples:
+          - {inputs: {load_factor: 1.5}, value: 9.0}
+          - {inputs: {load_factor: 1.6}, value: 9.6}
+    not_accepted:
+      - {value: 3.0, why: "The load taken at mid-length, or spread along the beam (w L²/2 with w L = 4 kN)"}
+      - {value: 2.667, why: "kN divided by m in place of multiplied"}
+  stress_for_stated_section:
+    description: Largest bending stress for the section modulus the answer states, M / S
+    kind: conditional
+    unit: MPa
+    inputs:
+      moment_knm: {description: The bending moment the answer sizes for (6.0 unless it adds weight or a load factor), unit: kN·m}
+      section_modulus_mm3: {description: Elastic section modulus of the chosen section about the bending axis, unit: mm³}
+    formula: "moment_knm * 1e6 / section_modulus_mm3"
+    tolerance: {rel: 0.02, why: Rounding of tabulated section properties.}
+    other_units:
+      - {unit: psi, factor: 145.038}
+      - {unit: ksi, factor: 0.145038}
+    examples:
+      - {inputs: {moment_knm: 6.0, section_modulus_mm3: 88434}, value: 67.847, note: The L2 bar}
+      - {inputs: {moment_knm: 6.0, section_modulus_mm3: 53000}, value: 113.21, note: A small rolled steel section}
+  deflection_for_stated_section:
+    description: Tip deflection for the modulus and second moment of area the answer states, P L³ / (3 E I)
+    kind: conditional
+    unit: mm
+    inputs:
+      modulus_gpa: {description: Young's modulus of the chosen material, unit: GPa}
+      second_moment_mm4: {description: Second moment of area of the chosen section about the bending axis, unit: mm⁴}
+    formula: "4000 * 1500**3 / (3 * modulus_gpa * 1000 * second_moment_mm4)"
+    tolerance: {rel: 0.02, why: Rounding of tabulated section properties.}
+    other_units:
+      - {unit: in, factor: 0.0393701}
+    examples:
+      - {inputs: {modulus_gpa: 68.9, second_moment_mm4: 4510134}, value: 14.481, note: The L2 bar}
+      - {inputs: {modulus_gpa: 200, second_moment_mm4: 3180000}, value: 7.0755, note: A small rolled steel section}
+  section_modulus_for_stated_allowable:
+    description: Section modulus needed for the allowable stress the answer states, M / allowable
+    kind: conditional
+    unit: mm³
+    inputs:
+      moment_knm: {description: The bending moment the answer sizes for, unit: kN·m}
+      allowable_mpa: {description: Allowable bending stress the answer states (strength over its safety factor), unit: MPa}
+    formula: "moment_knm * 1e6 / allowable_mpa"
+    tolerance: {rel: 0.01, why: Rounding.}
+    other_units:
+      - {unit: cm³, factor: 0.001}
+      - {unit: in³, factor: 0.0000610237}
+    examples:
+      - {inputs: {moment_knm: 6.0, allowable_mpa: 92}, value: 65217, note: The L2 allowable}
+      - {inputs: {moment_knm: 6.0, allowable_mpa: 165}, value: 36364, note: "A 250 MPa steel with a factor of about 1.5"}
+  allowable_stress:
+    description: Allowable bending stress, yield strength over the safety factor
+    kind: fixed
+    unit: MPa
+    value: 92.0
+    exact: "276 / 3"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: psi, factor: 145.038}
+  required_section_modulus:
+    description: Section modulus needed to keep the bending stress at or under the allowable
+    kind: fixed
+    unit: mm³
+    value: 65217
+    exact: "6 × 10^6 N·mm / 92 MPa"
+    tolerance: {rel: 0.01, why: "Accepts 65.2 × 10³ and 65 200 mm³."}
+    other_units:
+      - {unit: cm³, factor: 0.001}
+      - {unit: m³, factor: 0.000000001}
+    accepted_examples:
+      - {value: 65200, why: Three significant figures}
+    not_accepted:
+      - {value: 21739, why: "Yield strength used with no safety factor: 6 × 10^6 / 276"}
+  required_second_moment:
+    description: Second moment of area needed to keep the tip deflection at or under 15 mm
+    kind: fixed
+    unit: mm⁴
+    value: 4354100
+    exact: "4000 × 1500³ / (3 × 68 900 × 15)"
+    tolerance: {rel: 0.01, why: "Accepts 4.35 × 10^6 mm⁴."}
+    other_units:
+      - {unit: cm⁴, factor: 0.0001}
+      - {unit: m⁴, factor: 0.000000000001}
+    accepted_examples:
+      - {value: 4350000, why: Three significant figures}
+    not_accepted:
+      - {value: 1632800, why: "The formula for an evenly spread load, w L⁴ / (8 E I), used with w L = 4 kN"}
+  min_width_for_stress:
+    description: Smallest width that meets the stress limit, before rounding
+    kind: fixed
+    unit: mm
+    value: 46.08
+    exact: "(1.5 × 65 217)^(1/3)"
+    tolerance: {rel: 0.005, why: Rounding.}
+  min_width_for_deflection:
+    description: Smallest width that meets the deflection limit, before rounding
+    kind: fixed
+    unit: mm
+    value: 50.55
+    exact: "(1.5 × 4 354 136)^(1/4)"
+    tolerance: {rel: 0.005, why: Rounding.}
+  width:
+    description: Smallest whole-millimeter width that meets both limits
+    kind: fixed
+    unit: mm
+    value: 51.0
+    tolerance: {abs: 0.01, why: "Exact: 50 mm by 100 mm deflects 15.7 mm and fails; 51 mm by 102 mm passes. The hundredth of a millimeter only lets a width given in meters or centimeters convert cleanly."}
+    other_units: &length_units
+      - {unit: m, factor: 0.001}
+      - {unit: cm, factor: 0.1}
+    alternatives:
+      - id: depth_rounded_alone
+        condition: The answer gives 50 mm by 102 mm, says that the depth is then slightly more than twice the width, and shows that both limits are met.
+        value: 50.0
+        note: "A departure from the brief, which sets the depth at twice the width. Once that ratio is let go there is no smallest section (49 by 103 and 48 by 104 also meet both limits with less material), which is why the reference holds it. Record a match as this alternative."
+    not_accepted:
+      - {value: 50, why: "With a depth of 100 mm it deflects 15.67 mm, over the limit. With a depth of 102 mm it meets both limits, but the depth is then not twice the width; see the alternative"}
+      - {value: 47, why: The size for the stress limit alone}
+      - {value: 52, why: Not the smallest}
+  depth:
+    description: Depth of that section, twice the width
+    kind: fixed
+    unit: mm
+    value: 102.0
+    tolerance: {abs: 0.01, why: "Exact, as for the width."}
+    other_units: *length_units
+  governing_limit:
+    description: Which of the two limits sets the size
+    kind: fixed
+    type: choice
+    unit: "1"
+    choices: [stress, deflection]
+    value: deflection
+    rule: Deflection needs a width of 50.55 mm and stress needs 46.08 mm, so deflection governs.
+  section_modulus_chosen:
+    description: Section modulus of the 51 mm by 102 mm bar
+    kind: fixed
+    unit: mm³
+    value: 88434
+    exact: "51 × 102² / 6"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: cm³, factor: 0.001}
+  second_moment_chosen:
+    description: Second moment of area of the 51 mm by 102 mm bar
+    kind: fixed
+    unit: mm⁴
+    value: 4510134
+    exact: "51 × 102³ / 12"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: cm⁴, factor: 0.0001}
+  bending_stress:
+    description: Largest bending stress in the 51 mm by 102 mm bar
+    kind: fixed
+    unit: MPa
+    value: 67.85
+    tolerance: {rel: 0.01, why: "Accepts 67.8 and 68."}
+    alternatives:
+      - id: depth_rounded_alone
+        condition: The answer gives 50 mm by 102 mm and states the departure from the 2 to 1 ratio (see width).
+        value: 69.20
+    other_units:
+      - {unit: psi, factor: 145.038}
+    accepted_examples:
+      - {value: 67.8, why: Three significant figures}
+    not_accepted:
+      - {value: 72.0, why: The 50 mm by 100 mm bar}
+      - {value: 135.7, why: "Bent the weak way: S taken as 102 × 51² / 6"}
+  tip_deflection:
+    description: Tip deflection of the 51 mm by 102 mm bar
+    kind: fixed
+    unit: mm
+    value: 14.48
+    tolerance: {rel: 0.01, why: "Accepts 14.5."}
+    alternatives:
+      - id: depth_rounded_alone
+        condition: The answer gives 50 mm by 102 mm and states the departure from the 2 to 1 ratio (see width).
+        value: 14.77
+    accepted_examples:
+      - {value: 14.5, why: Three significant figures}
+    not_accepted:
+      - {value: 15.67, why: The 50 mm by 100 mm bar}
+      - {value: 5.43, why: "The formula for an evenly spread load, w L⁴ / (8 E I), used with w L = 4 kN"}
+criteria:
+  section_meets_its_own_limits:
+    description: For the section, material and limits the answer chooses at L0 or L1. The choice itself is not graded; this checks that it is consistent.
+    pass_when:
+      - id: stress_within_allowable
+        text: The bending stress the section gives, M / S, is at or under the allowable stress the answer states.
+        inputs:
+          moment_knm: {description: The bending moment the answer sizes for, unit: kN·m}
+          section_modulus_mm3: {description: Section modulus of the chosen section, unit: mm³}
+          allowable_mpa: {description: Allowable stress the answer states, unit: MPa}
+        check: "moment_knm * 1e6 / section_modulus_mm3 <= allowable_mpa"
+      - id: deflection_within_limit
+        text: If the answer states a deflection limit, the tip deflection P L³ / (3 E I) is at or under it.
+        inputs:
+          modulus_gpa: {description: Young's modulus of the chosen material, unit: GPa}
+          second_moment_mm4: {description: Second moment of area of the chosen section, unit: mm⁴}
+          limit_mm: {description: Deflection limit the answer states, unit: mm}
+        check: "4000 * 1500**3 / (3 * modulus_gpa * 1000 * second_moment_mm4) <= limit_mm"

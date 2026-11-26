@@ -1,0 +1,214 @@
+# Reference answers: how a loan is paid off (T2.3).
+# Worked solution: docs/references/math/loan-amortization.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: math
+task_id: loan-amortization
+prompt_set_version: "1"
+title: How a loan of 9000 at 7% is paid off in equal monthly payments over 5 years
+givens:
+  - {id: principal, text: "9000", value: 9000, unit: currency}
+  - {id: annual_rate, text: "7%", value: 7, unit: percent per year}
+  - {id: term, text: "5 years", value: 5, unit: years}
+l2_givens:
+  - {id: loan_start, text: "March 1, 2027", value: "2027-03-01", unit: date}
+  - {id: first_payment_due, text: "April 1, 2027", value: "2027-04-01", unit: date}
+assumptions:
+  - The 7% is a nominal annual rate charged monthly, so the monthly rate is 7%/12. The L2 brief says so; at L0 and L1 it is the standard reading.
+  - Sixty payments, each at the end of a month, the first one month after the loan starts.
+  - No fees, and no payment is missed or made early.
+  - "Currency: none is stated at L0 and L1, and the L2 brief uses US dollars. The unit written here as currency is whichever the answer uses; the numbers do not change with it."
+  - "L2, interest rounding: each month's interest is rounded to the cent (half a cent rounds up) before it is applied, as lenders do. Carrying exact interest and rounding only the last payment gives the same last payment and the same total here."
+  - "L2, last payment: the balance left after 59 payments plus the last month's interest on it."
+levels:
+  L0:
+    checkable: true
+    note: The payment is graded to the cent. No rounding rule is given, so the total interest and total paid are graded within a few cents.
+    quantities: [monthly_payment, total_interest]
+    if_reported: [total_paid, payment_count, monthly_rate_percent]
+  L1:
+    checkable: true
+    note: As L0. Whether the buyer can afford it is a judgment and is not graded.
+    quantities: [monthly_payment, total_interest]
+    if_reported: [total_paid, payment_count, monthly_rate_percent]
+  L2:
+    checkable: true
+    note: The cent-rounding rule fixes the last payment and the total interest. The schedule is checked by its row count, its dates and a few balances.
+    quantities: [monthly_payment, final_payment, total_interest_l2, schedule_rows, first_payment_date, final_payment_date]
+    if_reported: [total_paid_l2, payment_count, monthly_rate_percent, first_interest, first_principal, balance_after_1, balance_after_12, balance_after_24, balance_after_36, balance_after_48, balance_after_59, balance_after_60, last_interest]
+quantities:
+  monthly_payment:
+    description: The equal monthly payment
+    kind: fixed
+    unit: currency
+    value: 178.21
+    exact: "9000 × (0.07/12) / (1 − (1 + 0.07/12)^−60) = 178.2108"
+    tolerance: {abs: 0.005, why: "Money is graded to the cent: 178.21, or the unrounded 178.2108."}
+    alternatives:
+      - id: effective_annual_rate
+        condition: The answer says it treats 7% as an effective annual rate, so the monthly rate is 1.07^(1/12) − 1 = 0.5654%.
+        levels: [L0, L1]
+        value: 177.30
+        note: Not accepted at L2, where the brief says one twelfth of the annual rate.
+    accepted_examples:
+      - {value: 178.21, why: To the cent}
+      - {value: 178.2108, why: Unrounded}
+    not_accepted:
+      - {value: 178.22, why: "Rounded up; 178.2108 rounds to 178.21"}
+      - {value: 177.18, why: Payments taken at the start of each month}
+      - {value: 202.50, why: "Simple interest on the full amount for 5 years: (9000 + 3150) / 60"}
+      - {value: 150.00, why: No interest}
+  total_interest:
+    description: Total interest paid over the loan, with no rounding rule
+    kind: fixed
+    unit: currency
+    value: 1692.65
+    exact: "60 × 178.2108 − 9000 = 1692.647"
+    tolerance: {abs: 0.06, why: "No rounding rule is given at L0 and L1. This accepts 60 × 178.21 − 9000 = 1692.60, the unrounded 1692.65 and the cent-rounded schedule's 1692.66."}
+    alternatives:
+      - id: effective_annual_rate
+        condition: The answer says it treats 7% as an effective annual rate.
+        levels: [L0, L1]
+        value: 1637.95
+    accepted_examples:
+      - {value: 1692.60, why: Sixty payments of 178.21}
+      - {value: 1692.66, why: The cent-rounded schedule}
+    not_accepted:
+      - {value: 3150.00, why: Simple interest on the full amount for 5 years}
+      - {value: 1693.20, why: Sixty payments of 178.22}
+      - {value: 1630.64, why: Payments taken at the start of each month}
+  total_paid:
+    description: Total of all payments, with no rounding rule
+    kind: fixed
+    unit: currency
+    value: 10692.65
+    tolerance: {abs: 0.06, why: "The principal plus the total interest, with the same allowance."}
+    alternatives:
+      - id: effective_annual_rate
+        condition: The answer says it treats 7% as an effective annual rate.
+        levels: [L0, L1]
+        value: 10637.95
+  payment_count:
+    description: Number of monthly payments
+    kind: fixed
+    type: integer
+    unit: "1"
+    value: 60
+    tolerance: {abs: 0, why: A count.}
+  monthly_rate_percent:
+    description: Interest rate per month
+    kind: fixed
+    unit: percent per month
+    value: 0.58333
+    exact: "7/12"
+    tolerance: {abs: 0.0005, why: "Accepts 0.583 and 0.5833."}
+    other_units:
+      - {unit: decimal fraction per month, factor: 0.01}
+  final_payment:
+    description: The last (60th) payment, which clears the balance exactly
+    kind: fixed
+    unit: currency
+    value: 178.27
+    tolerance: {abs: 0.02, why: "Rounding each month's interest to the cent and carrying exact interest both give 178.27. Two cents allow for a schedule that rounds in another order. The unadjusted 178.21 is 6 cents away and fails."}
+    not_accepted:
+      - {value: 178.21, why: Last payment not adjusted}
+      - {value: 177.92, why: "Each month's interest cut down to the cent, not rounded"}
+      - {value: 177.57, why: Regular payment of 178.22}
+  total_interest_l2:
+    description: Total interest paid under the L2 cent-rounding rule
+    kind: fixed
+    unit: currency
+    value: 1692.66
+    exact: "59 × 178.21 + 178.27 − 9000"
+    tolerance: {abs: 0.02, why: "Both interest conventions give 1692.66. Two cents accept the unrounded 1692.65. 1692.60, from sixty payments of 178.21, ignores the last payment and fails."}
+    accepted_examples:
+      - {value: 1692.65, why: The unrounded formula value}
+    not_accepted:
+      - {value: 1692.60, why: Sixty payments of 178.21 with no last-payment adjustment}
+      - {value: 1692.31, why: "Each month's interest cut down to the cent, not rounded"}
+  total_paid_l2:
+    description: Total of all payments under the L2 rule
+    kind: fixed
+    unit: currency
+    value: 10692.66
+    tolerance: {abs: 0.02, why: "The principal plus the total interest, with the same allowance."}
+  schedule_rows:
+    description: Rows in the full schedule, one per month
+    kind: fixed
+    type: integer
+    unit: "1"
+    value: 60
+    tolerance: {abs: 0, why: A count.}
+  first_payment_date:
+    description: Date of the first payment
+    kind: fixed
+    type: date
+    unit: date
+    value: "2027-04-01"
+  final_payment_date:
+    description: Date of the last payment, 59 months after the first
+    kind: fixed
+    type: date
+    unit: date
+    value: "2032-03-01"
+  first_interest:
+    description: Interest part of the first payment
+    kind: fixed
+    unit: currency
+    value: 52.50
+    exact: "9000 × 0.07 / 12"
+    tolerance: {abs: 0.005, why: Exact to the cent under every convention.}
+  first_principal:
+    description: Principal part of the first payment
+    kind: fixed
+    unit: currency
+    value: 125.71
+    tolerance: {abs: 0.005, why: Exact to the cent under every convention.}
+  balance_after_1:
+    description: Balance left after the first payment
+    kind: fixed
+    unit: currency
+    value: 8874.29
+    tolerance: {abs: 0.005, why: Exact to the cent under every convention.}
+  balance_after_12:
+    description: Balance left after payment 12
+    kind: fixed
+    unit: currency
+    value: 7442.13
+    tolerance: &balance_tolerance {abs: 0.02, why: "The two interest conventions differ by at most 1.5 cents in any balance."}
+  balance_after_24:
+    description: Balance left after payment 24
+    kind: fixed
+    unit: currency
+    value: 5771.65
+    tolerance: *balance_tolerance
+  balance_after_36:
+    description: Balance left after payment 36
+    kind: fixed
+    unit: currency
+    value: 3980.39
+    tolerance: *balance_tolerance
+  balance_after_48:
+    description: Balance left after payment 48
+    kind: fixed
+    unit: currency
+    value: 2059.66
+    tolerance: *balance_tolerance
+  balance_after_59:
+    description: Balance left after payment 59
+    kind: fixed
+    unit: currency
+    value: 177.24
+    tolerance: *balance_tolerance
+  balance_after_60:
+    description: Balance left after the last payment
+    kind: fixed
+    unit: currency
+    value: 0.00
+    tolerance: {abs: 0.005, why: The brief asks for exactly zero.}
+  last_interest:
+    description: Interest part of the last payment
+    kind: fixed
+    unit: currency
+    value: 1.03
+    tolerance: {abs: 0.01, why: "1.03 with rounded interest, 1.0339 exact."}
