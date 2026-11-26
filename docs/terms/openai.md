@@ -1,0 +1,92 @@
+# OpenAI: storing, sharing and publishing outputs
+
+**Not legal advice.** A summary of OpenAI's published terms as fetched on
+2026-11-26, for the decisions in [README.md](README.md). Models in scope:
+`gpt-6.2-sol`, `gpt-6-luna` ([models.yaml](../../models.yaml)). Quotes are
+short and verbatim (typographic quotes changed to ASCII); everything under
+"Reading" is interpretation.
+
+## Documents read
+
+| Document | Covers | Date shown |
+|---|---|---|
+| [Services Agreement](https://openai.com/policies/services-agreement/) ("Business Terms" link redirects here) | APIs | effective Jan 1, 2026 |
+| [Usage Policies](https://openai.com/policies/usage-policies/) | all services | effective Nov 20, 2026 |
+| [Sharing & Publication Policy](https://openai.com/policies/sharing-publication-policy/) | all services | updated Nov 14, 2022 |
+| [Service Terms](https://openai.com/policies/service-terms/) | specific features | updated Nov 13, 2026 |
+| [Data controls guide](https://developers.openai.com/api/docs/guides/your-data) | API retention | none shown |
+| [Supported countries](https://developers.openai.com/api/docs/supported-countries) | API regions | none shown |
+| [Terms of Use](https://openai.com/policies/terms-of-use/) / [Europe Terms of Use](https://openai.com/policies/eu-terms-of-use/) | ChatGPT (T5.1) | Jan 1, 2026 / Jan 16, 2026 |
+| [Privacy Policy](https://openai.com/policies/row-privacy-policy/) | ChatGPT retention | updated Feb 6, 2026 |
+
+The Services Agreement makes the Sharing & Publication Policy, Usage Policies
+and Service Terms binding: "OpenAI Policies" means "the Service-Specific Terms,
+Sharing and Publication Policy, and Usage Policies".
+
+## What the text says: API
+
+- **Ownership.** §4.1: Customer "owns all Output"; OpenAI "assigns to Customer
+  all OpenAI's right, title, and interest, if any, in and to Output".
+- **Training on API data.** §4.2: OpenAI "will not use Customer Content to
+  develop or improve the Services, unless Customer explicitly agrees".
+- **Sharing and publishing.** The Sharing & Publication Policy says posting
+  "your own prompts or completions to social media is generally permissible",
+  with conditions: "Manually review each
+  generation before sharing", "Attribute the content to your name or your
+  company", and "Indicate that the content is AI-generated in a way no user
+  could reasonably miss or misunderstand". On research: "we welcome research
+  publications related to the OpenAI API." Nothing addresses datasets.
+- **Restrictions.** §3.3(e): no use of "Output to develop artificial
+  intelligence models that compete with OpenAI's products and services", except
+  narrow exceptions ("Permitted Exception": in-house classifiers, OpenAI
+  fine-tuning). The Usage Policies, updated with effect from Nov 20, 2026 "to
+  clarify restrictions on using OpenAI models and outputs to train other
+  models", forbid using outputs "to generate, prepare, select, or supply
+  training material or signals for models that are intended as alternatives to or substitutes for OpenAI models"; this applies
+  "even if you do not train the resulting model" and "when outputs from product
+  use or evaluation are later used or supplied for those training purposes".
+- **Benchmarking.** Usage Policies: "You may use OpenAI models for research,
+  software development, model evaluation and benchmarking, and product
+  development, within these boundaries."
+- **Naming OpenAI.** §10 (No Publicity): without written permission neither
+  party will "include the other Party's name or logo on their websites, media,
+  or marketing materials" or "make any public statement about its relationship
+  with the other Party or this Agreement".
+- **Code outputs.** Service Terms §4: code-generation output "may be subject to
+  third party licenses, including, without limitation, open source licenses."
+- **Retention.** Abuse-monitoring logs "retained for up to 30 days" by default
+  (data controls guide). The Responses API, which the runner uses, keeps
+  application state "for at least 30 days" by default or when `store` is true;
+  the runner leaves `store` at its default. Zero Data Retention needs approval.
+- **Region.** The contracting party is OpenAI Ireland Ltd. for the EEA or
+  Switzerland and OpenAI OpCo, LLC elsewhere; governing law is Irish (EEA,
+  Switzerland, UK) or Californian. Use "outside of the countries and territories
+  listed" on the supported-countries page "may result in your account being
+  blocked or suspended."
+
+## What the text says: ChatGPT (T5.1, hand-typed prompts)
+
+- Forbidden (Terms of Use; the Europe version words the same rules as
+  "Automatically or programmatically extracting ..."): "Automatically or
+  programmatically extract data or Output"; "Represent that Output was human-generated when it
+  was not"; "Use Output to develop models that compete with OpenAI".
+- Users "own the Output". OpenAI "may use Content to provide, maintain,
+  develop, and improve our Services"; users can opt out of training.
+- Deleted chats are removed "within 30 days" unless retention is needed
+  (Privacy Policy).
+
+## Reading (not legal advice)
+
+- OpenAI is the only provider that expressly allows evaluation and benchmarking,
+  and expressly welcomes research publications.
+- The Sharing & Publication Policy was written for social posts and co-authored
+  books, not datasets. If it is applied to sibar records, three duties follow:
+  manual review of each generation, attribution to a name or company (the repo
+  publishes no personal names, so a project name would be needed), and a clear
+  AI-generated label. Reviewing every record by hand may not be practical.
+- The training rule is purpose-based ("intended as alternatives"), but
+  "supply" is wide. Publishing outputs where others can train on them is not
+  addressed directly.
+- §10 read literally covers naming OpenAI on a website. Naming the model that
+  produced a record is factual, not marketing, but the text has no such
+  exception. Whether to ask OpenAI is a decision for the Human.

@@ -6,6 +6,8 @@ Project documents. Present now:
 - [record-format.md](record-format.md): the run record format (T0.4)
 - [ledger.md](ledger.md): the cost ledger and budget cap (X3)
 - [runner.md](runner.md): the generation runner and its live check (T0.5)
+- [terms/](terms/README.md): what each provider's terms allow for storing,
+  sharing and publishing outputs, and the decisions left to the Human (T0.7)
 
 Added by later tasks in [tasks.md](../tasks.md):
 
