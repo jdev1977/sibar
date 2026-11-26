@@ -151,6 +151,13 @@ class Adapter:
             return Result("failed", error=f"unexpected HTTP status "
                           f"{response.status}", stop="model",
                           request_id=self.header_request_id(response))
+        kind = (response.header("content-type") or "").split(";")[0].strip().lower()
+        if kind and kind != "text/event-stream":
+            # Every request asks for a stream. Anything else would fail the
+            # same way for every prompt, so it is not retried.
+            return Result("failed", stop="model",
+                          request_id=self.header_request_id(response),
+                          error=f"expected an event stream, got {kind}")
         return self.parse_stream(response)
 
     def header_request_id(self, response):

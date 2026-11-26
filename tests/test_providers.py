@@ -293,6 +293,15 @@ def test_errors_inside_a_stream(provider, data, retryable):
 
 
 @pytest.mark.parametrize("provider", sorted(ADAPTERS))
+def test_a_body_that_is_not_a_stream_is_not_retried(provider):
+    response = FakeResponse(200, {"content-type": "application/json; charset=utf-8"},
+                            body=b'{"id": "x"}')
+    result = parse(provider, response)
+    assert result.status == "failed" and not result.retryable
+    assert result.stop == "model" and "application/json" in result.error
+
+
+@pytest.mark.parametrize("provider", sorted(ADAPTERS))
 def test_a_stream_that_is_not_json_is_a_parse_error(provider):
     response = FakeResponse(200, {}, ["event: x\n", "data: {not json\n", "\n"])
     with pytest.raises(ParseError):

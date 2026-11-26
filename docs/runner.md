@@ -109,6 +109,17 @@ DeepSeek `Authorization: Bearer`; Google `x-goog-api-key` and
 Each adapter module (`runner/providers/*.py`) cites the pages it follows and
 lists what it could not verify.
 
+**Why no provider SDKs and no HTTP library.** Each provider needs one POST and
+a line-by-line read of a streamed body, which the standard library
+(`http.client` over `ssl`, in `runner/transport.py`) does in under two hundred
+lines. SDKs would add four dependency trees, each with its own automatic
+retries (which must be off, since the ledger reserves every attempt) and its
+own view of timeouts; and the runner needs to know whether a failure came
+before the request left the machine (nothing billed) or after (maybe billed),
+which `http.client` shows directly because connecting is a separate step.
+The cost is following API changes by hand; the adapters cite the pages to
+recheck.
+
 ## What is recorded
 
 | Record field | Anthropic | OpenAI | Google | DeepSeek |
