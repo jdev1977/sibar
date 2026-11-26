@@ -1,0 +1,237 @@
+# Reference answers: a shelf bracket with a CAD file (T2.3).
+# Worked solution: docs/references/engineering/shelf-bracket.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: engineering
+task_id: shelf-bracket
+prompt_set_version: "1"
+title: A shelf bracket with a CAD file
+study_data_note: Study data, not a design. These values exist to grade answers collected for a study of model defaults. Do not build from them.
+givens: []
+l2_givens:
+  - {id: shelf_depth, text: "10 in", value: 10, unit: in}
+  - {id: shelf_thickness, text: "3/4 in", value: 0.75, unit: in}
+  - {id: load_per_bracket, text: "40 lb", value: 40, unit: lb}
+  - {id: strip_size, text: "1 1/2 in square", value: 1.5, unit: in}
+  - {id: plywood_thickness, text: "1/4 in", value: 0.25, unit: in}
+  - {id: dimension_step, text: "1/16 in", value: 0.0625, unit: in}
+  - {id: working_stress, text: "1000 psi", value: 1000, unit: psi}
+assumptions:
+  - "L2: each bracket carries 40 lb, spread evenly over the 10 in depth of the shelf, so the load is 4 lb per inch and acts as one force 5 in from the wall."
+  - "L2: the shelf rests on the bracket alone; the wall itself carries none of the shelf's weight directly. The 40 lb then reaches the bracket 5 in from the wall whatever the bracket's size, and the moment where the bracket meets the wall is 200 lb·in."
+  - "L2: the bracket is a quarter disc of radius R with its corner where the wall meets the underside of the shelf. At a distance x from the wall its depth is sqrt(R² − x²)."
+  - "L2: the two screws go through the face of the plywood into the side of the wood strip, so they are loaded across their length. They sit one above the other, a distance e from the wall edge of the bracket and s apart. The positions are the model's choice."
+  - "L2, screw-group reading (the reference): the two screws alone hold the bracket. Each takes half the load downward, and the load's moment about the pair, 40 × (5 − e), is resisted by equal and opposite sideways forces."
+  - "L2, bearing reading (accepted when the answer states it): the bottom of the wall edge presses on the wall and the screws hold the top in. Graded by the alternatives of screw_sideways_force."
+  - "L2: the plywood is treated as a plain beam of rectangular section, 1/4 in wide and as deep as the bracket at that section, with stress 6 M / (t h²). Screw holes and the direction of the plies are left out."
+levels:
+  L0:
+    checkable: false
+    note: No checkable answer. No dimension, load or unit is given, so every number is the model's choice; record the choices. If an answer states a load and its distance, its moment can be checked against its own numbers.
+    consistency: [moment_from_stated_load]
+  L1:
+    checkable: false
+    note: No checkable answer, as L0.
+    consistency: [moment_from_stated_load]
+  L2:
+    checkable: true
+    note: The moment at the wall is fixed. The screw forces and the plywood stress depend on the outline and the screw positions the model chooses; grade them against those. The outline and the CAD file have pass criteria.
+    quantities: [moment_at_wall, screw_downward_force, screw_sideways_force, plywood_bending_stress]
+    if_reported: [load_per_inch, load_distance_from_wall, screw_resultant_force, moment_about_screws, lower_screw_sideways_force_bearing, quarter_disc_stress_at_wall]
+    criteria: [outline, cad_file, stress_within_working_stress]
+quantities:
+  moment_at_wall:
+    description: Bending moment where the bracket meets the wall
+    kind: fixed
+    unit: lb·in
+    value: 200.0
+    exact: "40 lb × 5 in"
+    tolerance: {rel: 0.005, why: Statics; exact.}
+    other_units:
+      - {unit: lb·ft, factor: 0.0833333}
+      - {unit: N·m, factor: 0.112985}
+    not_accepted:
+      - {value: 400, why: "The load taken at the front edge of the shelf: 40 × 10"}
+      - {value: 170, why: "The moment about the screws (e = 3/4 in) reported as the moment at the wall"}
+      - {value: 2000, why: "w L² / 2 with w taken as 40 lb per inch"}
+  load_per_inch:
+    description: Load on the bracket per inch of shelf depth
+    kind: fixed
+    unit: lb/in
+    value: 4.0
+    exact: "40 / 10"
+    tolerance: {rel: 0.005, why: Exact.}
+  load_distance_from_wall:
+    description: Distance from the wall to the line of action of the 40 lb
+    kind: fixed
+    unit: in
+    value: 5.0
+    tolerance: {rel: 0.005, why: Exact.}
+  screw_downward_force:
+    description: Downward force on each screw, half the load
+    kind: fixed
+    unit: lb
+    value: 20.0
+    exact: "40 / 2"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: N, factor: 4.44822}
+  moment_about_screws:
+    description: Moment of the load about the pair of screws, for the distance e the answer states
+    kind: conditional
+    unit: lb·in
+    inputs:
+      e: {description: Distance of the screws from the wall edge of the bracket, unit: in}
+    formula: "40 * (5 - e)"
+    tolerance: {rel: 0.01, why: Rounding.}
+    examples:
+      - {inputs: {e: 0.75}, value: 170.0, note: Screws on the centerline of the strip}
+      - {inputs: {e: 1.0}, value: 160.0}
+  screw_sideways_force:
+    description: Sideways (horizontal) force on each screw, for the screw positions the answer states. Screw-group reading; the upper screw is pulled away from the wall and the lower one pushed toward it, with equal force.
+    kind: conditional
+    unit: lb
+    inputs:
+      e: {description: Distance of the screws from the wall edge of the bracket, unit: in}
+      s: {description: Distance between the two screws, unit: in}
+    formula: "40 * (5 - e) / s"
+    tolerance: {rel: 0.02, why: "Rounding, and dimensions given to the nearest 1/16 in."}
+    other_units:
+      - {unit: N, factor: 4.44822}
+    examples:
+      - {inputs: {e: 0.75, s: 6}, value: 28.333, note: The reference layout}
+      - {inputs: {e: 0.75, s: 5}, value: 34.0}
+      - {inputs: {e: 0.75, s: 4}, value: 42.5}
+      - {inputs: {e: 1.0, s: 6}, value: 26.667}
+    alternatives:
+      - id: bearing_upper_screw
+        condition: The answer says the bottom of the wall edge bears on the wall at a depth p below the shelf, and that the upper screw alone holds the top in. It takes moments about the bearing point and counts the screws' upward 40 lb at e from the wall.
+        inputs:
+          e: {description: Distance of the screws from the wall edge, unit: in}
+          a: {description: Depth of the upper screw below the underside of the shelf, unit: in}
+          p: {description: "Depth of the bearing point below the underside of the shelf (the radius, if it bears at the bottom tip)", unit: in}
+        formula: "40 * (5 - e) / (p - a)"
+        examples:
+          - {inputs: {e: 0.75, a: 2, p: 10}, value: 21.25}
+      - id: bearing_upper_screw_wall_moment
+        condition: As bearing_upper_screw, but the answer divides the moment at the wall, 200 lb·in, by the height of the upper screw above the bearing point.
+        inputs:
+          a: {description: Depth of the upper screw below the underside of the shelf, unit: in}
+          p: {description: Depth of the bearing point below the underside of the shelf, unit: in}
+        formula: "200 / (p - a)"
+        examples:
+          - {inputs: {a: 2, p: 10}, value: 25.0}
+      - id: bearing_both_screws
+        condition: The answer says the bottom of the wall edge bears on the wall and that both screws hold the bracket in, each in proportion to its height above the bearing point. This is the force on the upper screw.
+        inputs:
+          e: {description: Distance of the screws from the wall edge, unit: in}
+          a: {description: Depth of the upper screw below the underside of the shelf, unit: in}
+          s: {description: Distance between the two screws, unit: in}
+          p: {description: Depth of the bearing point below the underside of the shelf, unit: in}
+        formula: "40 * (5 - e) * (p - a) / ((p - a)**2 + (p - a - s)**2)"
+        examples:
+          - {inputs: {e: 0.75, a: 2, s: 6, p: 10}, value: 20.0}
+  lower_screw_sideways_force_bearing:
+    description: Sideways force on the lower screw in the bearing reading with both screws sharing
+    kind: conditional
+    unit: lb
+    inputs:
+      e: {description: Distance of the screws from the wall edge, unit: in}
+      a: {description: Depth of the upper screw below the underside of the shelf, unit: in}
+      s: {description: Distance between the two screws, unit: in}
+      p: {description: Depth of the bearing point below the underside of the shelf, unit: in}
+    formula: "40 * (5 - e) * (p - a - s) / ((p - a)**2 + (p - a - s)**2)"
+    tolerance: {rel: 0.02, why: Rounding.}
+    examples:
+      - {inputs: {e: 0.75, a: 2, s: 6, p: 10}, value: 5.0}
+  screw_resultant_force:
+    description: Total force on each screw in the screw-group reading, the sideways and downward parts together
+    kind: conditional
+    unit: lb
+    inputs:
+      e: {description: Distance of the screws from the wall edge of the bracket, unit: in}
+      s: {description: Distance between the two screws, unit: in}
+    formula: "sqrt((40 * (5 - e) / s)**2 + 20**2)"
+    tolerance: {rel: 0.02, why: Rounding.}
+    other_units:
+      - {unit: N, factor: 4.44822}
+    examples:
+      - {inputs: {e: 0.75, s: 6}, value: 34.681, note: The reference layout}
+      - {inputs: {e: 0.75, s: 5}, value: 39.446}
+      - {inputs: {e: 1.0, s: 4}, value: 44.721}
+  plywood_bending_stress:
+    description: Bending stress in the plywood at the section the answer names, 6 M / (t h²) with t = 1/4 in
+    kind: conditional
+    unit: psi
+    inputs:
+      moment_lb_in: {description: Bending moment at that section as the answer states it, unit: lb·in}
+      depth_in: {description: Depth of the bracket at that section, unit: in}
+    formula: "6 * moment_lb_in / (0.25 * depth_in**2)"
+    tolerance: {rel: 0.02, why: "Rounding, and dimensions given to the nearest 1/16 in."}
+    other_units:
+      - {unit: MPa, factor: 0.00689476}
+    examples:
+      - {inputs: {moment_lb_in: 200, depth_in: 10}, value: 48.0, note: "The reference bracket, R = 10 in, at the wall"}
+      - {inputs: {moment_lb_in: 200, depth_in: 8}, value: 75.0, note: "R = 8 in, at the wall"}
+      - {inputs: {moment_lb_in: 171.125, depth_in: 9.9718}, value: 41.303, note: "R = 10 in, at the screw line 3/4 in from the wall"}
+  quarter_disc_stress_at_wall:
+    description: Bending stress at the wall section of a quarter disc of the radius the answer states. For a quarter disc as deep as the shelf the wall section is the weakest.
+    kind: conditional
+    unit: psi
+    inputs:
+      radius_in: {description: Radius of the quarter disc (the length of its wall edge), unit: in}
+    formula: "6 * 200 / (0.25 * radius_in**2)"
+    tolerance: {rel: 0.02, why: Rounding.}
+    examples:
+      - {inputs: {radius_in: 10}, value: 48.0, note: The reference bracket}
+      - {inputs: {radius_in: 9}, value: 59.259}
+      - {inputs: {radius_in: 8}, value: 75.0}
+  moment_from_stated_load:
+    description: Moment at the wall for the load and the distance the answer itself states, in its own units
+    kind: conditional
+    unit: the answer's force unit times its length unit
+    inputs:
+      load: {description: Load on one bracket as the answer states it, unit: the answer's force unit}
+      distance: {description: Distance from the wall to the load's line of action as the answer states it, unit: the answer's length unit}
+    formula: "load * distance"
+    tolerance: {rel: 0.02, why: Rounding.}
+    examples:
+      - {inputs: {load: 40, distance: 5}, value: 200.0}
+      - {inputs: {load: 100, distance: 0.1}, value: 10.0, note: "100 N at 0.1 m"}
+criteria:
+  outline:
+    description: The outline of the bracket at L2. The radius and the hole positions are the model's choice.
+    pass_when:
+      - id: quarter_disc
+        text: The outline is a solid quarter circle, with two straight edges of equal length R that meet at a right angle, and one arc of radius R centered on that corner. The arc is a quarter of a circle, of length π R / 2.
+      - id: fits_under_shelf
+        text: R is at most 10 in, the depth of the shelf, and more than 5 in, so that the bracket reaches past the middle of the shelf.
+        inputs:
+          radius_in: {description: Radius of the quarter disc, unit: in}
+        check: "5 < radius_in <= 10"
+      - id: two_holes_over_the_strip
+        text: There are two screw holes, one above the other, on a line parallel to the wall edge and over the 1 1/2 in strip, so their distance e from the wall edge is more than 0 and less than 1.5 in.
+        inputs:
+          e: {description: Distance of the screw holes from the wall edge, unit: in}
+        check: "0 < e < 1.5"
+      - id: sixteenths
+        text: Every dimension is in inches and is a whole number of sixteenths.
+      - id: one_flat_piece
+        text: The bracket is one flat piece, 1/4 in thick, with no bends, tabs or second part.
+  cad_file:
+    description: The CAD file at L2. The format is the model's choice; record it.
+    pass_when:
+      - id: flat_outline_format
+        text: The file is a flat, two-dimensional outline in a format a laser cutter can take (such as DXF or SVG), not a solid model only.
+      - id: closed_outline_with_holes
+        text: It holds one closed outline, two straight lines and one arc, and two circles for the screw holes.
+      - id: matches_description
+        text: Its dimensions agree with the dimensioned description in the answer, and its unit is inches or is stated.
+  stress_within_working_stress:
+    description: The stress check at L2.
+    pass_when:
+      - id: below_working_stress
+        text: The bending stress the answer finds is at or under the working stress of 1000 psi, and the answer says so.
+        inputs:
+          stress_psi: {description: Bending stress at the weakest section as the answer states it, unit: psi}
+        check: "stress_psi <= 1000"

@@ -1,0 +1,235 @@
+# Reference answers: compression spring design (T2.3).
+# Worked solution: docs/references/engineering/compression-spring.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: engineering
+task_id: compression-spring
+prompt_set_version: "1"
+title: Design a compression spring
+study_data_note: Study data, not a design. These values exist to grade answers collected for a study of model defaults. Do not build from them.
+givens: []
+l2_givens:
+  - {id: free_length, text: "0.75 in", value: 0.75, unit: in}
+  - {id: working_length, text: "0.55 in", value: 0.55, unit: in}
+  - {id: working_force, text: "1.2 lbf", value: 1.2, unit: lbf}
+  - {id: hole_diameter, text: "0.30 in", value: 0.30, unit: in}
+  - {id: outside_diameter_limit, text: "0.27 in", value: 0.27, unit: in}
+  - {id: shear_modulus, text: "10.0 million psi", value: 10000000, unit: psi}
+  - {id: tensile_strength, text: "280,000 psi", value: 280000, unit: psi}
+  - {id: stress_share, text: "45%", value: 45, unit: percent}
+  - {id: presses, text: "100,000 presses", value: 100000, unit: presses}
+assumptions:
+  - "L2: a round-wire helical spring of constant pitch and constant coil diameter, which pushes with a force that grows in proportion to how far it is pressed in."
+  - "L2: spring rate k = G d⁴ / (8 D³ Na), with d the wire diameter, D the mean coil diameter and Na the number of active coils."
+  - "L2: shear stress τ = K × 8 F D / (π d³). The reference uses the Wahl factor K = (4C − 1)/(4C − 4) + 0.615/C with C = D / d. The Bergsträsser factor, the direct-shear factor 1 + 0.5/C and the uncorrected formula are accepted when the answer states them."
+  - "L2: total coils and solid length follow the end type the answer states. Squared and ground ends: Nt = Na + 2 and solid length d × Nt. Squared ends not ground: Nt = Na + 2 and d × (Nt + 1). Plain ends ground: Nt = Na + 1 and d × Nt. Plain ends: Nt = Na and d × (Nt + 1)."
+  - "L2: the outside diameter is D + d. Each press takes the spring from its free length to 0.55 in and back, unless the answer states a preload."
+levels:
+  L0:
+    checkable: false
+    note: No checkable answer. No force, size or unit is given, so every number is the model's choice; record the choices. The rate formula can check an answer's own numbers against each other.
+    consistency: [rate_from_stated_modulus]
+  L1:
+    checkable: false
+    note: No checkable answer, as L0.
+    consistency: [rate_from_stated_modulus]
+  L2:
+    checkable: true
+    note: The required rate and the allowable stress are fixed. The wire, the coil diameter and the coil count are the model's choice, with pass criteria; the rate and stresses it states are graded against its own dimensions.
+    quantities: [spring_rate, rate_from_geometry, shear_stress, solid_length]
+    if_reported: [working_deflection, allowable_shear_stress, outside_diameter, force_at_length]
+    criteria: [design_meets_requirements, life]
+quantities:
+  working_deflection:
+    description: How far the spring is pressed in at the working length
+    kind: fixed
+    unit: in
+    value: 0.20
+    exact: "0.75 − 0.55"
+    tolerance: {abs: 0.0005, why: Exact.}
+    other_units:
+      - {unit: mm, factor: 25.4}
+  spring_rate:
+    description: Spring rate needed, the force over the deflection
+    kind: fixed
+    unit: lbf/in
+    value: 6.0
+    exact: "1.2 / 0.20"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: N/mm, factor: 0.175127}
+      - {unit: N/m, factor: 175.127}
+    not_accepted:
+      - {value: 2.18, why: "Force over the working length: 1.2 / 0.55"}
+      - {value: 1.6, why: "Force over the free length: 1.2 / 0.75"}
+  allowable_shear_stress:
+    description: Allowable shear stress at the working length, 45% of the tensile strength
+    kind: fixed
+    unit: psi
+    value: 126000
+    exact: "0.45 × 280 000"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: ksi, factor: 0.001}
+      - {unit: MPa, factor: 0.00689476}
+  rate_from_geometry:
+    description: Spring rate that the answer's own wire, coil diameter and active coils give, with G = 10.0 million psi
+    kind: conditional
+    unit: lbf/in
+    inputs:
+      d: {description: Wire diameter, unit: in}
+      D: {description: Mean coil diameter, unit: in}
+      Na: {description: Number of active coils, unit: "1"}
+    formula: "10.0e6 * d**4 / (8 * D**3 * Na)"
+    tolerance: {rel: 0.02, why: "Rounding. The rate goes as d⁴ / D³, so dimensions rounded to three decimals can move it by a percent."}
+    other_units:
+      - {unit: N/mm, factor: 0.175127}
+    examples:
+      - {inputs: {d: 0.030, D: 0.235, Na: 13}, value: 6.0013, note: The reference design}
+      - {inputs: {d: 0.030, D: 0.240, Na: 12}, value: 6.1035}
+      - {inputs: {d: 0.026, D: 0.240, Na: 7}, value: 5.9030}
+      - {inputs: {d: 0.032, D: 0.238, Na: 16}, value: 6.0766, note: "Solid length 0.576 in: cannot reach 0.55 in"}
+  rate_from_stated_modulus:
+    description: Spring rate from the answer's own shear modulus and dimensions, in its own consistent units
+    kind: conditional
+    unit: the answer's force unit per its length unit
+    inputs:
+      G: {description: Shear modulus as the answer states it, unit: the answer's stress unit}
+      d: {description: Wire diameter, unit: the answer's length unit}
+      D: {description: Mean coil diameter, unit: the answer's length unit}
+      Na: {description: Number of active coils, unit: "1"}
+    formula: "G * d**4 / (8 * D**3 * Na)"
+    tolerance: {rel: 0.03, why: Rounding of the dimensions.}
+    examples:
+      - {inputs: {G: 79300, d: 1.0, D: 8.0, Na: 10}, value: 1.9360, note: "Steel wire in MPa and mm: N/mm"}
+      - {inputs: {G: 11500000, d: 0.040, D: 0.30, Na: 8}, value: 17.037, note: "psi and in: lbf/in"}
+  outside_diameter:
+    description: Outside diameter of the coil, the mean diameter plus the wire diameter
+    kind: conditional
+    unit: in
+    inputs:
+      d: {description: Wire diameter, unit: in}
+      D: {description: Mean coil diameter, unit: in}
+    formula: "D + d"
+    tolerance: {abs: 0.0005, why: Exact.}
+    examples:
+      - {inputs: {d: 0.030, D: 0.235}, value: 0.265, note: The reference design}
+  shear_stress:
+    description: Shear stress in the wire at the force the answer states, for its own wire and coil diameter, with the Wahl factor
+    kind: conditional
+    unit: psi
+    inputs:
+      F: {description: "Force on the spring: at 0.55 in, the force its own rate gives (1.2 lbf if the rate is exact); at solid length, rate × (0.75 − solid length)", unit: lbf}
+      d: {description: Wire diameter, unit: in}
+      D: {description: Mean coil diameter, unit: in}
+    formula: "((4 * (D / d) - 1) / (4 * (D / d) - 4) + 0.615 / (D / d)) * 8 * F * D / (pi * d**3)"
+    tolerance: {rel: 0.03, why: "Rounding. The stress goes as D / d³, so dimensions rounded to three decimals can move it by two percent."}
+    other_units:
+      - {unit: ksi, factor: 0.001}
+      - {unit: MPa, factor: 0.00689476}
+    examples:
+      - {inputs: {F: 1.2003, d: 0.030, D: 0.235}, value: 31611, note: "The reference design at 0.55 in"}
+      - {inputs: {F: 1.8004, d: 0.030, D: 0.235}, value: 47416, note: "The reference design at its solid length, 0.450 in"}
+      - {inputs: {F: 1.2, d: 0.026, D: 0.240}, value: 48309}
+    alternatives:
+      - id: bergstrasser
+        condition: The answer uses the Bergsträsser factor, (4C + 2) / (4C − 3).
+        inputs: &stress_inputs
+          F: {description: Force on the spring, unit: lbf}
+          d: {description: Wire diameter, unit: in}
+          D: {description: Mean coil diameter, unit: in}
+        formula: "(4 * (D / d) + 2) / (4 * (D / d) - 3) * 8 * F * D / (pi * d**3)"
+        examples:
+          - {inputs: {F: 1.2003, d: 0.030, D: 0.235}, value: 31297}
+      - id: direct_shear_only
+        condition: The answer uses the direct-shear factor alone, 1 + 0.5 / C, as is usual for a static load.
+        inputs: *stress_inputs
+        formula: "(1 + 0.5 / (D / d)) * 8 * F * D / (pi * d**3)"
+        examples:
+          - {inputs: {F: 1.2003, d: 0.030, D: 0.235}, value: 28301}
+      - id: uncorrected
+        condition: The answer says it uses the plain torsion formula, 8 F D / (π d³), with no correction factor.
+        inputs: *stress_inputs
+        formula: "8 * F * D / (pi * d**3)"
+        examples:
+          - {inputs: {F: 1.2003, d: 0.030, D: 0.235}, value: 26602}
+  solid_length:
+    description: Length of the spring with all coils touching, for ends that are ground flat
+    kind: conditional
+    unit: in
+    inputs:
+      d: {description: Wire diameter, unit: in}
+      Nt: {description: Total number of coils, unit: "1"}
+    formula: "d * Nt"
+    tolerance: {rel: 0.01, why: Rounding.}
+    other_units:
+      - {unit: mm, factor: 25.4}
+    examples:
+      - {inputs: {d: 0.030, Nt: 15}, value: 0.450, note: "The reference design, ends squared and ground"}
+    alternatives:
+      - id: ends_not_ground
+        condition: The answer states ends that are not ground (plain, or squared only).
+        inputs:
+          d: {description: Wire diameter, unit: in}
+          Nt: {description: Total number of coils, unit: "1"}
+        formula: "d * (Nt + 1)"
+        examples:
+          - {inputs: {d: 0.030, Nt: 15}, value: 0.480}
+  force_at_length:
+    description: Force the spring gives at a length, for the rate the answer states
+    kind: conditional
+    unit: lbf
+    inputs:
+      k: {description: Spring rate as the answer states it, unit: lbf/in}
+      length: {description: Length the spring is pressed to, unit: in}
+    formula: "k * (0.75 - length)"
+    tolerance: {rel: 0.02, why: Rounding.}
+    other_units:
+      - {unit: N, factor: 4.44822}
+    examples:
+      - {inputs: {k: 6.0, length: 0.55}, value: 1.2}
+      - {inputs: {k: 6.0013, length: 0.45}, value: 1.8004, note: The reference design at its solid length}
+criteria:
+  design_meets_requirements:
+    description: The spring the answer designs at L2. Any wire, coil diameter and coil count that meet these pass; there is no single right design.
+    pass_when:
+      - id: fits_the_hole
+        text: The outside diameter, D + d, is at most 0.27 in.
+        inputs:
+          d: {description: Wire diameter, unit: in}
+          D: {description: Mean coil diameter, unit: in}
+        check: "D + d <= 0.27 + 0.0005"
+      - id: rate_is_met
+        text: The rate its dimensions give is within 10% of 6.0 lbf/in, so the force at 0.55 in is from 1.08 to 1.32 lbf. The brief sets no tolerance on the force; 10% is the usual commercial tolerance on a spring's load at a length, and the checker records the difference.
+        inputs:
+          d: {description: Wire diameter, unit: in}
+          D: {description: Mean coil diameter, unit: in}
+          Na: {description: Number of active coils, unit: "1"}
+        check: "abs(10.0e6 * d**4 / (8 * D**3 * Na) - 6.0) <= 0.6"
+      - id: reaches_working_length
+        text: The solid length is less than 0.55 in, so the spring can be pressed to its working length.
+        inputs:
+          solid_length_in: {description: Solid length as the answer states it, unit: in}
+        check: "solid_length_in < 0.55"
+      - id: stress_within_allowable
+        text: The shear stress at 0.55 in is below the allowable 126 000 psi.
+        inputs:
+          working_stress_psi: {description: Shear stress at 0.55 in as the answer states it, unit: psi}
+        check: "working_stress_psi < 126000"
+      - id: solid_stress_compared
+        text: The answer gives the shear stress at solid length and compares it with the allowable. It may be over the allowable, which the brief applies at the working length; the answer must then say so.
+      - id: coils_match_end_type
+        text: The total coils and the solid length agree with the end type the answer states (see solid_length and the assumptions).
+  life:
+    description: Whether the spring lasts 100,000 presses, and why. A judgment with a reason; there is no single right criterion.
+    pass_when:
+      - id: verdict_given
+        text: The answer says yes or no.
+      - id: reason_uses_its_stress
+        text: The reason compares the answer's own stress at 0.55 in, or its stress range, with a stated fatigue limit or guideline for spring wire.
+      - id: verdict_follows
+        text: The verdict follows from that comparison. As a yardstick, a common guideline for unpeened stainless spring wire at 100,000 cycles is a largest stress of about 36% of the tensile strength, 100 800 psi. The reference design, at 31 600 psi (11%), lasts.
+        inputs:
+          working_stress_psi: {description: Shear stress at 0.55 in as the answer states it, unit: psi}
+          lasts: {description: "1 if the answer says the spring lasts, 0 if not", unit: "1"}
+        check: "(working_stress_psi <= 100800 and lasts == 1) or working_stress_psi > 100800"

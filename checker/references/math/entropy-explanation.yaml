@@ -1,0 +1,87 @@
+# Reference answers: explain entropy to a student (T2.3).
+# Worked solution: docs/references/math/entropy-explanation.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: math
+task_id: entropy-explanation
+prompt_set_version: "1"
+title: Explain entropy
+givens: []
+l2_givens:
+  - {id: atoms_per_group, text: "two groups of 3 atoms", value: 3, unit: atoms}
+  - {id: packets, text: "6 packets", value: 6, unit: packets}
+  - {id: stated_all_in_one, text: "28", value: 28, unit: ways}
+  - {id: stated_three_each, text: "10 × 10 = 100", value: 100, unit: ways}
+  - {id: stated_total, text: "462", value: 462, unit: ways}
+assumptions:
+  - "The L2 example counts ways to place identical packets of energy on distinguishable atoms: n packets on 3 atoms can be placed in C(n + 2, 2) ways."
+  - "\"All 6 packets in one group\" means a named group holds all six (28 ways). Counting either group gives 56."
+levels:
+  L0:
+    checkable: false
+    note: No checkable answer. This is an explanation, scored by rubric only.
+  L1:
+    checkable: false
+    note: No checkable answer. This is an explanation, scored by rubric only.
+  L2:
+    checkable: false
+    note: No checkable answer. The explanation is scored by rubric only. The brief states three counts (28, 100, 462), and they are correct. If an answer states these or the other counts of the example, they can be checked as facts; that is not a grade of the explanation.
+    if_reported: [ways_all_in_one_group, ways_three_each, ways_three_in_one_group, ways_five_one, ways_four_two, ways_total, share_three_each_percent]
+quantities:
+  ways_all_in_one_group:
+    description: Ways to arrange the energy with all 6 packets in one named group of 3 atoms
+    kind: fixed
+    type: integer
+    unit: ways
+    value: 28
+    exact: "C(8, 2) × 1"
+    tolerance: {abs: 0, why: A count.}
+  ways_three_in_one_group:
+    description: Ways to place 3 packets on one group of 3 atoms
+    kind: fixed
+    type: integer
+    unit: ways
+    value: 10
+    exact: "C(5, 2)"
+    tolerance: {abs: 0, why: A count.}
+  ways_three_each:
+    description: Ways to arrange the energy with 3 packets in each group
+    kind: fixed
+    type: integer
+    unit: ways
+    value: 100
+    exact: "10 × 10"
+    tolerance: {abs: 0, why: A count.}
+  ways_five_one:
+    description: Ways with 5 packets in one named group and 1 in the other
+    kind: fixed
+    type: integer
+    unit: ways
+    value: 63
+    exact: "21 × 3"
+    tolerance: {abs: 0, why: A count.}
+  ways_four_two:
+    description: Ways with 4 packets in one named group and 2 in the other
+    kind: fixed
+    type: integer
+    unit: ways
+    value: 90
+    exact: "15 × 6"
+    tolerance: {abs: 0, why: A count.}
+  ways_total:
+    description: Ways across all splits of the 6 packets between the two groups
+    kind: fixed
+    type: integer
+    unit: ways
+    value: 462
+    exact: "28 + 63 + 90 + 100 + 90 + 63 + 28 = C(11, 5)"
+    tolerance: {abs: 0, why: A count.}
+  share_three_each_percent:
+    description: Share of all arrangements that have 3 packets in each group
+    kind: fixed
+    unit: percent
+    value: 21.65
+    exact: "100/462"
+    tolerance: {abs: 0.5, why: "Accepts 21.6%, 22% and \"about a fifth\" written as 21 to 22%."}
+    other_units:
+      - {unit: fraction, factor: 0.01}

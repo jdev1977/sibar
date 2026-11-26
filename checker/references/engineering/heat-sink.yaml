@@ -1,0 +1,221 @@
+# Reference answers: size a heat sink (T2.3).
+# Worked solution: docs/references/engineering/heat-sink.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: engineering
+task_id: heat-sink
+prompt_set_version: "1"
+title: Size a heat sink for a 20 W component
+study_data_note: Study data, not a design. These values exist to grade answers collected for a study of model defaults. Do not build from them.
+givens:
+  - {id: power, text: "20 W", value: 20, unit: W}
+  - {id: junction_to_case, text: "1.0 °C/W", value: 1.0, unit: °C/W}
+  - {id: junction_max, text: "125 °C", value: 125, unit: °C}
+  - {id: air_temperature, text: "40 °C", value: 40, unit: °C}
+l2_givens:
+  - {id: plate_thickness, text: "3 mm", value: 3, unit: mm}
+  - {id: pad_resistance, text: "0.3 °C/W", value: 0.3, unit: °C/W}
+  - {id: surface_coefficient, text: "10 W/m²·°C", value: 10, unit: W/m²·°C}
+  - {id: rounding_step, text: "5 mm", value: 5, unit: mm}
+assumptions:
+  - Steady state. All 20 W leaves through the heat sink; nothing leaves through the leads or the case's other faces.
+  - The heat path is a chain of thermal resistances in series, from the junction to the case, across the interface, through the heat sink to the air.
+  - The junction is allowed to reach its maximum, 125 °C, with no margin. An answer that sizes for a lower junction temperature is graded by the formula, against the target it states.
+  - "L0 and L1: the interface between the case and the heat sink is the model's choice (paste, a pad, an insulating washer, or nothing). The heat sink's limit is graded against the interface resistance the answer states."
+  - "L2: the plate is at one temperature, as the brief says, so its resistance to the air is 1 / (h × A) with A the area of both faces together. The four 3 mm edges are not counted, and the area under the transistor is not taken off."
+levels:
+  L0:
+    checkable: true
+    note: The total resistance allowed and the share left after the junction-to-case resistance follow from the givens. The heat sink's own limit depends on the interface the model assumes; grade it against that, and record the interface.
+    quantities: [total_resistance, case_to_air_resistance]
+    if_reported: [temperature_rise_allowed, heat_sink_resistance_limit, junction_temperature_for_stated_sink]
+    criteria: [chosen_sink_is_adequate]
+  L1:
+    checkable: true
+    note: As L0.
+    quantities: [total_resistance, case_to_air_resistance]
+    if_reported: [temperature_rise_allowed, heat_sink_resistance_limit, junction_temperature_for_stated_sink]
+    criteria: [chosen_sink_is_adequate]
+  L2:
+    checkable: true
+    note: The plate, the pad and the surface coefficient are dictated, so every answer is fixed.
+    quantities: [total_resistance, plate_resistance_limit, plate_area, square_side, junction_temperature]
+    if_reported: [temperature_rise_allowed, case_to_air_resistance, square_side_exact, plate_resistance, plate_temperature, case_temperature]
+quantities:
+  temperature_rise_allowed:
+    description: Largest allowed rise of the junction above the air
+    kind: fixed
+    unit: °C
+    value: 85.0
+    exact: "125 − 40"
+    tolerance: {abs: 0.05, why: Exact.}
+    other_units:
+      - {unit: K, factor: 1}
+  total_resistance:
+    description: Total thermal resistance allowed from junction to air
+    kind: fixed
+    unit: °C/W
+    value: 4.25
+    exact: "(125 − 40) / 20"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: K/W, factor: 1}
+    not_accepted:
+      - {value: 6.25, why: "The air temperature not taken off: 125 / 20"}
+      - {value: 3.25, why: The case-to-air share reported as the total}
+  case_to_air_resistance:
+    description: Resistance left from the case to the air, for the interface and the heat sink together
+    kind: fixed
+    unit: °C/W
+    value: 3.25
+    exact: "4.25 − 1.0"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: K/W, factor: 1}
+  heat_sink_resistance_limit:
+    description: Largest heat-sink-to-air resistance, for the interface resistance and the junction target the answer states
+    kind: conditional
+    unit: °C/W
+    inputs:
+      junction_target_c: {description: "Junction temperature the answer sizes for (125 unless it keeps a margin)", unit: °C}
+      interface_resistance: {description: "Case-to-heat-sink resistance the answer assumes (0 if it assumes none)", unit: °C/W}
+    formula: "(junction_target_c - 40) / 20 - 1.0 - interface_resistance"
+    tolerance: {abs: 0.02, why: Two decimals.}
+    other_units:
+      - {unit: K/W, factor: 1}
+    examples:
+      - {inputs: {junction_target_c: 125, interface_resistance: 0.0}, value: 3.25, note: No interface resistance}
+      - {inputs: {junction_target_c: 125, interface_resistance: 0.2}, value: 3.05, note: Thermal paste}
+      - {inputs: {junction_target_c: 125, interface_resistance: 0.3}, value: 2.95, note: The L2 pad}
+      - {inputs: {junction_target_c: 125, interface_resistance: 0.5}, value: 2.75, note: A typical insulating pad}
+      - {inputs: {junction_target_c: 125, interface_resistance: 1.0}, value: 2.25, note: A mica washer without paste}
+      - {inputs: {junction_target_c: 100, interface_resistance: 0.5}, value: 1.50, note: "A 25 °C margin on the junction"}
+  junction_temperature_for_stated_sink:
+    description: Junction temperature with the interface and the heat sink the answer chooses
+    kind: conditional
+    unit: °C
+    inputs:
+      interface_resistance: {description: Case-to-heat-sink resistance the answer assumes, unit: °C/W}
+      sink_resistance: {description: Heat-sink-to-air resistance of the chosen heat sink, unit: °C/W}
+    formula: "40 + 20 * (1.0 + interface_resistance + sink_resistance)"
+    tolerance: {abs: 0.5, why: Rounding to a whole degree.}
+    examples:
+      - {inputs: {interface_resistance: 0.5, sink_resistance: 2.5}, value: 120.0}
+      - {inputs: {interface_resistance: 0.2, sink_resistance: 2.0}, value: 104.0}
+      - {inputs: {interface_resistance: 0.3, sink_resistance: 2.7435}, value: 120.87, note: The L2 plate}
+  plate_resistance_limit:
+    description: Share of the total left for the plate, after the junction-to-case resistance and the pad
+    kind: fixed
+    unit: °C/W
+    value: 2.95
+    exact: "4.25 − 1.0 − 0.3"
+    tolerance: {rel: 0.005, why: Exact.}
+    other_units:
+      - {unit: K/W, factor: 1}
+    not_accepted:
+      - {value: 3.25, why: The pad left out}
+  plate_area:
+    description: Plate area needed, counted as the cooled area of both faces together, 1 / (h × R)
+    kind: fixed
+    unit: m²
+    value: 0.033898
+    exact: "1 / (10 × 2.95)"
+    tolerance: {rel: 0.01, why: "Three significant figures are asked: 0.0339 m²."}
+    other_units:
+      - {unit: cm², factor: 10000}
+      - {unit: mm², factor: 1000000}
+    alternatives:
+      - id: one_face
+        condition: The answer gives the area of one face of the plate (its outline), half the cooled area.
+        value: 0.016949
+    accepted_examples:
+      - {value: 0.0339, why: Three significant figures}
+    not_accepted:
+      - {value: 0.0308, why: "The pad left out: 1 / (10 × 3.25)"}
+      - {value: 0.0678, why: Twice the cooled area}
+  square_side_exact:
+    description: Side of the square plate before rounding, sqrt(area / 2)
+    kind: fixed
+    unit: mm
+    value: 130.19
+    tolerance: {rel: 0.005, why: "Accepts 130 and 130.2."}
+    other_units:
+      - {unit: m, factor: 0.001}
+      - {unit: cm, factor: 0.1}
+    alternatives:
+      - id: edges_counted
+        condition: The answer says it counts the four 3 mm edges as cooled area as well as the two faces.
+        value: 127.22
+        note: A departure from the brief, which names the two faces. Record a match as this alternative.
+    not_accepted:
+      - {value: 184.11, why: "Only one face counted as cooled: sqrt(0.0339)"}
+  square_side:
+    description: Side of the smallest square plate, rounded up to the next 5 mm
+    kind: fixed
+    type: integer
+    unit: mm
+    value: 135
+    tolerance: {abs: 0, why: "130.19 mm rounds up to 135 mm. 130 mm is too small: it gives 125.2 °C."}
+    other_units:
+      - {unit: m, factor: 0.001}
+      - {unit: cm, factor: 0.1}
+    alternatives:
+      - id: edges_counted
+        condition: The answer says it counts the four 3 mm edges as cooled area as well as the two faces.
+        value: 130
+        note: A departure from the brief, which names the two faces. Record a match as this alternative.
+    not_accepted:
+      - {value: 130, why: "Rounded down, or to the nearest 5 mm; the junction would reach 125.2 °C"}
+      - {value: 185, why: Only one face counted as cooled}
+      - {value: 140, why: Not the smallest}
+  plate_resistance:
+    description: Resistance from the 135 mm plate to the air
+    kind: fixed
+    unit: °C/W
+    value: 2.7435
+    exact: "1 / (10 × 2 × 0.135²)"
+    tolerance: {rel: 0.01, why: "Three significant figures: 2.74."}
+    other_units:
+      - {unit: K/W, factor: 1}
+  junction_temperature:
+    description: Junction temperature with the 135 mm plate
+    kind: fixed
+    unit: °C
+    value: 120.87
+    exact: "40 + 20 × (1.0 + 0.3 + 2.7435)"
+    tolerance: {abs: 0.5, why: "Three significant figures are asked: 121 °C. Half a degree accepts 120.9 and 121."}
+    alternatives:
+      - id: edges_counted
+        condition: The answer says it counts the four 3 mm edges as cooled area, and so uses a 130 mm plate.
+        value: 122.56
+        note: A departure from the brief, which names the two faces. Record a match as this alternative.
+    accepted_examples:
+      - {value: 121, why: Three significant figures}
+      - {value: 120.9, why: One decimal}
+    not_accepted:
+      - {value: 125.0, why: The limit restated; the rounded-up plate runs cooler}
+      - {value: 125.2, why: A 130 mm plate with the faces only}
+      - {value: 114.9, why: The pad left out of the chain}
+  plate_temperature:
+    description: Temperature of the 135 mm plate
+    kind: fixed
+    unit: °C
+    value: 94.87
+    tolerance: {abs: 0.5, why: Rounding to a whole degree.}
+  case_temperature:
+    description: Case temperature with the 135 mm plate
+    kind: fixed
+    unit: °C
+    value: 100.87
+    tolerance: {abs: 0.5, why: Rounding to a whole degree.}
+criteria:
+  chosen_sink_is_adequate:
+    description: For the heat sink and the interface the answer chooses at L0 or L1. The choice itself is not graded; this checks that it is consistent.
+    pass_when:
+      - id: junction_within_target
+        text: With the interface and the heat sink the answer chooses, the junction stays at or under the temperature it sizes for (125 °C unless it keeps a margin).
+        inputs:
+          junction_target_c: {description: Junction temperature the answer sizes for, unit: °C}
+          interface_resistance: {description: Case-to-heat-sink resistance the answer assumes, unit: °C/W}
+          sink_resistance: {description: Heat-sink-to-air resistance of the chosen heat sink, unit: °C/W}
+        check: "40 + 20 * (1.0 + interface_resistance + sink_resistance) <= junction_target_c"

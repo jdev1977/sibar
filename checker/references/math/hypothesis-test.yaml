@@ -1,0 +1,221 @@
+# Reference answers: a hypothesis test on a small sample (T2.3).
+# Worked solution: docs/references/math/hypothesis-test.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: math
+task_id: hypothesis-test
+prompt_set_version: "1"
+title: Test whether the mean of eight measurements differs from 50
+givens:
+  - {id: measurements, text: "50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5", value: [50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5], unit: "1"}
+  - {id: target, text: "50", value: 50, unit: "1"}
+l2_givens:
+  - {id: significance_level, text: "1%", value: 1, unit: percent}
+assumptions:
+  - The eight values are independent measurements of one quantity.
+  - "The question is two-sided: \"differs from 50\" (H0: mean = 50, H1: mean ≠ 50). That is a given at every level."
+  - "L0 and L1 reference: the one-sample t test, which treats the values as roughly normal, at the 5% level. No level is given there, so a decision is graded against the level the answer states."
+  - "L2: the exact Wilcoxon signed-rank test, two-sided, at the 1% level, as dictated. The brief states that the lengths are symmetric about their center, so the test's center is the mean."
+  - "L2: the exact p-value is twice the chance, over the 256 equally likely sign patterns, of a smaller rank sum no larger than the one seen."
+levels:
+  L0:
+    checkable: true
+    note: Graded against the test the answer uses. The reference is the one-sample t test; the exact Wilcoxon signed-rank test and its normal approximations are accepted alternatives. The decision must follow from the answer's own p-value and level.
+    quantities: [sample_mean, p_value, decision]
+    if_reported: [sample_sd, standard_error, t_statistic, degrees_of_freedom, t_critical_95, ci95_low, ci95_high, w_plus, w_minus]
+  L1:
+    checkable: true
+    note: As L0. Whether the batch is "on target" is the same decision in other words.
+    quantities: [sample_mean, p_value, decision]
+    if_reported: [sample_sd, standard_error, t_statistic, degrees_of_freedom, t_critical_95, ci95_low, ci95_high, w_plus, w_minus]
+  L2:
+    checkable: true
+    note: "The test, its sides and its level are dictated. The decision is the opposite of the L0 one: the difference from 50 is not significant at 1%."
+    quantities: [w_plus, w_minus, p_value_exact, decision_l2]
+    if_reported: [differences, ranks, sample_mean, sign_patterns, critical_w_1pct]
+quantities:
+  sample_mean:
+    description: Mean of the eight measurements
+    kind: fixed
+    unit: "1"
+    value: 51.175
+    exact: "409.4 / 8"
+    tolerance: {abs: 0.006, why: "Accepts 51.175, 51.18 and 51.17."}
+    other_units:
+      - {unit: mm, factor: 1}
+    accepted_examples:
+      - {value: 51.18, why: Two decimals}
+    not_accepted:
+      - {value: 51.3, why: The median}
+  sample_sd:
+    description: Sample standard deviation, with n − 1 = 7 in the divisor
+    kind: fixed
+    unit: "1"
+    value: 0.8582
+    exact: "sqrt(5.155 / 7)"
+    tolerance: {abs: 0.005, why: "Accepts 0.858 and 0.86."}
+    not_accepted:
+      - {value: 0.8027, why: Divided by n in place of n − 1}
+  standard_error:
+    description: Standard error of the mean, s / sqrt(8)
+    kind: fixed
+    unit: "1"
+    value: 0.3034
+    tolerance: {abs: 0.003, why: "Accepts 0.303 and 0.30."}
+  t_statistic:
+    description: "One-sample t statistic, (mean − 50) / (s / sqrt(8)); grade its size, either sign"
+    kind: fixed
+    unit: "1"
+    value: 3.873
+    tolerance: {abs: 0.03, why: "Accepts 3.87 and 3.9. A statistic built on the divisor n (4.14) fails."}
+    not_accepted:
+      - {value: 4.14, why: Standard deviation with n in the divisor}
+      - {value: 1.369, why: "Not divided by sqrt(8): (mean − 50) / s"}
+  degrees_of_freedom:
+    description: Degrees of freedom of the t test
+    kind: fixed
+    type: integer
+    unit: "1"
+    value: 7
+    tolerance: {abs: 0, why: A count.}
+  p_value:
+    description: Two-sided p-value of the test the answer uses (reference, the one-sample t test)
+    kind: fixed
+    unit: "1"
+    value: 0.00611
+    tolerance: {abs: 0.0006, why: "Accepts 0.006 and 0.0061. The one-sided value 0.0031 fails."}
+    other_units:
+      - {unit: percent, factor: 100}
+    alternatives:
+      - id: wilcoxon_exact
+        condition: The answer uses the exact Wilcoxon signed-rank test, two-sided.
+        value: 0.015625
+        tolerance: {abs: 0.0005, why: "1/64; accepts 0.0156 and 0.016."}
+      - id: sign_flip_permutation
+        condition: The answer uses an exact permutation (sign-flip) test of the mean, two-sided.
+        value: 0.015625
+        tolerance: {abs: 0.0005, why: "4 of the 256 sign patterns give a sum at least as far from zero: 1/64."}
+      - id: wilcoxon_normal
+        condition: The answer uses the Wilcoxon signed-rank test with the normal approximation and no continuity correction (z = 2.380).
+        value: 0.01729
+        tolerance: {abs: 0.001, why: Rounding of z.}
+      - id: wilcoxon_normal_corrected
+        condition: The answer uses the Wilcoxon signed-rank test with the normal approximation and a continuity correction (z = 2.310).
+        value: 0.02086
+        tolerance: {abs: 0.001, why: Rounding of z.}
+      - id: sign_test
+        condition: The answer uses the sign test, two-sided (7 of 8 values above 50).
+        value: 0.0703
+        tolerance: {abs: 0.001, why: "18/256."}
+        note: The sign test is a test of the median. It is listed so that its arithmetic can be checked, and a match is recorded as the sign test. Its decision at 5% is the opposite of the reference's.
+    accepted_examples:
+      - {value: 0.006, why: One significant figure}
+    not_accepted:
+      - {value: 0.0031, why: One-sided}
+      - {value: 0.0001, why: "A z test: the normal distribution used in place of t with 7 degrees of freedom"}
+  decision:
+    description: The decision on H0 (mean = 50), at the level the answer states (5% where none is stated)
+    kind: fixed
+    type: choice
+    unit: "1"
+    choices: [reject, do_not_reject]
+    value: reject
+    rule: Reject H0 exactly when the p-value of the test used is below the stated level. "reject" means the answer concludes that the mean differs from 50 (the batch is off target).
+    alternatives:
+      - id: t_test_at_1_percent
+        condition: The answer uses the t test at the 1% level (p = 0.0061).
+        value: reject
+      - id: wilcoxon_at_5_percent
+        condition: The answer uses the Wilcoxon signed-rank test, exact or by normal approximation, or a sign-flip permutation test, at the 5% level (p from 0.0156 to 0.0209).
+        value: reject
+      - id: wilcoxon_at_1_percent
+        condition: The answer uses the Wilcoxon signed-rank test, exact or by normal approximation, or a sign-flip permutation test, at the 1% level.
+        value: do_not_reject
+      - id: sign_test
+        condition: The answer uses the sign test at the 5% level (p = 0.0703).
+        value: do_not_reject
+  t_critical_95:
+    description: "Two-sided 5% critical value of t with 7 degrees of freedom"
+    kind: fixed
+    unit: "1"
+    value: 2.365
+    tolerance: {abs: 0.003, why: "Tables print 2.365 or 2.36."}
+  ci95_low:
+    description: Lower end of the 95% confidence interval for the mean
+    kind: fixed
+    unit: "1"
+    value: 50.458
+    tolerance: {abs: 0.01, why: "Accepts 50.46 and 50.45."}
+  ci95_high:
+    description: Upper end of the 95% confidence interval for the mean
+    kind: fixed
+    unit: "1"
+    value: 51.892
+    tolerance: {abs: 0.01, why: "Accepts 51.89 and 51.9."}
+  differences:
+    description: Differences from 50, in the order the values are given
+    kind: fixed
+    type: list
+    unit: mm
+    value: [0.8, 1.6, -0.3, 2.3, 1.1, 0.4, 2.0, 1.5]
+    tolerance: {abs: 0.0005, why: Exact subtractions.}
+  ranks:
+    description: Ranks of the absolute differences, in the order the values are given (no ties, no zero)
+    kind: fixed
+    type: list
+    unit: "1"
+    value: [3, 6, 1, 8, 4, 2, 7, 5]
+    tolerance: {abs: 0, why: Ranks are whole numbers.}
+  w_plus:
+    description: Sum of the ranks of the positive differences
+    kind: fixed
+    type: integer
+    unit: "1"
+    value: 35
+    tolerance: {abs: 0, why: A whole number.}
+  w_minus:
+    description: Sum of the ranks of the negative differences (one value, 49.7, with rank 1)
+    kind: fixed
+    type: integer
+    unit: "1"
+    value: 1
+    tolerance: {abs: 0, why: A whole number.}
+  p_value_exact:
+    description: Exact two-sided p-value of the Wilcoxon signed-rank test
+    kind: fixed
+    unit: "1"
+    value: 0.015625
+    exact: "1/64 (4/256)"
+    tolerance: {abs: 0.0005, why: "The brief asks for 4 decimals: 0.0156, or the full 0.015625. 0.016 also passes; the nearest wrong value, the normal approximation 0.0173, is 0.0017 away."}
+    other_units:
+      - {unit: percent, factor: 100}
+    accepted_examples:
+      - {value: 0.0156, why: Four decimals}
+    not_accepted:
+      - {value: 0.0078, why: "One-sided: 2/256"}
+      - {value: 0.0173, why: "Normal approximation, not the exact test"}
+      - {value: 0.0209, why: "Normal approximation with a continuity correction, not the exact test"}
+      - {value: 0.0061, why: The t test}
+      - {value: 0.0234, why: "The pattern count for a rank sum of at most 2: 6/256"}
+  decision_l2:
+    description: The decision on H0 (the lengths are centered on 50 mm) at the 1% level
+    kind: fixed
+    type: choice
+    unit: "1"
+    choices: [reject, do_not_reject]
+    value: do_not_reject
+    rule: p = 1/64 = 0.0156 is above 0.01, so H0 is not rejected. "do_not_reject" means the answer says the sample does not show, at the 1% level, that the batch is off target. An answer that says the batch is proven to be on target overstates this; the decision is still graded as do_not_reject.
+  sign_patterns:
+    description: Number of equally likely sign patterns of the 8 ranks
+    kind: fixed
+    type: integer
+    unit: "1"
+    value: 256
+    tolerance: {abs: 0, why: "2^8."}
+  critical_w_1pct:
+    description: Largest value of the smaller rank sum that is significant at 1%, two-sided, for n = 8
+    kind: fixed
+    type: integer
+    unit: "1"
+    value: 0
+    tolerance: {abs: 0, why: "A rank sum of 0 has two-sided p = 2/256 = 0.0078; a rank sum of 1 has 0.0156."}

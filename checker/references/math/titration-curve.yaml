@@ -1,0 +1,210 @@
+# Reference answers: the pH curve of acetic acid titrated with sodium hydroxide (T2.3).
+# Worked solution: docs/references/math/titration-curve.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: math
+task_id: titration-curve
+prompt_set_version: "1"
+title: pH curve for 25.0 mL of 0.100 M acetic acid titrated with 0.100 M sodium hydroxide
+givens:
+  - {id: acid_volume, text: "25.0 mL", value: 25.0, unit: mL}
+  - {id: acid_concentration, text: "0.100 M acetic acid", value: 0.100, unit: mol/L}
+  - {id: base_concentration, text: "0.100 M sodium hydroxide", value: 0.100, unit: mol/L}
+l2_givens:
+  - {id: temperature, text: "25 °C", value: 25, unit: °C}
+  - {id: ka, text: "Ka = 1.8 × 10^-5", value: 1.8e-5, unit: mol/L}
+  - {id: kw, text: "Kw = 1.0 × 10^-14", value: 1.0e-14, unit: mol²/L²}
+assumptions:
+  - 25 °C, Ka = 1.8 × 10^-5 (pKa 4.745) and Kw = 1.0 × 10^-14. The L2 brief gives them; at L0 and L1 they are the textbook values.
+  - Activities equal concentrations, and volumes add.
+  - Sodium hydroxide is fully dissociated; acetic acid gives up one proton.
+  - "Every point comes from one charge balance, [H+] + [Na+] = [OH−] + [A−], with [A−] = C Ka / (Ka + [H+]) and [OH−] = Kw / [H+], solved for [H+]. The shortcut formulas for each region agree with it to 0.01 or better at these volumes."
+levels:
+  L0:
+    checkable: true
+    note: Four points of the curve are graded. No constants are given, so the tolerance accepts Ka from 1.74 × 10^-5 to 1.8 × 10^-5 and the usual shortcut formulas. Any other tabulated point can be graded with the same tolerance.
+    quantities: [equivalence_volume, ph_0_ml, ph_12_5_ml, ph_25_ml]
+    if_reported: [half_equivalence_volume, pka, ph_5_ml, ph_10_ml, ph_20_ml, ph_24_ml, ph_26_ml, ph_30_ml, ph_40_ml, ph_50_ml, ph_at_volume]
+  L1:
+    checkable: true
+    note: As L0.
+    quantities: [equivalence_volume, ph_0_ml, ph_12_5_ml, ph_25_ml]
+    if_reported: [half_equivalence_volume, pka, ph_5_ml, ph_10_ml, ph_20_ml, ph_24_ml, ph_26_ml, ph_30_ml, ph_40_ml, ph_50_ml, ph_at_volume]
+  L2:
+    checkable: true
+    note: The constants and the eleven volumes are dictated. The pH at the equivalence point is ph_25_ml and the pH at half-equivalence is ph_12_5_ml. The paragraph on the shape of the curve is not graded here.
+    quantities: [ph_0_ml, ph_5_ml, ph_10_ml, ph_12_5_ml, ph_20_ml, ph_24_ml, ph_25_ml, ph_26_ml, ph_30_ml, ph_40_ml, ph_50_ml, equivalence_volume]
+    if_reported: [half_equivalence_volume, pka, ph_at_volume]
+quantities:
+  equivalence_volume:
+    description: Volume of base at the equivalence point
+    kind: fixed
+    unit: mL
+    value: 25.0
+    exact: "25.0 × 0.100 / 0.100"
+    tolerance: {abs: 0.05, why: The givens have three significant figures.}
+    other_units:
+      - {unit: L, factor: 0.001}
+  half_equivalence_volume:
+    description: Volume of base at the half-equivalence point
+    kind: fixed
+    unit: mL
+    value: 12.5
+    tolerance: {abs: 0.05, why: The givens have three significant figures.}
+    other_units:
+      - {unit: L, factor: 0.001}
+  pka:
+    description: pKa of acetic acid
+    kind: fixed
+    unit: "1"
+    value: 4.745
+    exact: "−log10(1.8 × 10^-5)"
+    tolerance: {abs: 0.006, why: "Accepts 4.74, 4.745 and 4.75."}
+    tolerance_at:
+      L0: &open_constants {abs: 0.03, why: "No constants are given: accepts Ka from 1.74 × 10^-5 (pKa 4.76) to 1.8 × 10^-5 and the shortcut formulas."}
+      L1: *open_constants
+  ph_0_ml:
+    description: Initial pH, before any base is added
+    kind: fixed
+    unit: pH
+    value: 2.8753
+    tolerance: &ph_tolerance {abs: 0.015, why: "Two decimals as asked (half a unit in the last place), plus 0.01 for the shortcut formulas, which differ from the charge balance by up to 0.003, and for rounding pKa."}
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+    accepted_examples:
+      - {value: 2.88, why: Charge balance or the quadratic}
+      - {value: 2.87, why: "sqrt(Ka C), which gives 2.872"}
+    not_accepted:
+      - {value: 1.00, why: Treated as a strong acid}
+      - {value: 2.37, why: "pKa / 2, the concentration term left out"}
+  ph_5_ml:
+    description: pH after 5.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 4.1450
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+  ph_10_ml:
+    description: pH after 10.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 4.5693
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+  ph_12_5_ml:
+    description: pH at the half-equivalence point, after 12.5 mL of base
+    kind: fixed
+    unit: pH
+    value: 4.7452
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+    accepted_examples:
+      - {value: 4.75, why: Charge balance}
+      - {value: 4.74, why: "pH = pKa = 4.7447"}
+      - {value: 4.76, why: "Ka = 1.75 × 10^-5 gives 4.757"}
+    not_accepted:
+      - {value: 7.00, why: Taken as neutral}
+  ph_20_ml:
+    description: pH after 20.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 5.3470
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+  ph_24_ml:
+    description: pH after 24.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 6.1251
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+  ph_25_ml:
+    description: pH at the equivalence point, after 25.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 8.7219
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+    accepted_examples:
+      - {value: 8.72, why: Charge balance or the weak-base shortcut}
+      - {value: 8.73, why: "Ka = 1.75 × 10^-5 gives 8.728; inside either tolerance"}
+    not_accepted:
+      - {value: 7.00, why: Treated as a strong acid with a strong base}
+      - {value: 8.87, why: "Dilution left out: acetate taken as 0.100 M, not 0.0500 M"}
+      - {value: 5.28, why: pOH reported as pH}
+  ph_26_ml:
+    description: pH after 26.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 11.2924
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+    not_accepted:
+      - {value: 11.59, why: "Dilution left out: excess base divided by 26 mL in place of 51 mL"}
+  ph_30_ml:
+    description: pH after 30.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 11.9586
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+  ph_40_ml:
+    description: pH after 40.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 12.3632
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+  ph_50_ml:
+    description: pH after 50.0 mL of base
+    kind: fixed
+    unit: pH
+    value: 12.5229
+    tolerance: *ph_tolerance
+    tolerance_at:
+      L0: *open_constants
+      L1: *open_constants
+  ph_at_volume:
+    description: pH after any volume of base, for the acid constant and water constant the answer states
+    kind: conditional
+    unit: pH
+    inputs:
+      base_ml: {description: Volume of 0.100 M sodium hydroxide added, unit: mL}
+      ka: {description: Acid constant of acetic acid, unit: mol/L}
+      kw: {description: Ion product of water, unit: mol²/L²}
+    method: >-
+      Solve h + 0.100 × base_ml / (25.0 + base_ml) = kw / h + (0.100 × 25.0 /
+      (25.0 + base_ml)) × ka / (ka + h) for h, the hydrogen ion concentration
+      in mol/L, and take pH = −log10(h). The left side minus the right side
+      rises steadily with h, so bisection between 10^-15 and 1 finds the one
+      root.
+    tolerance: {abs: 0.015, why: "As for the listed points. Within 0.2 mL of the equivalence point the pH moves by more than 0.01 per 0.001 mL, so a point there is not a fair check."}
+    examples:
+      - {inputs: {base_ml: 0, ka: 1.75e-5, kw: 1.0e-14}, value: 2.8814}
+      - {inputs: {base_ml: 12.5, ka: 1.75e-5, kw: 1.0e-14}, value: 4.7574}
+      - {inputs: {base_ml: 25.0, ka: 1.75e-5, kw: 1.0e-14}, value: 8.7280}
+      - {inputs: {base_ml: 12.5, ka: 1.74e-5, kw: 1.0e-14}, value: 4.7599}
+      - {inputs: {base_ml: 15.0, ka: 1.8e-5, kw: 1.0e-14}, value: 4.9212}
+      - {inputs: {base_ml: 22.5, ka: 1.8e-5, kw: 1.0e-14}, value: 5.6992}
+      - {inputs: {base_ml: 24.9, ka: 1.8e-5, kw: 1.0e-14}, value: 7.1408}
+      - {inputs: {base_ml: 25.1, ka: 1.8e-5, kw: 1.0e-14}, value: 10.3005}
+      - {inputs: {base_ml: 35.0, ka: 1.8e-5, kw: 1.0e-14}, value: 12.2218}

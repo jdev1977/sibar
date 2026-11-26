@@ -1,0 +1,176 @@
+# Reference answers: the range of a projectile with air resistance (T2.3).
+# Worked solution: docs/references/math/projectile-drag.md.
+# Format: checker/references/README.md.
+schema_version: 1
+project_type: math
+task_id: projectile-drag
+prompt_set_version: "1"
+title: Range of a projectile launched at 25 m/s and 30° with air resistance
+givens:
+  - {id: launch_speed, text: "25 m/s", value: 25, unit: m/s}
+  - {id: launch_angle, text: "30°", value: 30, unit: degrees}
+l2_givens:
+  - {id: mass, text: "0.43 kg", value: 0.43, unit: kg}
+  - {id: diameter, text: "0.22 m", value: 0.22, unit: m}
+  - {id: drag_coefficient, text: "0.25", value: 0.25, unit: "1"}
+  - {id: air_density, text: "1.2 kg/m³", value: 1.2, unit: kg/m³}
+  - {id: gravity, text: "9.81 m/s²", value: 9.81, unit: m/s²}
+  - {id: time_step, text: "0.1 s", value: 0.1, unit: s}
+assumptions:
+  - Launched from and landing on the same flat ground.
+  - "L2: drag force ½ ρ Cd A v², opposite to the velocity, with A = π d²/4 the cross-section of the ball. No spin, no wind, constant air density."
+  - "L2: Heun's method on the whole state (x, y, vx, vy): an Euler step predicts the state, and the step is then taken with the mean of the slopes at the start and at the predicted state. Positions therefore move with the mean of the starting and the predicted velocity."
+  - "L2: landing is found by a straight line between the last row with y above zero and the first row below it."
+  - "L2: the maximum height is the highest y in the table. Interpolating the peak gives the same value to 3 significant figures."
+levels:
+  L0:
+    checkable: false
+    note: Not graded. The answer depends on the drag law and constants the model assumes; record them. The range with no air can be checked if the answer gives it, and a range with drag must be shorter than it.
+    if_reported: [range_no_air]
+    criteria: [range_is_shorter_than_with_no_air]
+  L1:
+    checkable: false
+    note: As L0.
+    if_reported: [range_no_air]
+    criteria: [range_is_shorter_than_with_no_air]
+  L2:
+    checkable: true
+    note: The drag law, the constants, the scheme, the step and the landing rule are all dictated, so the three answers are fixed.
+    quantities: [range, flight_time, max_height, range_no_air]
+    if_reported: [cross_section_area, drag_constant, step1_x, step1_y, step1_vx, step1_vy, landing_step_count, flight_time_no_air, max_height_no_air, terminal_speed]
+quantities:
+  range_no_air:
+    description: Range of the same launch with no air, v² sin(2θ) / g
+    kind: fixed
+    unit: m
+    value: 55.17
+    exact: "625 × sin 60° / 9.81"
+    tolerance: {abs: 0.1, why: "Three significant figures (55.2), and g = 9.8 m/s² (55.23) at the levels where g is not given."}
+    alternatives:
+      - id: g_10
+        condition: The answer says it takes g = 10 m/s².
+        levels: [L0, L1]
+        value: 54.13
+        note: Not accepted at L2, where g = 9.81 m/s² is given.
+    accepted_examples:
+      - {value: 55.2, why: Three significant figures}
+      - {value: 55.23, why: g = 9.8 m/s²}
+    not_accepted:
+      - {value: 63.7, why: "v²/g, the angle factor left out"}
+      - {value: 31.9, why: "sin θ used in place of sin 2θ"}
+      - {value: 27.6, why: "Divided by 2g: half the right value"}
+  range:
+    description: Range with drag, by Heun's method at 0.1 s with linear interpolation of the landing point
+    kind: fixed
+    unit: m
+    value: 37.44
+    tolerance: {abs: 0.1, why: "The scheme as dictated gives 37.44 (37.4). Moving the positions with the corrected velocity gives 37.47, and the model solved without step error gives 37.47 as well (37.5). Both are within 0.1; Euler's method at the same step (38.6) is not."}
+    accepted_examples:
+      - {value: 37.4, why: Three significant figures}
+      - {value: 37.5, why: "The converged solution of the same model, or positions moved with the corrected velocity"}
+    not_accepted:
+      - {value: 38.6, why: "Euler's method at the same step"}
+      - {value: 37.7, why: "x of the first row below ground, with no interpolation"}
+      - {value: 55.2, why: No air}
+  flight_time:
+    description: Time of flight with drag, by the same scheme and landing rule
+    kind: fixed
+    unit: s
+    value: 2.278
+    tolerance: {abs: 0.01, why: "The scheme gives 2.278; the converged solution gives 2.280. Both round to 2.28."}
+    accepted_examples:
+      - {value: 2.28, why: Three significant figures}
+    not_accepted:
+      - {value: 2.35, why: "Euler's method at the same step"}
+      - {value: 2.30, why: "Time of the first row below ground, with no interpolation"}
+      - {value: 2.55, why: No air}
+  max_height:
+    description: Highest point of the path above the launch level, with drag
+    kind: fixed
+    unit: m
+    value: 6.406
+    tolerance: {abs: 0.03, why: "The highest table value is 6.406 at 1.1 s; a peak interpolated from the table is 6.407; the converged solution is 6.414; positions moved with the corrected velocity give 6.417. All are within 0.03."}
+    accepted_examples:
+      - {value: 6.41, why: "Three significant figures, tabulated or interpolated"}
+      - {value: 6.42, why: Positions moved with the corrected velocity}
+    not_accepted:
+      - {value: 6.93, why: "Euler's method at the same step"}
+      - {value: 7.96, why: No air}
+  cross_section_area:
+    description: Cross-section of the ball, π d²/4
+    kind: fixed
+    unit: m²
+    value: 0.038013
+    tolerance: {rel: 0.01, why: Rounding of an intermediate value.}
+    not_accepted:
+      - {value: 0.15205, why: "The diameter used as the radius: four times too large"}
+  drag_constant:
+    description: "k = ρ Cd A / (2 m), so that the drag acceleration is k v²"
+    kind: fixed
+    unit: 1/m
+    value: 0.013260
+    tolerance: {rel: 0.01, why: Rounding of an intermediate value.}
+    not_accepted:
+      - {value: 0.026521, why: "The factor ½ left out"}
+  terminal_speed:
+    description: Speed at which drag equals weight, sqrt(g / k)
+    kind: fixed
+    unit: m/s
+    value: 27.20
+    tolerance: {rel: 0.01, why: Rounding of an intermediate value.}
+  step1_x:
+    description: x after the first step (t = 0.1 s)
+    kind: fixed
+    unit: m
+    value: 2.1292
+    tolerance: &step_tolerance {abs: 0.01, why: "Rounding in a hand table, and positions moved with the corrected velocity (x 2.1307, y 1.1819). Euler's method gives x 2.165, y 1.250, vx 20.933 and vy 11.105 and fails."}
+  step1_y:
+    description: y after the first step (t = 0.1 s)
+    kind: fixed
+    unit: m
+    value: 1.1802
+    tolerance: *step_tolerance
+  step1_vx:
+    description: Horizontal velocity after the first step
+    kind: fixed
+    unit: m/s
+    value: 20.963
+    tolerance: *step_tolerance
+    not_accepted:
+      - {value: 20.933, why: "Euler's method"}
+  step1_vy:
+    description: Vertical velocity after the first step
+    kind: fixed
+    unit: m/s
+    value: 11.137
+    tolerance: *step_tolerance
+    not_accepted:
+      - {value: 11.105, why: "Euler's method"}
+  landing_step_count:
+    description: Number of 0.1 s steps to the first row below ground (y changes sign between 2.2 s and 2.3 s)
+    kind: fixed
+    type: integer
+    unit: "1"
+    value: 23
+    tolerance: {abs: 0, why: A count.}
+  flight_time_no_air:
+    description: Time of flight with no air, 2 v sin θ / g
+    kind: fixed
+    unit: s
+    value: 2.548
+    tolerance: {abs: 0.01, why: Three significant figures.}
+  max_height_no_air:
+    description: Maximum height with no air, (v sin θ)² / (2 g)
+    kind: fixed
+    unit: m
+    value: 7.964
+    tolerance: {abs: 0.02, why: Three significant figures.}
+criteria:
+  range_is_shorter_than_with_no_air:
+    description: A sanity bound on any range worked out with air resistance. It is not a correctness grade.
+    pass_when:
+      - id: below_no_air_range
+        text: The range with air resistance is positive and shorter than the range with no air (55.2 m). 55.3 m is just above the no-air range for any g of 9.8 m/s² or more.
+        inputs:
+          range_m: {description: The range the answer gives with air resistance, unit: m}
+        check: "0 < range_m < 55.3"
