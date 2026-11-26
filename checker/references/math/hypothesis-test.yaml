@@ -20,14 +20,22 @@ assumptions:
 levels:
   L0:
     checkable: true
-    note: Graded against the test the answer uses. The reference is the one-sample t test; the exact Wilcoxon signed-rank test and its normal approximations are accepted alternatives. The decision must follow from the answer's own p-value and level.
-    quantities: [sample_mean, p_value, decision]
-    if_reported: [sample_sd, standard_error, t_statistic, degrees_of_freedom, t_critical_95, ci95_low, ci95_high, w_plus, w_minus]
+    note: "Graded against the test the answer uses. The reference is the one-sample t test; the exact Wilcoxon signed-rank test and its normal approximations are accepted alternatives. The decision may rest on a p-value, on a 95% confidence interval that does not contain 50, or on the statistic set against its critical value: any one of the three is a complete answer, and it must agree with the decision at the level the answer states."
+    quantities: [sample_mean, decision]
+    one_of:
+      - [p_value]
+      - [ci95_low, ci95_high]
+      - [t_statistic, t_critical_95]
+    if_reported: [sample_sd, standard_error, degrees_of_freedom, w_plus, w_minus]
   L1:
     checkable: true
     note: As L0. Whether the batch is "on target" is the same decision in other words.
-    quantities: [sample_mean, p_value, decision]
-    if_reported: [sample_sd, standard_error, t_statistic, degrees_of_freedom, t_critical_95, ci95_low, ci95_high, w_plus, w_minus]
+    quantities: [sample_mean, decision]
+    one_of:
+      - [p_value]
+      - [ci95_low, ci95_high]
+      - [t_statistic, t_critical_95]
+    if_reported: [sample_sd, standard_error, degrees_of_freedom, w_plus, w_minus]
   L2:
     checkable: true
     note: "The test, its sides and its level are dictated. The decision is the opposite of the L0 one: the difference from 50 is not significant at 1%."
@@ -153,18 +161,22 @@ quantities:
     value: 51.892
     tolerance: {abs: 0.01, why: "Accepts 51.89 and 51.9."}
   differences:
-    description: Differences from 50, in the order the values are given
+    description: Difference from 50 of each measurement
     kind: fixed
     type: list
     unit: mm
     value: [0.8, 1.6, -0.3, 2.3, 1.1, 0.4, 2.0, 1.5]
+    keyed_by: &measurements
+      description: The measurement each element belongs to. Pair a response's values with these by measurement, whatever order it lists them in.
+      values: [50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5]
     tolerance: {abs: 0.0005, why: Exact subtractions.}
   ranks:
-    description: Ranks of the absolute differences, in the order the values are given (no ties, no zero)
+    description: Rank of each measurement's absolute difference from 50, 1 for the smallest (no ties, no zero)
     kind: fixed
     type: list
     unit: "1"
     value: [3, 6, 1, 8, 4, 2, 7, 5]
+    keyed_by: *measurements
     tolerance: {abs: 0, why: Ranks are whole numbers.}
   w_plus:
     description: Sum of the ranks of the positive differences

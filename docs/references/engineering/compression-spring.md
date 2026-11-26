@@ -83,11 +83,15 @@ prompt set version "1". Machine-readable answers:
    Both stresses are far below the allowable 126,000 psi (25% and 38% of
    it).
 5. Life. Each press cycles the shear stress between 0 and 31,600 psi, which
-   is 11% of the tensile strength. A common guideline for unpeened spring
-   wire of this kind allows a largest stress of about 36% of the tensile
-   strength, 100,800 psi, for 100,000 cycles. The reference design is at
-   less than a third of that, so **it lasts**. A hundred thousand cycles is
-   also a short life as springs go.
+   is 11% of the tensile strength. A common guideline allows a largest
+   stress of about 36% of the tensile strength, 100,800 psi, for 100,000
+   cycles. It holds for a stress that cycles from zero (no preload), wire
+   that is not shot-peened, and surroundings that do not corrode the wire.
+   The reference design is at less than a third of that, so **it lasts**. A
+   hundred thousand cycles is also a short life as springs go. (The spring
+   sits in a garden weather station. Type 302 resists the weather, which is
+   why the brief chose it; a response may still remark on corrosion, and
+   that is not graded.)
 
 Other springs pass too. For example d = 0.026 in, D = 0.240 in with 7
 active coils gives 5.90 lbf/in and 48,300 psi at 1.2 lbf. A thicker wire
@@ -120,8 +124,10 @@ and its 18 total coils are 0.576 in solid, so it cannot be pressed to
 A design passes when:
 
 1. the outside diameter, D + d, is at most 0.27 in;
-2. the rate its dimensions give is within 10% of 6.0 lbf/in, so the force at
-   0.55 in is from 1.08 to 1.32 lbf;
+2. the rate its dimensions give is within 5% of 6.0 lbf/in (5.7 to 6.3), or
+   it is within 10% and the active coils are within half a coil of the exact
+   count, 10.0 × 10^6 d⁴ / (8 D³ × 6.0), so that the difference comes from
+   rounding the coil count;
 3. its solid length is less than 0.55 in;
 4. its shear stress at 0.55 in is below 126,000 psi;
 5. it gives the shear stress at solid length and compares it with the
@@ -129,16 +135,42 @@ A design passes when:
    at the working length; the response must then say so; and
 6. its total coils and solid length agree with the end type it states.
 
-The brief sets no tolerance on the force at 0.55 in. The 10% in point 2 is
-this reference's judgment, taken from the usual commercial tolerance on a
-spring's load at a length; the checker should record how far a design is
-from 6.0 lbf/in as well as the pass.
+The brief sets no tolerance on the force at 0.55 in, so point 2 is this
+reference's judgment. Its two parts, with examples:
+
+| Design (d, D, active coils) | Exact coil count | Rate | Off 6.0 | Verdict |
+| --- | --- | --- | --- | --- |
+| 0.030, 0.235, 13 | 13.00 | 6.00 lbf/in | 0.0% | pass |
+| 0.030, 0.235, 13.5 | 13.00 | 5.78 lbf/in | −3.7% | pass: within 5% |
+| 0.024, 0.246, 5 | 4.64 | 5.57 lbf/in | −7.1% | pass: the count was rounded by 0.36 of a coil |
+| 0.022, 0.248, 3 | 3.20 | 6.40 lbf/in | +6.7% | pass: rounded by 0.20 of a coil |
+| 0.030, 0.235, 14 | 13.00 | 5.57 lbf/in | −7.1% | fail: a full coil out |
+| 0.019, 0.251, 2 | 1.72 | 5.15 lbf/in | −14.2% | fail: rounded by 0.28 of a coil, but 1.03 lbf at 0.55 in |
+
+A plain 10% band, which an earlier version of this reference used, passed
+the fifth row. A plain "within half a coil" rule passes the sixth, where
+half a coil is a large share of fewer than two coils; hence the 10% cap.
+The checker records how far a design is from 6.0 lbf/in as well as the pass.
+
+Also recorded, and not part of the pass: whether the solid length is at most
+0.52 in, which leaves 15% of the working deflection as clearance before the
+coils touch. The brief does not ask for a clearance. The reference design
+has 0.10 in.
 
 **Life.** There is no single right criterion. It passes when the response
 gives a verdict, gives a reason that compares its own stress with a stated
-fatigue limit or guideline for spring wire, and the verdict follows from
-that comparison. As a yardstick, a design whose stress at 0.55 in is at or
-under 100,800 psi (36% of the tensile strength) should be said to last.
+fatigue limit or guideline for spring wire, and the verdict agrees with that
+comparison in both directions: "lasts" when its stress is at or under its
+limit, "does not last" when it is over. Where the response states no limit,
+the 36% default above is used, with the assumptions listed there.
+
+Recorded, and not part of the pass: whether the limit the response states,
+read as a largest stress cycling from zero, lies between 25% and 42% of the
+tensile strength (70,000 to 118,000 psi). The usual guidelines run from
+about 30% (wire not shot-peened, ten million cycles) to 42% (shot-peened,
+100,000 cycles); the span is drawn a little wider. A design at 115,000 psi meets the brief's 45% limit and
+is over the 36% default; it lasts only if the response states and justifies
+a higher limit, such as the 42% for peened wire.
 
 ## Alternatives accepted (L2)
 
@@ -186,7 +218,13 @@ tolerance also accepts Bergsträsser.
   as well, but states the 45% limit for the working length only. A design
   can therefore be over 126,000 psi when fully compressed and still meet the
   brief; the criteria ask only that the response makes the comparison.
-- Two figures above are not in the brief and come from general spring
-  practice: the 36% guideline for 100,000 cycles and the 10% tolerance on
-  load. They are yardsticks for a reader, and no pass depends on a response
-  quoting them.
+- The brief's stress limit, 45% of the tensile strength, is higher than the
+  static guideline usually quoted for austenitic stainless spring wire that
+  has not been preset, about 35% (98,000 psi). The reference grades against
+  the brief's 45%. A response that points out the lower guideline, or
+  designs to it, is not wrong; the reference design is under both.
+- Figures above that are not in the brief come from general spring
+  practice, quoted from memory of handbook tables and not checked against a
+  source here: the 36% default and the 25% to 42% span for fatigue, the 35%
+  static guideline, and the 5% and 10% bands on the rate. The 36% default
+  decides a pass only when a response states no limit of its own.

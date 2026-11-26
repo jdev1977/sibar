@@ -13,8 +13,10 @@ junction temperature of 125 °C and surrounding air at 40 °C.
 
 ## What is checkable
 
-- **L0 and L1:** the total thermal resistance allowed, and the share left
-  from the case to the air, follow from the givens. The heat sink's own limit
+- **L0 and L1, partly checkable:** the size of the heat sink, which is what
+  the prompt asks for, has no reference value. The total thermal resistance
+  allowed, and the share left from the case to the air, follow from the
+  givens. The heat sink's own limit
   also depends on the interface between the case and the heat sink (paste, a
   pad, an insulating washer, or nothing), which the prompt leaves to the
   model. Record the interface assumed, and grade the limit against it. The
@@ -115,7 +117,7 @@ limit; that is why the side is rounded up.
 | Total, case-to-air and plate resistance | ±0.5% | Exact arithmetic on the givens |
 | Heat sink limit for a stated interface | ±0.02 °C/W | Two decimals |
 | Plate area | ±1% | Three significant figures asked: 0.0339 |
-| Side of the square | exact, 135 mm | 130 mm does not meet the limit, and 140 mm is not the smallest |
+| Side of the square | exact, 135 mm (±0.01 mm) | 130 mm does not meet the limit, and 140 mm is not the smallest. The hundredth of a millimeter only lets 0.135 m or 13.5 cm convert cleanly |
 | Junction temperature | ±0.5 °C | 121 to three significant figures; 120.9 with a decimal |
 
 ## Alternatives accepted (L2)
@@ -159,6 +161,14 @@ under the junction temperature it sizes for.
 - The uniform-temperature assumption is the brief's. It is generous to a
   thin plate this wide, since the corners run cooler than the middle in
   practice; that is a limit of the brief's model, not of the arithmetic.
+- The coefficient of 10 W/m²·°C is also the brief's, and it depends on the
+  surface. A rough estimate for this plate (55 °C above the air, 135 mm
+  tall) gives about 6 W/m²·°C from still-air convection, plus radiation of
+  about 0.5 W/m²·°C for bare bright copper (emissivity near 0.05) or about
+  8 W/m²·°C for a painted or blackened surface (emissivity near 0.9). So 10
+  suits a surface of middling emissivity; a bright copper plate would do
+  worse and a black one better. A response may say so. The reference grades
+  against the brief's 10.
 - All of the above is recomputed in
   [tests/reference_solvers.py](../../../tests/reference_solvers.py)
   (`solve_heat_sink`).

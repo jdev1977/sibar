@@ -17,10 +17,11 @@ import pytest
 
 from reference_checks import (DOCUMENTS, LEVELS, REFERENCES, ROOT, TYPES,
                               ReferenceFileError, evaluate, levels_using,
-                              load_reference, reference_paths, tolerance_for,
-                              validate, within)
+                              load_reference, paired, reference_paths,
+                              tolerance_for, validate, within)
 from reference_solvers import (CONDITIONAL, SOLVERS, TITRATION_VOLUMES,
-                               conveyor_tooth_sets, hazen_williams_variants,
+                               bracket_section_stress, conveyor_tooth_sets,
+                               hazen_williams_variants,
                                loan_payment_dates, loan_schedule,
                                projectile_heun, student_t_two_sided_p,
                                student_t_two_sided_p_closed_form, titration_ph)
@@ -270,8 +271,9 @@ def test_loan_schedule_dates_and_closing_balance():
     dates = loan_payment_dates()
     answers = solved(("math", "loan-amortization"))
     assert len(dates) == answers["schedule_rows"] == 60
-    assert dates[0] == answers["first_payment_date"]
-    assert dates[-1] == answers["final_payment_date"]
+    assert dates[0] == answers["first_payment_date"] == "2027-04-01"
+    assert dates[-1] == answers["final_payment_date"] == "2032-03-01"
+    assert len(set(dates)) == 60 and dates == sorted(dates)
     assert loan_schedule(round_interest=True)[-1][4] == 0
 
 
@@ -359,14 +361,24 @@ def test_hazen_williams_tolerance_covers_the_printed_forms():
 def test_cantilever_section_is_the_smallest_that_meets_both_limits():
     answers = solved(("engineering", "cantilever-beam"))
 
-    def checks(width):
-        depth = 2 * width
+    def checks(width, depth=None):
+        depth = 2 * width if depth is None else depth
         stress = 6e6 / (width * depth ** 2 / 6)
         deflection = 4000 * 1500 ** 3 / (3 * 68900 * width * depth ** 3 / 12)
         return stress <= 92 and deflection <= 15
 
     assert checks(answers["width"]) and not checks(answers["width"] - 1)
+    # With the depth held at exactly twice the width there is one smallest
+    # section. Let the ratio go and there is none: each of these meets both
+    # limits with less material than the one before, so 50 by 102 is an
+    # alternative only when the answer states the departure.
+    assert checks(50, 102) and checks(51, 101) and checks(49, 103) and checks(48, 104)
+    assert 48 * 104 < 49 * 103 < 50 * 102 < 51 * 101 < 51 * 102
+    assert not checks(50, 100) and not checks(50, 101)
     assert answers["width"] == math.ceil(answers["min_width_for_deflection"])
+    width = quantities(("engineering", "cantilever-beam"))["width"]
+    assert within(width["tolerance"], width["value"], 0.051 / 0.001)     # given in meters
+    assert not within(width["tolerance"], width["value"], 50)
     assert answers["min_width_for_stress"] < answers["min_width_for_deflection"]
 
 
@@ -511,17 +523,98 @@ def test_spring_reference_design_meets_its_own_criteria():
     assert evaluate(checks["stress_within_allowable"]["check"],
                     {"working_stress_psi": answers["reference_working_stress"]},
                     allow_logic=True)
-    life = checks_of(key, "life")["verdict_follows"]["check"]
-    stress = answers["reference_working_stress"]
-    assert evaluate(life, {"working_stress_psi": stress, "lasts": 1}, allow_logic=True)
-    assert not evaluate(life, {"working_stress_psi": stress, "lasts": 0}, allow_logic=True)
+    assert evaluate(checks["clearance_before_solid"]["check"],
+                    {"solid_length_in": answers["reference_solid_length"]}, allow_logic=True)
     # A wire too thick to reach the working length, and a coil too wide.
     assert not evaluate(checks["reaches_working_length"]["check"],
                         {"solid_length_in": 0.032 * 18}, allow_logic=True)
     assert not evaluate(checks["fits_the_hole"]["check"], {"d": 0.030, "D": 0.245},
                         allow_logic=True)
-    assert not evaluate(checks["rate_is_met"]["check"], {"d": 0.030, "D": 0.235, "Na": 10},
+
+
+def test_spring_rate_criterion_in_the_disputed_band():
+    """Within 5% passes. From 5% to 10% passes only when the coil count is
+    the exact count rounded by at most half a coil. Beyond 10% fails."""
+    key = ("engineering", "compression-spring")
+    check = checks_of(key, "design_meets_requirements")["rate_is_met"]["check"]
+    exact = CONDITIONAL[("engineering", "compression-spring", "active_coils_for_exact_rate")]
+    rate = CONDITIONAL[("engineering", "compression-spring", "rate_from_geometry")]
+
+    def verdict(d, D, Na):
+        return evaluate(check, {"d": d, "D": D, "Na": Na}, allow_logic=True)
+
+    def off(d, D, Na):
+        return rate(d=d, D=D, Na=Na) / 6.0 - 1
+
+    # The reference design, and its coil count rounded to a half coil.
+    assert verdict(0.030, 0.235, 13) and verdict(0.030, 0.235, 13.5)
+    assert abs(off(0.030, 0.235, 13.5)) < 0.05
+    # 7.1% low with 14 coils where 13.0 are needed: a full coil out. It
+    # passed the old 10% rule and fails now.
+    assert 0.05 < -off(0.030, 0.235, 14) < 0.10
+    assert abs(14 - exact(d=0.030, D=0.235)) > 0.5
+    assert not verdict(0.030, 0.235, 14)
+    # 7.1% low with 5 coils where 4.64 are needed: the count was rounded.
+    assert 0.05 < -off(0.024, 0.246, 5) < 0.10
+    assert abs(5 - exact(d=0.024, D=0.246)) <= 0.5
+    assert verdict(0.024, 0.246, 5)
+    # 6.7% high with 3 coils where 3.2 are needed: rounded, passes.
+    assert 0.05 < off(0.022, 0.248, 3) < 0.10 and verdict(0.022, 0.248, 3)
+    # 14% low with 2 coils where 1.72 are needed: within half a coil, but
+    # the spring gives 1.03 lbf, not 1.2. The 10% cap fails it.
+    assert abs(2 - exact(d=0.019, D=0.251)) <= 0.5
+    assert -off(0.019, 0.251, 2) > 0.10
+    assert not verdict(0.019, 0.251, 2)
+    # Far off either way.
+    assert not verdict(0.030, 0.235, 10) and not verdict(0.030, 0.235, 16)
+
+
+def test_spring_life_criterion_follows_the_stated_limit():
+    """The verdict must agree with the answer's own comparison, both ways,
+    and the plausibility of its limit is recorded apart from the pass."""
+    key = ("engineering", "compression-spring")
+    items = checks_of(key, "life")
+    follows, plausible = items["verdict_follows"], items["limit_is_plausible"]
+    assert plausible.get("record_only") is True and "record_only" not in follows
+
+    def verdict(stress, limit, lasts):
+        return evaluate(follows["check"], {"compared_stress_psi": stress,
+                                           "stated_limit_psi": limit, "lasts": lasts},
                         allow_logic=True)
+
+    def in_band(limit):
+        return evaluate(plausible["check"], {"stated_limit_psi": limit}, allow_logic=True)
+
+    default = 0.36 * 280000
+    stress = solved(key)["reference_working_stress"]
+    # The reference design against the default limit: it lasts, and saying
+    # it does not is wrong.
+    assert verdict(stress, default, 1) and not verdict(stress, default, 0)
+    # A design over its stated limit: "lasts" is wrong and "does not last"
+    # is right. The old check passed either answer here.
+    assert not verdict(110000, default, 1) and verdict(110000, default, 0)
+    # The disputed band, 100.8 to 126 ksi: a design at 115 ksi meets the
+    # brief's 45% but not the 36% default; with a stated limit of 42%
+    # (shot-peened wire) it lasts.
+    assert verdict(115000, 0.42 * 280000, 1) and not verdict(115000, default, 1)
+    assert verdict(default, default, 1)
+    # Plausibility of the limit: 25% to 42% of the tensile strength.
+    assert in_band(default) and in_band(70000) and in_band(0.42 * 280000)
+    assert not in_band(0.45 * 280000) and not in_band(35000) and not in_band(60000)
+    # An implausible limit still gets a consistent verdict graded.
+    assert verdict(120000, 126000, 1) and not in_band(126000)
+
+
+def test_record_only_items_do_not_decide_a_pass():
+    """Record-only items exist only where the brief sets no requirement."""
+    found = {(key[1], name, item["id"])
+             for key in KEYS
+             for name, criterion in references()[key][1].get("criteria", {}).items()
+             for item in criterion["pass_when"] if item.get("record_only")}
+    assert found == {
+        ("compression-spring", "design_meets_requirements", "clearance_before_solid"),
+        ("compression-spring", "life", "limit_is_plausible"),
+    }
 
 
 def test_heat_sink_and_bracket_criteria():
@@ -540,6 +633,125 @@ def test_heat_sink_and_bracket_criteria():
     answers = solved(bracket)
     assert evaluate(stress["check"], {"stress_psi": answers["reference_stress"]},
                     allow_logic=True)
+
+
+# --- answers with more than one complete form ---------------------------------
+
+
+def test_one_of_groups():
+    """Where a request can be met in more than one form, the level lists
+    the forms, and every quantity in them is still defined and graded."""
+    found = {(key[1], level): references()[key][1]["levels"][level]["one_of"]
+             for key in KEYS for level in LEVELS
+             if "one_of" in references()[key][1]["levels"][level]}
+    assert found == {
+        ("shelf-bracket", "L2"): [["screw_downward_force", "screw_sideways_force"],
+                                  ["screw_resultant_force"]],
+        ("hypothesis-test", "L0"): [["p_value"], ["ci95_low", "ci95_high"],
+                                    ["t_statistic", "t_critical_95"]],
+        ("hypothesis-test", "L1"): [["p_value"], ["ci95_low", "ci95_high"],
+                                    ["t_statistic", "t_critical_95"]],
+    }
+    # The three hypothesis-test routes give one decision at the 5% level.
+    answers = solved(("math", "hypothesis-test"))
+    by_p = answers["p_value"] < 0.05
+    by_interval = not answers["ci95_low"] <= 50 <= answers["ci95_high"]
+    by_statistic = answers["t_statistic"] > answers["t_critical_95"]
+    assert by_p and by_interval and by_statistic
+
+
+def test_bracket_screw_total_is_available_for_every_reading():
+    """An answer that gives one total force per screw can be graded in the
+    screw-group reading and in each bearing reading."""
+    key = ("engineering", "shelf-bracket")
+    sideways = quantities(key)["screw_sideways_force"]
+    total = quantities(key)["screw_resultant_force"]
+    assert ({a["id"] for a in sideways["alternatives"]}
+            == {a["id"] for a in total["alternatives"]}
+            == {"bearing_upper_screw", "bearing_upper_screw_wall_moment",
+                "bearing_both_screws", "bearing_both_screws_wall_moment"})
+    layout = {"e": 0.75, "a": 2, "s": 6, "p": 10}
+
+    def value(entry):
+        return evaluate(entry["formula"], {k: layout[k] for k in entry["inputs"]})
+
+    for part, whole in zip([sideways] + sideways["alternatives"],
+                           [total] + total["alternatives"]):
+        assert value(whole) == pytest.approx(math.hypot(value(part), 20.0))
+    # Both screws sharing: the two sideways forces balance the moment used.
+    both = holder(key, "screw_sideways_force@bearing_both_screws")
+    lower = quantities(key)["lower_screw_sideways_force_bearing"]
+    assert value(both) * 8 + value(lower) * 2 == pytest.approx(40 * 4.25)
+    both_wall = holder(key, "screw_sideways_force@bearing_both_screws_wall_moment")
+    lower_wall = holder(key, "lower_screw_sideways_force_bearing@wall_moment")
+    assert value(both_wall) * 8 + value(lower_wall) * 2 == pytest.approx(200)
+
+
+def test_bracket_stress_is_graded_at_the_wall():
+    key = ("engineering", "shelf-bracket")
+    level = references()[key][1]["levels"]["L2"]
+    assert "quarter_disc_stress_at_wall" in level["quantities"]
+    assert "plywood_bending_stress" in level["if_reported"]
+    # Naming a lightly stressed section does not answer the question: for
+    # the reference bracket the mid-depth section carries a third of the
+    # wall stress.
+    at_wall = bracket_section_stress(10.0)[2]
+    midway = bracket_section_stress(10.0, 5.0)[2]
+    wall = quantities(key)["quarter_disc_stress_at_wall"]
+    assert evaluate(wall["formula"], {"radius_in": 10}) == pytest.approx(at_wall)
+    assert not within(wall["tolerance"], at_wall, midway)
+
+
+def test_list_quantities_are_paired_by_key_not_by_position():
+    lists = [(("math", "hypothesis-test"), "differences"),
+             (("math", "hypothesis-test"), "ranks"),
+             (("math", "least-squares-fit"), "residuals")]
+    assert sorted(lists) == sorted((key, name) for key, name in all_quantities()
+                                   if quantities(key)[name].get("type") == "list")
+    for key, name in lists:
+        quantity = quantities(key)[name]
+        keys = quantity["keyed_by"]["values"]
+        stated = dict(zip(keys, quantity["value"]))
+        # The same answer listed in another order (here sorted by key, as
+        # a response that ranks its table would) pairs up the same way.
+        shuffled = {k: stated[k] for k in sorted(stated, reverse=True)}
+        assert paired(quantity, shuffled) == list(zip(quantity["value"], quantity["value"]))
+        assert all(within(quantity["tolerance"], r, s) for r, s in paired(quantity, shuffled))
+        # A key missing or foreign cannot be paired.
+        assert paired(quantity, {k: stated[k] for k in keys[1:]}) is None
+    # Measurements and x values are distinct, so the pairing is unambiguous.
+    ranks = quantities(("math", "hypothesis-test"))["ranks"]
+    assert ranks["keyed_by"]["values"] == [float(v) for v in
+                                           "50.8 51.6 49.7 52.3 51.1 50.4 52.0 51.5".split()]
+    by_value = dict(zip(ranks["keyed_by"]["values"], ranks["value"]))
+    assert by_value[49.7] == 1 and by_value[52.3] == 8
+
+
+def test_partial_levels_are_the_expected_ones():
+    partial = {(key[1], level) for key in KEYS for level in LEVELS
+               if references()[key][1]["levels"][level].get("partial")}
+    assert partial == {
+        ("cantilever-beam", "L0"), ("cantilever-beam", "L1"),
+        ("heat-sink", "L0"), ("heat-sink", "L1"),
+        ("pipe-and-pump", "L0"), ("pipe-and-pump", "L1"),
+        ("shelf-bracket", "L2"), ("compression-spring", "L2"),
+    }
+
+
+def test_loan_amounts_use_one_unit():
+    units = {q["unit"] for name, q in quantities(("math", "loan-amortization")).items()
+             if name not in ("payment_count", "schedule_rows", "monthly_rate_percent",
+                             "first_payment_date", "final_payment_date")}
+    assert units == {"currency"}
+
+
+def test_heat_sink_side_passes_in_any_listed_unit():
+    side = quantities(("engineering", "heat-sink"))["square_side"]
+    for unit in [{"unit": "mm", "factor": 1}] + side["other_units"]:
+        stated = round(135 * unit["factor"], 6)          # 135 mm, 0.135 m, 13.5 cm
+        assert within(side["tolerance"], side["value"], stated / unit["factor"]), unit
+    assert not within(side["tolerance"], side["value"], 130)
+    assert not within(side["tolerance"], side["value"], 135.2)
 
 
 # --- the reader itself --------------------------------------------------------
@@ -577,6 +789,23 @@ def test_validator_rejects_broken_files():
         tolerance={"abs": 0, "why": "x"})))
     broken(lambda r: r["levels"]["L2"].update(checkable=False))
     broken(lambda r: r.update(task_id="other"))
+    broken(lambda r: r["levels"]["L2"].update(one_of=[["plate_resistance"]]))
+    broken(lambda r: r["levels"]["L2"].update(one_of=[["square_side"], ["no_such"]]))
+    broken(lambda r: r["levels"]["L0"].update(partial=False))
+    broken(lambda r: r["criteria"]["chosen_sink_is_adequate"]["pass_when"].append(
+        {"id": "x", "text": "x", "record_only": True}))
+    path, good = references()[("math", "hypothesis-test")]
+
+    def broken_list(change):
+        copy = load_reference(path)
+        change(copy)
+        with pytest.raises(ReferenceFileError):
+            validate(copy, path)
+
+    broken_list(lambda r: r["quantities"]["ranks"].pop("keyed_by"))
+    broken_list(lambda r: r["quantities"]["ranks"]["keyed_by"]["values"].pop())
+    broken_list(lambda r: r["quantities"]["w_plus"].update(
+        keyed_by={"description": "x", "values": [1]}))
 
 
 def test_tolerance_rule():

@@ -53,6 +53,12 @@ from 50?
 8. 95% confidence interval for the mean: 51.175 ± 2.365 × 0.3034 =
    **50.46 to 51.89**, which does not contain 50.
 
+A response can reach the decision by any of three routes, and each is a
+complete answer: the p-value against the level (step 6), the statistic
+against its critical value (3.873 against 2.365), or the confidence interval
+(step 8). All three give the same decision at 5%. Whichever the response
+states is graded, and the decision must agree with it.
+
 ## L2: exact Wilcoxon signed-rank test at the 1% level
 
 1. Differences from 50, and the ranks of their sizes (1 = smallest). No
@@ -101,6 +107,7 @@ direction.
 | p-value, t test | ±0.0006 | Accepts 0.006 and 0.0061; the one-sided 0.0031 fails |
 | p-value, exact Wilcoxon at L2 | ±0.0005 | The brief asks for 4 decimals: 0.0156 or 0.015625; 0.016 also passes, and the normal approximation, 0.0173, does not |
 | Rank sums, ranks | exact | Whole numbers |
+| Differences, ranks as lists | paired by measurement | Each difference and rank belongs to a measurement (49.7 has rank 1). A response may list them in the order given or sorted by size; they are matched by measurement, never by position |
 | Decision | no tolerance | It must follow from the response's own p-value and level |
 
 ## Alternatives accepted (L0 and L1)
@@ -140,6 +147,8 @@ At L2 only the exact Wilcoxon value passes: the normal approximations
   of t on 7 degrees of freedom numerically, and from the closed form for an
   odd number of degrees of freedom. Both give 0.006110.
 - The exact Wilcoxon distribution was built by listing all 256 sign patterns.
+  The 1% critical value (a smaller rank sum of 0) is read off that
+  distribution, not taken from a table.
   The sign-flip permutation test of the mean, a different statistic, gives
   the same 4/256.
 - W+ + W− = 36 = n(n + 1)/2.

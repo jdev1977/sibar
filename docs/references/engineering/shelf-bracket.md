@@ -84,10 +84,17 @@ upper screw a depth a below the shelf:
     both screws, in proportion to height     upper: 40 (5 − e) (p − a) / ((p − a)² + (p − a − s)²)
                                              lower: 40 (5 − e) (p − a − s) / ((p − a)² + (p − a − s)²)
 
-A response may also divide the moment at the wall, 200 lb·in, by the height
-of the upper screw above the bearing point: 200 / (p − a). That leaves out
-the 40 × e term and is accepted when the response states it. In every
-bearing reading each screw still carries 20 lb downward.
+A response may also work from the moment at the wall, 200 lb·in, in place of
+40 (5 − e): 200 / (p − a) for the upper screw alone, or 200 shared between
+the two screws in proportion to height. That leaves out the 40 × e term and
+is accepted when the response states it. In every bearing reading each screw
+still carries 20 lb downward.
+
+**One total or two parts.** The request is met by the two parts on each
+screw (sideways and downward) or by one total force on each,
+sqrt(sideways² + 20²). In the screw-group reading both screws carry the
+same total. In a bearing reading they differ, and where the upper screw
+alone holds the top in, the lower screw carries only its 20 lb.
 
 ## Steps (L2)
 
@@ -123,9 +130,14 @@ For other choices:
 | 9 in | 3.375 in³ | 59 psi |
 | 8 in | 2.667 in³ | 75 psi |
 
-Bearing reading, for the reference layout (p = 10 in, a = 2 in): 21.3 lb on
-the upper screw if it alone holds the top in; 20.0 lb and 5.0 lb if both
-share; 25.0 lb by the 200 / (p − a) shortcut.
+Bearing readings, for the reference layout (p = 10 in, a = 2 in, s = 6 in):
+
+| Reading | Sideways, upper | Sideways, lower | Total, upper | Total, lower |
+| --- | --- | --- | --- | --- |
+| Upper screw alone, 40 (5 − e) | 21.3 lb | 0 | 29.2 lb | 20.0 lb |
+| Upper screw alone, 200 lb·in | 25.0 lb | 0 | 32.0 lb | 20.0 lb |
+| Both share, 40 (5 − e) | 20.0 lb | 5.0 lb | 28.3 lb | 20.6 lb |
+| Both share, 200 lb·in | 23.5 lb | 5.9 lb | 30.9 lb | 20.8 lb |
 
 ## Answers
 
@@ -134,7 +146,8 @@ share; 25.0 lb by the 200 / (p − a) shortcut.
 | Moment where the bracket meets the wall | no checkable answer | 200 lb·in |
 | Downward force on each screw | | 20 lb |
 | Sideways force on each screw | | 40 (5 − e) / s; 28.3 lb for the reference layout |
-| Plywood bending stress | | 6 M / (0.25 h²) at the section named; 48 psi for R = 10 in |
+| Or the total force on each screw | | sqrt(20² + sideways²); 34.7 lb for the reference layout |
+| Plywood bending stress at the weakest section | | at the wall, 6 × 200 / (0.25 R²) for the radius stated; 48 psi for R = 10 in |
 | Against the working stress | | far below 1000 psi |
 | Outline, CAD file | | pass criteria |
 
@@ -145,6 +158,22 @@ share; 25.0 lb by the 200 / (p − a) shortcut.
 | Moment at the wall, downward force | ±0.5% | Statics; exact |
 | Sideways and total screw force | ±2% of the formula's value | Rounding, and positions given to the nearest 1/16 in |
 | Plywood stress | ±2% of the formula's value | The same |
+
+The stress is graded at the wall section, for the radius the response
+states, because the brief asks for the weakest section and that is where the
+moment is the full 200 lb·in. A response cannot pass by naming a lightly
+loaded section: midway along the reference bracket the same formula gives
+16 psi, a third of the wall value. A stress the response works at any other
+section is still checked against its own moment and depth
+(`plywood_bending_stress` in the YAML file), as a check of its arithmetic.
+
+One alternative is accepted when the response states it: the section through
+the screw holes, with the holes taken off the depth. It is graded from the
+moment and the net depth the response states. For the reference bracket with
+3/16 in holes that is 171.1 lb·in on a net depth of 9.60 in, 44.6 psi. Where
+the bracket is narrower than the shelf is deep, the simple beam picture
+breaks down near the bracket's tip, since the shelf must carry its own
+overhang; the wall section is still the one graded.
 
 ## Pass criteria (L2)
 
@@ -175,7 +204,8 @@ the holes, and agrees with the dimensioned description.
 | Moment 400 lb·in | The load taken at the front edge of the shelf |
 | Moment 170 lb·in reported as the moment at the wall | That is the moment about the screws (e = 3/4 in) |
 | Moment 2000 lb·in | w L² / 2 with w taken as 40 lb per inch |
-| A pull-out force on a screw | The screws are loaded across their length; nothing pulls them out of the strip |
+| A pull-out force given as the force on each screw | The screws run across the plywood into the side of the strip, so the shelf load bears on them across their length. A response that works the shear forces and adds a remark on a small pull-out effect is not marked down for it |
+| 16 psi "at the weakest section" (R = 10 in) | The stress midway along the bracket; the weakest section is at the wall |
 
 ## Checks
 
@@ -185,7 +215,7 @@ the holes, and agrees with the dimensioned description.
   40 lb, the sideways forces cancel, and their couple, 28.33 × 6 = 170 lb·in,
   equals the load's moment about the screws, 40 × 4.25.
 - Bearing reading with both screws: 20.0 × 8 + 5.0 × 2 = 170 lb·in, the same
-  moment.
+  moment; with the 200 lb·in shortcut, 23.53 × 8 + 5.88 × 2 = 200 lb·in.
 - The stress formula at the wall, 6 × 200 / (0.25 × R²), was compared with
   the general section formula over the whole bracket; for R = 10 in no
   section is more highly stressed than the wall section.

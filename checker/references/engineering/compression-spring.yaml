@@ -35,9 +35,10 @@ levels:
     consistency: [rate_from_stated_modulus]
   L2:
     checkable: true
+    partial: true
     note: The required rate and the allowable stress are fixed. The wire, the coil diameter and the coil count are the model's choice, with pass criteria; the rate and stresses it states are graded against its own dimensions.
     quantities: [spring_rate, rate_from_geometry, shear_stress, solid_length]
-    if_reported: [working_deflection, allowable_shear_stress, outside_diameter, force_at_length]
+    if_reported: [working_deflection, allowable_shear_stress, outside_diameter, force_at_length, active_coils_for_exact_rate]
     criteria: [design_meets_requirements, life]
 quantities:
   working_deflection:
@@ -89,6 +90,20 @@ quantities:
       - {inputs: {d: 0.030, D: 0.240, Na: 12}, value: 6.1035}
       - {inputs: {d: 0.026, D: 0.240, Na: 7}, value: 5.9030}
       - {inputs: {d: 0.032, D: 0.238, Na: 16}, value: 6.0766, note: "Solid length 0.576 in: cannot reach 0.55 in"}
+  active_coils_for_exact_rate:
+    description: Number of active coils that gives exactly 6.0 lbf/in with the answer's own wire and coil diameter. The coil count a response settles on is compared with this in the rate criterion.
+    kind: conditional
+    unit: "1"
+    inputs:
+      d: {description: Wire diameter, unit: in}
+      D: {description: Mean coil diameter, unit: in}
+    formula: "10.0e6 * d**4 / (8 * D**3 * 6.0)"
+    tolerance: {rel: 0.02, why: Rounding.}
+    examples:
+      - {inputs: {d: 0.030, D: 0.235}, value: 13.003, note: The reference design}
+      - {inputs: {d: 0.026, D: 0.240}, value: 6.8868}
+      - {inputs: {d: 0.024, D: 0.246}, value: 4.6427}
+      - {inputs: {d: 0.019, D: 0.251}, value: 1.7166, note: "About the thinnest wire that stays under the allowable stress"}
   rate_from_stated_modulus:
     description: Spring rate from the answer's own shear modulus and dimensions, in its own consistent units
     kind: conditional
@@ -200,17 +215,23 @@ criteria:
           D: {description: Mean coil diameter, unit: in}
         check: "D + d <= 0.27 + 0.0005"
       - id: rate_is_met
-        text: The rate its dimensions give is within 10% of 6.0 lbf/in, so the force at 0.55 in is from 1.08 to 1.32 lbf. The brief sets no tolerance on the force; 10% is the usual commercial tolerance on a spring's load at a length, and the checker records the difference.
+        text: "The rate its dimensions give is within 5% of 6.0 lbf/in (5.7 to 6.3). A rate from 5% to 10% off also passes when the active coils are within half a coil of the exact count, 10.0e6 d⁴ / (8 D³ × 6.0): the count was rounded. The brief sets no tolerance on the force; the checker also records the difference from 6.0 lbf/in."
         inputs:
           d: {description: Wire diameter, unit: in}
           D: {description: Mean coil diameter, unit: in}
           Na: {description: Number of active coils, unit: "1"}
-        check: "abs(10.0e6 * d**4 / (8 * D**3 * Na) - 6.0) <= 0.6"
+        check: "abs(10.0e6 * d**4 / (8 * D**3 * Na) - 6.0) <= 0.3 or (abs(10.0e6 * d**4 / (8 * D**3 * Na) - 6.0) <= 0.6 and abs(Na - 10.0e6 * d**4 / (8 * D**3 * 6.0)) <= 0.5)"
       - id: reaches_working_length
         text: The solid length is less than 0.55 in, so the spring can be pressed to its working length.
         inputs:
           solid_length_in: {description: Solid length as the answer states it, unit: in}
         check: "solid_length_in < 0.55"
+      - id: clearance_before_solid
+        text: "Recorded, not a pass condition: whether the solid length is at most 0.52 in, which leaves at least 15% of the working deflection (0.03 in) between the working length and solid. The brief does not ask for a clearance."
+        record_only: true
+        inputs:
+          solid_length_in: {description: Solid length as the answer states it, unit: in}
+        check: "solid_length_in <= 0.52"
       - id: stress_within_allowable
         text: The shear stress at 0.55 in is below the allowable 126 000 psi.
         inputs:
@@ -228,8 +249,15 @@ criteria:
       - id: reason_uses_its_stress
         text: The reason compares the answer's own stress at 0.55 in, or its stress range, with a stated fatigue limit or guideline for spring wire.
       - id: verdict_follows
-        text: The verdict follows from that comparison. As a yardstick, a common guideline for unpeened stainless spring wire at 100,000 cycles is a largest stress of about 36% of the tensile strength, 100 800 psi. The reference design, at 31 600 psi (11%), lasts.
+        text: "The verdict follows from the answer's own comparison: it says the spring lasts exactly when the stress it compares is at or under the limit it states. If it states no limit, use 100 800 psi, 36% of the tensile strength. That default is a common guideline for the largest stress at 100,000 cycles; it assumes the stress cycles from zero (no preload), the wire is not shot-peened, and the surroundings do not corrode it. The reference design, at 31 600 psi (11%), lasts."
         inputs:
-          working_stress_psi: {description: Shear stress at 0.55 in as the answer states it, unit: psi}
+          compared_stress_psi: {description: "The stress the answer compares: its shear stress at 0.55 in, or a stress amplitude if it works in amplitudes", unit: psi}
+          stated_limit_psi: {description: "The fatigue limit or guideline the answer compares it with, in the same terms; 100800 if it states none", unit: psi}
           lasts: {description: "1 if the answer says the spring lasts, 0 if not", unit: "1"}
-        check: "(working_stress_psi <= 100800 and lasts == 1) or working_stress_psi > 100800"
+        check: "(compared_stress_psi <= stated_limit_psi) == (lasts == 1)"
+      - id: limit_is_plausible
+        text: "Recorded, not a pass condition: whether the stated limit, read as a largest stress cycling from zero, lies from 25% to 42% of the tensile strength (70 000 to 118 000 psi). The usual guidelines for spring wire run from about 30% (not shot-peened, ten million cycles) to 42% (shot-peened, 100,000 cycles); the span is drawn a little wider. A limit given as a stress amplitude, or for another stress ratio, is outside this check."
+        record_only: true
+        inputs:
+          stated_limit_psi: {description: The fatigue limit or guideline the answer states, unit: psi}
+        check: "70000 <= stated_limit_psi <= 118000"

@@ -25,7 +25,9 @@ off in equal monthly payments over 5 years?
    rate"). At L0 and L1 it is the standard reading of a quoted loan rate.
 2. There are n = 60 payments, each made at the end of a month, the first one
    month after the loan starts.
-3. No fees, and no payment is missed or made early.
+3. No fees, and no payment is missed or made early. No currency is stated
+   at L0 and L1, and the L2 brief uses US dollars; the numbers are the same
+   in any currency with cents.
 4. L2, interest rounding: each month's interest is rounded to the cent (half
    a cent rounds up) before it is applied, as lenders do. The brief does not
    say this. The other reading, exact interest with only the last payment

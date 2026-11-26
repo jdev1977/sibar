@@ -28,12 +28,23 @@ assumptions:
 levels:
   L0:
     checkable: true
-    note: The velocity, the static head and the Reynolds number (for the stated temperature) follow from the givens. Friction depends on the roughness, the temperature and any fittings the model assumes; grade it against those, and record them. The pump is a choice with pass criteria. "Pressure drop" is read by some as friction alone and by others as friction plus the lift; grade whichever the answer gives.
+    partial: true
+    note: >-
+      Partly checkable: only the velocity and the static head have reference
+      values that hold for every answer, and neither is the pressure drop the
+      prompt asks for. A correct result at this level says those two are
+      right. The Reynolds number follows from the givens and the stated
+      temperature. Friction depends on the roughness, the temperature and
+      any fittings the model assumes; grade it against those, and record
+      them. The pump is a choice with pass criteria. "Pressure drop" is read
+      by some as friction alone and by others as friction plus the lift;
+      grade whichever the answer gives.
     quantities: [flow_velocity, static_head]
     if_reported: [reynolds_number, flow_regime, velocity_head, friction_head_straight_pipe, friction_head_from_factor, fitting_loss, total_head_for_stated_losses, hydraulic_power_for_stated_head, input_power_for_stated_efficiency]
     criteria: [pump_choice]
   L1:
     checkable: true
+    partial: true
     note: As L0.
     quantities: [flow_velocity, static_head]
     if_reported: [reynolds_number, flow_regime, velocity_head, friction_head_straight_pipe, friction_head_from_factor, fitting_loss, total_head_for_stated_losses, hydraulic_power_for_stated_head, input_power_for_stated_efficiency]

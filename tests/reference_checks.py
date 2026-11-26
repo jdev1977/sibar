@@ -21,10 +21,11 @@ LEVELS = ("L0", "L1", "L2")
 TOP_KEYS = {"schema_version", "project_type", "task_id", "prompt_set_version",
             "title", "givens", "assumptions", "levels", "quantities"}
 TOP_OPTIONAL = {"study_data_note", "l2_givens", "criteria"}
-LEVEL_KEYS = {"checkable", "note", "quantities", "if_reported", "criteria",
-              "consistency"}
+LEVEL_KEYS = {"checkable", "partial", "note", "quantities", "one_of",
+              "if_reported", "criteria", "consistency"}
 QUANTITY_KEYS = {"description", "kind", "type", "unit", "value", "exact",
-                 "choices", "rule", "tolerance", "tolerance_at", "other_units",
+                 "choices", "rule", "keyed_by", "tolerance", "tolerance_at",
+                 "other_units",
                  "inputs", "formula", "method", "examples", "range",
                  "alternatives", "accepted_examples", "not_accepted"}
 ALTERNATIVE_KEYS = {"id", "condition", "levels", "value", "tolerance", "inputs",
@@ -132,10 +133,29 @@ def within(tolerance, reference, stated):
             and gap <= tolerance["rel"] * abs(reference) + slack)
 
 
+def level_quantities(entry):
+    """Every quantity id a level lists, in any of its groups."""
+    listed = [name for group in ("quantities", "if_reported", "consistency")
+              for name in entry.get(group, ())]
+    return listed + [name for group in entry.get("one_of", ()) for name in group]
+
+
 def levels_using(reference, quantity_id):
     return [level for level in LEVELS
-            if any(quantity_id in reference["levels"][level].get(group, ())
-                   for group in ("quantities", "if_reported", "consistency"))]
+            if quantity_id in level_quantities(reference["levels"][level])]
+
+
+def paired(quantity, stated):
+    """Pair a list quantity's reference values with a response's values.
+
+    ``stated`` maps each key (the measurement, the x) to the value the
+    response gives for it; the order the response lists them in does not
+    matter. Returns (reference, stated) pairs, or None if the keys differ.
+    """
+    keys = quantity["keyed_by"]["values"]
+    if sorted(stated) != sorted(keys):
+        return None
+    return [(reference, stated[key]) for key, reference in zip(keys, quantity["value"])]
 
 
 # --- shape --------------------------------------------------------------------
@@ -201,6 +221,8 @@ def _check_value(value, value_type, choices, where):
         _need(value in (choices or ()), f"{where}: value must be one of the choices")
     elif value_type == "list":
         _need(isinstance(value, list) and value, f"{where}: value must be a list")
+        _need(all(type(item) in (int, float) for item in value),
+              f"{where}: a list holds numbers")
     elif value_type == "date":
         _need(isinstance(value, str) and len(value) == 10,
               f"{where}: value must be an ISO date in quotes")
@@ -219,6 +241,14 @@ def _check_quantity(name, quantity, level_names):
     if value_type == "choice":
         _need(isinstance(quantity.get("choices"), list) and quantity["choices"],
               f"{where}: a choice needs its choices")
+    if value_type == "list":
+        # A list is never compared by position: each element has a key.
+        keyed = quantity.get("keyed_by")
+        _need(isinstance(keyed, dict) and set(keyed) == {"description", "values"}
+              and len(keyed["values"]) == len(set(keyed["values"])) == len(quantity["value"]),
+              f"{where}: a list needs keyed_by, with one distinct key per element")
+    else:
+        _need("keyed_by" not in quantity, f"{where}: keyed_by is for lists")
     if quantity["kind"] == "fixed":
         _need("value" in quantity, f"{where}: a fixed quantity needs a value")
         _check_value(quantity["value"], value_type, quantity.get("choices"), where)
@@ -284,8 +314,12 @@ def _check_criterion(name, criterion):
           f"{where}: pass_when needs items")
     seen = set()
     for item in criterion["pass_when"]:
-        _need(set(item) <= {"id", "text", "inputs", "check"} and {"id", "text"} <= set(item),
-              f"{where}: an item holds id, text, and maybe inputs and check")
+        _need(set(item) <= {"id", "text", "inputs", "check", "record_only"}
+              and {"id", "text"} <= set(item),
+              f"{where}: an item holds id, text, and maybe inputs, check and record_only")
+        _need(item.get("record_only", True) is True and ("record_only" not in item
+                                                         or "check" in item),
+              f"{where}, {item['id']}: record_only is true or absent, and needs a check")
         _need(item["id"] not in seen, f"{where}: item ids must differ")
         seen.add(item["id"])
         _need(("check" in item) == ("inputs" in item),
@@ -343,12 +377,17 @@ def validate(reference, path):
             _need(entry.get("quantities"), f"{level}: a checkable level lists quantities")
             _need("consistency" not in entry, f"{level}: consistency is for levels not checkable")
         else:
-            _need("quantities" not in entry, f"{level}: not checkable, so no quantities")
-        listed = []
-        for group in ("quantities", "if_reported", "consistency"):
-            for name in entry.get(group, ()):
-                _need(name in quantities, f"{level}: {group} names unknown quantity {name}")
-                listed.append(name)
+            _need("quantities" not in entry and "one_of" not in entry
+                  and "partial" not in entry,
+                  f"{level}: not checkable, so no quantities, one_of or partial")
+        _need(entry.get("partial", True) is True, f"{level}: partial is true or absent")
+        groups = entry.get("one_of", [])
+        _need(isinstance(groups, list) and len(groups) != 1
+              and all(isinstance(group, list) and group for group in groups),
+              f"{level}: one_of holds two or more groups of quantity ids")
+        listed = level_quantities(entry)
+        for name in listed:
+            _need(name in quantities, f"{level}: unknown quantity {name}")
         _need(len(listed) == len(set(listed)), f"{level}: a quantity is listed twice")
         for name in entry.get("consistency", ()):
             _need(quantities[name]["kind"] == "conditional",

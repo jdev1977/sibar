@@ -107,7 +107,7 @@ the least-squares line has
 | Intercept | ±0.005 | 0.21, 0.214 and 0.2143 pass |
 | Standard errors | ±1% | 0.04469 or 0.0447; 0.1999 or 0.200 |
 | Interval ends | ±0.002 | Accepts an interval built from rounded parts (1.946 − 0.115 = 1.831) |
-| Residuals | ±0.005 each | Accepts two-decimal rounding and values worked from the rounded slope and intercept |
+| Residuals | ±0.005 each, paired by point | Accepts two-decimal rounding and values worked from the rounded slope and intercept. Each residual is matched to its point by x, whatever order the response lists them in |
 | R² | ±0.0005 | 0.997 and 0.9974 pass; r = 0.9987 does not |
 | Spring constant | ±0.5% | 513.8 or 514; a value from the rounded slope, 513.9, passes |
 

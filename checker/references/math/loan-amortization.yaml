@@ -17,6 +17,7 @@ assumptions:
   - The 7% is a nominal annual rate charged monthly, so the monthly rate is 7%/12. The L2 brief says so; at L0 and L1 it is the standard reading.
   - Sixty payments, each at the end of a month, the first one month after the loan starts.
   - No fees, and no payment is missed or made early.
+  - "Currency: none is stated at L0 and L1, and the L2 brief uses US dollars. The unit written here as currency is whichever the answer uses; the numbers do not change with it."
   - "L2, interest rounding: each month's interest is rounded to the cent (half a cent rounds up) before it is applied, as lenders do. Carrying exact interest and rounding only the last payment gives the same last payment and the same total here."
   - "L2, last payment: the balance left after 59 payments plus the last month's interest on it."
 levels:
@@ -106,7 +107,7 @@ quantities:
   final_payment:
     description: The last (60th) payment, which clears the balance exactly
     kind: fixed
-    unit: USD
+    unit: currency
     value: 178.27
     tolerance: {abs: 0.02, why: "Rounding each month's interest to the cent and carrying exact interest both give 178.27. Two cents allow for a schedule that rounds in another order. The unadjusted 178.21 is 6 cents away and fails."}
     not_accepted:
@@ -116,7 +117,7 @@ quantities:
   total_interest_l2:
     description: Total interest paid under the L2 cent-rounding rule
     kind: fixed
-    unit: USD
+    unit: currency
     value: 1692.66
     exact: "59 × 178.21 + 178.27 − 9000"
     tolerance: {abs: 0.02, why: "Both interest conventions give 1692.66. Two cents accept the unrounded 1692.65. 1692.60, from sixty payments of 178.21, ignores the last payment and fails."}
@@ -128,7 +129,7 @@ quantities:
   total_paid_l2:
     description: Total of all payments under the L2 rule
     kind: fixed
-    unit: USD
+    unit: currency
     value: 10692.66
     tolerance: {abs: 0.02, why: "The principal plus the total interest, with the same allowance."}
   schedule_rows:
@@ -153,61 +154,61 @@ quantities:
   first_interest:
     description: Interest part of the first payment
     kind: fixed
-    unit: USD
+    unit: currency
     value: 52.50
     exact: "9000 × 0.07 / 12"
     tolerance: {abs: 0.005, why: Exact to the cent under every convention.}
   first_principal:
     description: Principal part of the first payment
     kind: fixed
-    unit: USD
+    unit: currency
     value: 125.71
     tolerance: {abs: 0.005, why: Exact to the cent under every convention.}
   balance_after_1:
     description: Balance left after the first payment
     kind: fixed
-    unit: USD
+    unit: currency
     value: 8874.29
     tolerance: {abs: 0.005, why: Exact to the cent under every convention.}
   balance_after_12:
     description: Balance left after payment 12
     kind: fixed
-    unit: USD
+    unit: currency
     value: 7442.13
     tolerance: &balance_tolerance {abs: 0.02, why: "The two interest conventions differ by at most 1.5 cents in any balance."}
   balance_after_24:
     description: Balance left after payment 24
     kind: fixed
-    unit: USD
+    unit: currency
     value: 5771.65
     tolerance: *balance_tolerance
   balance_after_36:
     description: Balance left after payment 36
     kind: fixed
-    unit: USD
+    unit: currency
     value: 3980.39
     tolerance: *balance_tolerance
   balance_after_48:
     description: Balance left after payment 48
     kind: fixed
-    unit: USD
+    unit: currency
     value: 2059.66
     tolerance: *balance_tolerance
   balance_after_59:
     description: Balance left after payment 59
     kind: fixed
-    unit: USD
+    unit: currency
     value: 177.24
     tolerance: *balance_tolerance
   balance_after_60:
     description: Balance left after the last payment
     kind: fixed
-    unit: USD
+    unit: currency
     value: 0.00
     tolerance: {abs: 0.005, why: The brief asks for exactly zero.}
   last_interest:
     description: Interest part of the last payment
     kind: fixed
-    unit: USD
+    unit: currency
     value: 1.03
     tolerance: {abs: 0.01, why: "1.03 with rounded interest, 1.0339 exact."}

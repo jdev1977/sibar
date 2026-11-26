@@ -99,11 +99,14 @@ quantities:
     value: 106.36
     tolerance: {abs: 0.05, why: "Exact; accepts 106.4, the value to four significant figures."}
   residuals:
-    description: Residual of each point, measured y minus fitted y, in the order the points are given
+    description: Residual of each point, measured y minus fitted y
     kind: fixed
     type: list
     unit: "1"
     value: [0.139286, -0.007143, -0.253571, 0.2, -0.046429, -0.292857, 0.260714]
+    keyed_by:
+      description: The x of the point each residual belongs to. Pair a response's residuals with these by point, whatever order it lists them in.
+      values: [1, 2, 3, 4, 5, 6, 7]
     exact: "39/280, −1/140, −71/280, 1/5, −13/280, −41/140, 73/280"
     tolerance: {abs: 0.005, why: "Accepts values rounded to two decimals, and values worked from a slope and intercept already rounded to four significant figures (up to 0.003 off at x = 7)."}
     alternatives:

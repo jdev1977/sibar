@@ -39,8 +39,12 @@ assumptions:                     # what the reference assumes where the prompts 
 levels:
   L0:
     checkable: true
+    partial: true                      # the references cover only part of what is asked
     note: ...
     quantities: [total_resistance]     # graded; a complete answer has them
+    one_of:                            # a complete answer has every quantity of one group
+      - [p_value]
+      - [ci95_low, ci95_high]
     if_reported: [temperature_rise]    # graded only when the answer states them
     criteria: [sink_is_adequate]       # pass criteria for an open choice
   L1: ...
@@ -59,9 +63,18 @@ prompts of the task; `l2_givens` are in both L2 wordings.
 - `checkable` says whether the level has a reference answer to the question
   asked. Where it is false the `note` says why, and the checker records no
   correctness result for that level.
+- `partial: true` marks a checkable level whose reference values cover only
+  part of what the prompt asks: the statics of a beam but not its size, the
+  velocity in a pipe but not its pressure drop. A correct result there says
+  that part is right, and no more. The `note` says which part.
 - `quantities` are the answers a complete response gives. `if_reported` are
   graded only when the response states them (an intermediate value, an extra
   figure). A missing `if_reported` value is not an error.
+- `one_of` lists the forms a request can be met in, where there is more than
+  one: the force on a screw as two parts or as one total, a test decided by
+  a p-value or by a confidence interval. A complete response gives every
+  quantity of at least one group. Every quantity in any group is graded when
+  the response states it.
 - `criteria` are pass criteria for choices with no single right value (a
   pump, a set of tooth counts, a spring).
 - `consistency` lists formulas that check a response's own numbers against
@@ -92,6 +105,9 @@ quantities:
         condition: The answer says it gives the area of one face.
         levels: [L2]             # optional: where it applies (default: everywhere)
         value: 0.01695
+    keyed_by:                    # lists only: what each element belongs to
+      description: The measurement each element belongs to
+      values: [50.8, 51.6, 49.7]
     accepted_examples:           # values the tolerance is meant to accept
       - {value: 0.0339, why: Three significant figures}
     not_accepted:                # known wrong answers the tolerance must reject
@@ -110,9 +126,17 @@ quantities:
   stated inputs.
 - **`type: choice`**: `value` is one of `choices` (a decision, a governing
   limit), and `rule` says in words how the choice follows.
-  **`type: integer`**: a whole number, compared exactly.
-  **`type: list`**: `value` is a list, and the tolerance applies to each
-  element. **`type: date`**: an ISO date.
+  **`type: integer`**: a count, compared exactly. A length that happens to
+  be a whole number of millimeters is a `number` with a small tolerance, so
+  that the same length given in another unit still passes.
+  **`type: date`**: an ISO date.
+- **`type: list`**: `value` is a list, and the tolerance applies to each
+  element. A list is never compared by position. `keyed_by.values` gives,
+  for each element in turn, the thing it belongs to (the measurement, the x
+  of the point), and those keys are distinct. Take the response's value for
+  each key, in whatever order the response lists them, and compare it with
+  the element that has that key. A response that leaves a key out, or adds
+  one, does not match.
 - `accepted_examples` and `not_accepted` are test values for the checker:
   right answers the tolerance is meant to pass, and answers from known
   mistakes it must fail. `not_accepted` is judged against the reference
@@ -176,7 +200,10 @@ criteria:
 ```
 
 An item with a `check` can be tested from numbers the response states. An
-item with `text` only needs a reader (a person or the tagger). A criterion
+item with `text` only needs a reader (a person or the tagger). An item with
+`record_only: true` is recorded and does not decide the pass: it is for
+things worth knowing that the brief does not require (a clearance, whether a
+quoted limit is in the usual range). A criterion
 may carry `all_passing`: the complete list of input sets that pass its
 checks, where that list is short enough to write down (`note`, `inputs`,
 `sets`).

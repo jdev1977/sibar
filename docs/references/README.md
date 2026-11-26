@@ -61,6 +61,14 @@ The files grade final answers. Whether a model used the method an L2 brief
 dictates is read by the extractors and the rubric, not here: a shortcut that
 reaches the same number passes.
 
+## Partly checkable levels
+
+At some levels the reference values cover only part of what the prompt asks:
+the statics of the beam but not its size, the velocity in the pipe but not
+its pressure drop, the resistance budget but not the heat sink. The YAML
+files mark these levels `partial`. A correct result there means that part
+is right, and the analysis should not read it as "the sizing is correct".
+
 ## Open-ended parts
 
 Where the prompt leaves a choice to the model (a section, a heat sink, a

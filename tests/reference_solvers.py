@@ -148,8 +148,8 @@ def solve_loan_amortization():
             "balance_after_59": float(rows[58][4]),
             "balance_after_60": float(rows[59][4]),
             "last_interest": float(rows[59][2]),
-            "final_payment_date": "2032-03-01",
-            "first_payment_date": "2027-04-01",
+            "final_payment_date": loan_payment_dates()[-1],
+            "first_payment_date": loan_payment_dates()[0],
             # Spread between the two interest conventions, for the tolerances.
             "_largest_balance_gap": float(max(abs(a[4] - b[4])
                                               for a, b in zip(rows, exact_rows))),
@@ -158,7 +158,8 @@ def solve_loan_amortization():
 
 
 def loan_payment_dates():
-    """Sixty due dates: the first of each month from April 2027."""
+    """Sixty due dates: the first of each month, starting one month after
+    the loan does on March 1, 2027."""
     dates = []
     year, month = 2027, 4
     for _ in range(60):
@@ -311,10 +312,20 @@ def solve_hypothesis_test():
     smaller = min(w_plus, w_minus)
     # Exact null distribution: each rank is positive or negative with equal
     # chance, so every one of the 2^8 sign patterns is equally likely.
-    at_most = sum(1 for signs in product((0, 1), repeat=n)
-                  if sum(r for r, s in zip(range(1, n + 1), signs) if s) <= smaller)
-    p_exact = Fraction(2 * at_most, 2 ** n)
-    at_most_zero = Fraction(2 * 1, 2 ** n)
+    counts = {}
+    for signs in product((0, 1), repeat=n):
+        total_rank = sum(r for r, s in zip(range(1, n + 1), signs) if s)
+        counts[total_rank] = counts.get(total_rank, 0) + 1
+
+    def two_sided(limit):
+        """Twice the chance of a rank sum of at most ``limit``."""
+        return Fraction(2 * sum(c for w, c in counts.items() if w <= limit), 2 ** n)
+
+    p_exact = two_sided(smaller)
+    # The largest smaller-rank-sum that is significant at 1%, two-sided.
+    significant = [w for w in sorted(counts) if two_sided(w) <= Fraction(1, 100)]
+    assert significant, "no rank sum is significant at 1% for this sample size"
+    critical = max(significant)
     mu = n * (n + 1) / 4
     sigma = math.sqrt(n * (n + 1) * (2 * n + 1) / 24)
     z = (w_plus - mu) / sigma
@@ -349,8 +360,8 @@ def solve_hypothesis_test():
         "decision_l2": "reject" if p_exact < Fraction(1, 100) else "do_not_reject",
         "_p_value_exact_fraction": p_exact,
         "sign_patterns": 2 ** n,
-        "critical_w_1pct": 0,
-        "_p_at_critical": float(at_most_zero),
+        "critical_w_1pct": critical,
+        "_p_at_critical": float(two_sided(critical)),
         "_sample_sd_population": math.sqrt(squares / n),
     }
 
@@ -502,7 +513,17 @@ def solve_cantilever_beam():
             break
         width += 1
     s, i = section(width)
+    # Alternative: one millimeter less width with the same depth. It meets
+    # both limits, but the depth is no longer twice the width.
+    narrow = width - 1
+    narrow_s = narrow * (2 * width) ** 2 / 6
+    narrow_i = narrow * (2 * width) ** 3 / 12
+    assert moment / narrow_s <= allowable
+    assert load * length ** 3 / (3 * modulus * narrow_i) <= 15.0
     return {
+        "width@depth_rounded_alone": float(narrow),
+        "bending_stress@depth_rounded_alone": moment / narrow_s,
+        "tip_deflection@depth_rounded_alone": load * length ** 3 / (3 * modulus * narrow_i),
         "reaction_force": load / 1000,
         "max_shear": load / 1000,
         "max_bending_moment": moment / 1e6,
@@ -511,8 +532,8 @@ def solve_cantilever_beam():
         "required_second_moment": inertia_needed,
         "min_width_for_stress": width_stress,
         "min_width_for_deflection": width_deflection,
-        "width": width,
-        "depth": 2 * width,
+        "width": float(width),
+        "depth": float(2 * width),
         "governing_limit": "deflection" if width_deflection > width_stress else "stress",
         "section_modulus_chosen": s,
         "second_moment_chosen": i,
@@ -595,13 +616,13 @@ def solve_heat_sink():
         "plate_area": area,
         "plate_area@one_face": area / 2,
         "square_side_exact": side,
-        "square_side": rounded,
+        "square_side": float(rounded),
         "plate_resistance": plate_actual,
         "junction_temperature": air + power * (junction_case + pad + plate_actual),
         "plate_temperature": air + power * plate_actual,
         "case_temperature": air + power * (pad + plate_actual),
         "square_side_exact@edges_counted": side_edges,
-        "square_side@edges_counted": rounded_edges,
+        "square_side@edges_counted": float(rounded_edges),
         "junction_temperature@edges_counted":
             air + power * (junction_case + pad + 1 / (coefficient * area_edges)),
     }
@@ -820,20 +841,27 @@ def bracket_screw_group(e, s):
     return sideways, math.hypot(sideways, BRACKET_LOAD / 2)
 
 
-def bracket_bearing(e, a, s, p, both_screws):
+def bracket_bearing(e, a, s, p, both_screws, wall_moment=False):
     """Bearing reading: the wall edge presses on the wall at depth p below
-    the shelf; the screws (at depths a and a + s) hold the top in.
+    the shelf; the screws (at depths a and a + s) hold the top in. Returns
+    the sideways force on the upper and on the lower screw.
 
     Moments about the bearing point: the load turns the bracket with
     40 × 5 lb·in and the screws' upward 40 lb, a distance e from the wall,
-    turn it back with 40 × e.
+    turn it back with 40 × e. ``wall_moment`` leaves that second term out
+    and uses the full 200 lb·in, as some answers do.
     """
-    moment = BRACKET_LOAD * (SHELF_DEPTH / 2 - e)
+    moment = BRACKET_LOAD * (SHELF_DEPTH / 2 - (0.0 if wall_moment else e))
     upper, lower = p - a, p - a - s
     if not both_screws:
         return moment / upper, 0.0
     return (moment * upper / (upper ** 2 + lower ** 2),
             moment * lower / (upper ** 2 + lower ** 2))
+
+
+def screw_total(sideways):
+    """Total force on a screw that carries half the load downward."""
+    return math.hypot(sideways, BRACKET_LOAD / 2)
 
 
 CONDITIONAL = {
@@ -901,6 +929,24 @@ CONDITIONAL = {
         lambda e, a, s, p: bracket_bearing(e, a, s, p, both_screws=True)[0],
     ("engineering", "shelf-bracket", "lower_screw_sideways_force_bearing"):
         lambda e, a, s, p: bracket_bearing(e, a, s, p, both_screws=True)[1],
+    ("engineering", "shelf-bracket", "screw_sideways_force@bearing_both_screws_wall_moment"):
+        lambda a, s, p: bracket_bearing(0, a, s, p, True, wall_moment=True)[0],
+    ("engineering", "shelf-bracket", "lower_screw_sideways_force_bearing@wall_moment"):
+        lambda a, s, p: bracket_bearing(0, a, s, p, True, wall_moment=True)[1],
+    ("engineering", "shelf-bracket", "lower_screw_resultant_force_bearing"):
+        lambda e, a, s, p: screw_total(bracket_bearing(e, a, s, p, True)[1]),
+    ("engineering", "shelf-bracket", "lower_screw_resultant_force_bearing@wall_moment"):
+        lambda a, s, p: screw_total(bracket_bearing(0, a, s, p, True, wall_moment=True)[1]),
+    ("engineering", "shelf-bracket", "screw_resultant_force@bearing_upper_screw"):
+        lambda e, a, p: screw_total(bracket_bearing(e, a, 1.0, p, False)[0]),
+    ("engineering", "shelf-bracket", "screw_resultant_force@bearing_upper_screw_wall_moment"):
+        lambda a, p: screw_total(bracket_bearing(0, a, 1.0, p, False, wall_moment=True)[0]),
+    ("engineering", "shelf-bracket", "screw_resultant_force@bearing_both_screws"):
+        lambda e, a, s, p: screw_total(bracket_bearing(e, a, s, p, True)[0]),
+    ("engineering", "shelf-bracket", "screw_resultant_force@bearing_both_screws_wall_moment"):
+        lambda a, s, p: screw_total(bracket_bearing(0, a, s, p, True, wall_moment=True)[0]),
+    ("engineering", "shelf-bracket", "quarter_disc_stress_at_wall@net_section"):
+        lambda moment_lb_in, net_depth_in: moment_lb_in / (PLY * net_depth_in ** 2 / 6),
     ("engineering", "shelf-bracket", "plywood_bending_stress"):
         lambda moment_lb_in, depth_in: 6 * moment_lb_in / (PLY * depth_in ** 2),
     ("engineering", "shelf-bracket", "quarter_disc_stress_at_wall"):
@@ -909,6 +955,9 @@ CONDITIONAL = {
         lambda load, distance: load * distance,
     ("engineering", "compression-spring", "rate_from_geometry"):
         lambda d, D, Na: spring_rate(SPRING["shear_modulus"], d, D, Na),
+    ("engineering", "compression-spring", "active_coils_for_exact_rate"):
+        lambda d, D: SPRING["shear_modulus"] * d ** 4
+        / (8 * D ** 3 * SPRING["force"] / (SPRING["free"] - SPRING["working"])),
     ("engineering", "compression-spring", "rate_from_stated_modulus"):
         lambda G, d, D, Na: spring_rate(G, d, D, Na),
     ("engineering", "compression-spring", "outside_diameter"):

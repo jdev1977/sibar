@@ -35,9 +35,13 @@ levels:
     consistency: [moment_from_stated_load]
   L2:
     checkable: true
-    note: The moment at the wall is fixed. The screw forces and the plywood stress depend on the outline and the screw positions the model chooses; grade them against those. The outline and the CAD file have pass criteria.
-    quantities: [moment_at_wall, screw_downward_force, screw_sideways_force, plywood_bending_stress]
-    if_reported: [load_per_inch, load_distance_from_wall, screw_resultant_force, moment_about_screws, lower_screw_sideways_force_bearing, quarter_disc_stress_at_wall]
+    partial: true
+    note: "The moment at the wall is fixed. The screw forces and the plywood stress depend on the outline and the screw positions the model chooses; grade them against those. The force on each screw may be given as its two parts or as one total; either meets the request. The plywood stress is graded at the wall section, for the radius the answer states. The outline and the CAD file have pass criteria."
+    quantities: [moment_at_wall, quarter_disc_stress_at_wall]
+    one_of:
+      - [screw_downward_force, screw_sideways_force]
+      - [screw_resultant_force]
+    if_reported: [load_per_inch, load_distance_from_wall, moment_about_screws, lower_screw_sideways_force_bearing, lower_screw_resultant_force_bearing, plywood_bending_stress]
     criteria: [outline, cad_file, stress_within_working_stress]
 quantities:
   moment_at_wall:
@@ -131,11 +135,20 @@ quantities:
         formula: "40 * (5 - e) * (p - a) / ((p - a)**2 + (p - a - s)**2)"
         examples:
           - {inputs: {e: 0.75, a: 2, s: 6, p: 10}, value: 20.0}
+      - id: bearing_both_screws_wall_moment
+        condition: As bearing_both_screws, but the answer shares the moment at the wall, 200 lb·in, between the screws.
+        inputs: &wall_moment_inputs
+          a: {description: Depth of the upper screw below the underside of the shelf, unit: in}
+          s: {description: Distance between the two screws, unit: in}
+          p: {description: Depth of the bearing point below the underside of the shelf, unit: in}
+        formula: "200 * (p - a) / ((p - a)**2 + (p - a - s)**2)"
+        examples:
+          - {inputs: {a: 2, s: 6, p: 10}, value: 23.529}
   lower_screw_sideways_force_bearing:
-    description: Sideways force on the lower screw in the bearing reading with both screws sharing
+    description: Sideways force on the lower screw in the bearing reading with both screws sharing. Where the upper screw alone holds the top in, the lower screw has no sideways force.
     kind: conditional
     unit: lb
-    inputs:
+    inputs: &bearing_inputs
       e: {description: Distance of the screws from the wall edge, unit: in}
       a: {description: Depth of the upper screw below the underside of the shelf, unit: in}
       s: {description: Distance between the two screws, unit: in}
@@ -144,8 +157,31 @@ quantities:
     tolerance: {rel: 0.02, why: Rounding.}
     examples:
       - {inputs: {e: 0.75, a: 2, s: 6, p: 10}, value: 5.0}
+    alternatives:
+      - id: wall_moment
+        condition: The answer shares the moment at the wall, 200 lb·in, between the screws.
+        inputs: *wall_moment_inputs
+        formula: "200 * (p - a - s) / ((p - a)**2 + (p - a - s)**2)"
+        examples:
+          - {inputs: {a: 2, s: 6, p: 10}, value: 5.8824}
+  lower_screw_resultant_force_bearing:
+    description: Total force on the lower screw in the bearing reading with both screws sharing, its sideways and downward parts together. Where the upper screw alone holds the top in, the lower screw carries its 20 lb downward and nothing else.
+    kind: conditional
+    unit: lb
+    inputs: *bearing_inputs
+    formula: "sqrt((40 * (5 - e) * (p - a - s) / ((p - a)**2 + (p - a - s)**2))**2 + 20**2)"
+    tolerance: {rel: 0.02, why: Rounding.}
+    examples:
+      - {inputs: {e: 0.75, a: 2, s: 6, p: 10}, value: 20.616}
+    alternatives:
+      - id: wall_moment
+        condition: The answer shares the moment at the wall, 200 lb·in, between the screws.
+        inputs: *wall_moment_inputs
+        formula: "sqrt((200 * (p - a - s) / ((p - a)**2 + (p - a - s)**2))**2 + 20**2)"
+        examples:
+          - {inputs: {a: 2, s: 6, p: 10}, value: 20.847}
   screw_resultant_force:
-    description: Total force on each screw in the screw-group reading, the sideways and downward parts together
+    description: Total force on each screw, the sideways and downward parts together. Screw-group reading, in which both screws carry the same total; in a bearing reading (the alternatives) this is the upper screw.
     kind: conditional
     unit: lb
     inputs:
@@ -159,8 +195,38 @@ quantities:
       - {inputs: {e: 0.75, s: 6}, value: 34.681, note: The reference layout}
       - {inputs: {e: 0.75, s: 5}, value: 39.446}
       - {inputs: {e: 1.0, s: 4}, value: 44.721}
+    alternatives:
+      - id: bearing_upper_screw
+        condition: The bearing reading in which the upper screw alone holds the top in (see screw_sideways_force).
+        inputs:
+          e: {description: Distance of the screws from the wall edge, unit: in}
+          a: {description: Depth of the upper screw below the underside of the shelf, unit: in}
+          p: {description: Depth of the bearing point below the underside of the shelf, unit: in}
+        formula: "sqrt((40 * (5 - e) / (p - a))**2 + 20**2)"
+        examples:
+          - {inputs: {e: 0.75, a: 2, p: 10}, value: 29.182}
+      - id: bearing_upper_screw_wall_moment
+        condition: The same, with the moment at the wall, 200 lb·in, divided by the height of the upper screw above the bearing point.
+        inputs:
+          a: {description: Depth of the upper screw below the underside of the shelf, unit: in}
+          p: {description: Depth of the bearing point below the underside of the shelf, unit: in}
+        formula: "sqrt((200 / (p - a))**2 + 20**2)"
+        examples:
+          - {inputs: {a: 2, p: 10}, value: 32.016}
+      - id: bearing_both_screws
+        condition: The bearing reading in which both screws hold the bracket in, in proportion to height.
+        inputs: *bearing_inputs
+        formula: "sqrt((40 * (5 - e) * (p - a) / ((p - a)**2 + (p - a - s)**2))**2 + 20**2)"
+        examples:
+          - {inputs: {e: 0.75, a: 2, s: 6, p: 10}, value: 28.284}
+      - id: bearing_both_screws_wall_moment
+        condition: The same, with the moment at the wall, 200 lb·in, shared between the screws.
+        inputs: *wall_moment_inputs
+        formula: "sqrt((200 * (p - a) / ((p - a)**2 + (p - a - s)**2))**2 + 20**2)"
+        examples:
+          - {inputs: {a: 2, s: 6, p: 10}, value: 30.881}
   plywood_bending_stress:
-    description: Bending stress in the plywood at the section the answer names, 6 M / (t h²) with t = 1/4 in
+    description: Bending stress at any section the answer works, from its own moment and depth there, 6 M / (t h²) with t = 1/4 in. A check of the answer's arithmetic; the graded stress is quarter_disc_stress_at_wall.
     kind: conditional
     unit: psi
     inputs:
@@ -175,7 +241,7 @@ quantities:
       - {inputs: {moment_lb_in: 200, depth_in: 8}, value: 75.0, note: "R = 8 in, at the wall"}
       - {inputs: {moment_lb_in: 171.125, depth_in: 9.9718}, value: 41.303, note: "R = 10 in, at the screw line 3/4 in from the wall"}
   quarter_disc_stress_at_wall:
-    description: Bending stress at the wall section of a quarter disc of the radius the answer states. For a quarter disc as deep as the shelf the wall section is the weakest.
+    description: Bending stress in the plywood at its weakest section, for the radius the answer states. That section is at the wall, where the moment is the full 200 lb·in; a stress worked at another section does not answer the question unless the alternative applies.
     kind: conditional
     unit: psi
     inputs:
@@ -186,6 +252,15 @@ quantities:
       - {inputs: {radius_in: 10}, value: 48.0, note: The reference bracket}
       - {inputs: {radius_in: 9}, value: 59.259}
       - {inputs: {radius_in: 8}, value: 75.0}
+    alternatives:
+      - id: net_section
+        condition: The answer says it checks the section through the screw holes and takes the holes off the depth there. Graded from the moment and the net depth it states.
+        inputs:
+          moment_lb_in: {description: Bending moment at the section through the holes as the answer states it, unit: lb·in}
+          net_depth_in: {description: Depth of the bracket at that section less the hole diameters, unit: in}
+        formula: "6 * moment_lb_in / (0.25 * net_depth_in**2)"
+        examples:
+          - {inputs: {moment_lb_in: 171.125, net_depth_in: 9.5968}, value: 44.593, note: "R = 10 in, holes of 3/16 in at 3/4 in from the wall"}
   moment_from_stated_load:
     description: Moment at the wall for the load and the distance the answer itself states, in its own units
     kind: conditional

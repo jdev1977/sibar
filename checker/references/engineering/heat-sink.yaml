@@ -26,12 +26,14 @@ assumptions:
 levels:
   L0:
     checkable: true
-    note: The total resistance allowed and the share left after the junction-to-case resistance follow from the givens. The heat sink's own limit depends on the interface the model assumes; grade it against that, and record the interface.
+    partial: true
+    note: "Partly checkable: the size of the heat sink, which is what the prompt asks for, has no reference value. The total resistance allowed and the share left after the junction-to-case resistance follow from the givens. The heat sink's own limit depends on the interface the model assumes; grade it against that, and record the interface."
     quantities: [total_resistance, case_to_air_resistance]
     if_reported: [temperature_rise_allowed, heat_sink_resistance_limit, junction_temperature_for_stated_sink]
     criteria: [chosen_sink_is_adequate]
   L1:
     checkable: true
+    partial: true
     note: As L0.
     quantities: [total_resistance, case_to_air_resistance]
     if_reported: [temperature_rise_allowed, heat_sink_resistance_limit, junction_temperature_for_stated_sink]
@@ -152,17 +154,16 @@ quantities:
   square_side:
     description: Side of the smallest square plate, rounded up to the next 5 mm
     kind: fixed
-    type: integer
     unit: mm
-    value: 135
-    tolerance: {abs: 0, why: "130.19 mm rounds up to 135 mm. 130 mm is too small: it gives 125.2 °C."}
+    value: 135.0
+    tolerance: {abs: 0.01, why: "Exact: 130.19 mm rounds up to 135 mm, and 130 mm is too small (it gives 125.2 °C). The hundredth of a millimeter is there only so that a side given as 0.135 m or 13.5 cm converts without rounding noise."}
     other_units:
       - {unit: m, factor: 0.001}
       - {unit: cm, factor: 0.1}
     alternatives:
       - id: edges_counted
         condition: The answer says it counts the four 3 mm edges as cooled area as well as the two faces.
-        value: 130
+        value: 130.0
         note: A departure from the brief, which names the two faces. Record a match as this alternative.
     not_accepted:
       - {value: 130, why: "Rounded down, or to the nearest 5 mm; the junction would reach 125.2 °C"}

@@ -24,12 +24,14 @@ assumptions:
 levels:
   L0:
     checkable: true
-    note: The reaction and the largest bending moment follow from statics. The section depends on the material, shape, safety factor and limits the model chooses, so it has no single answer; check it with the formulas, against the answer's own numbers.
+    partial: true
+    note: "Partly checkable: only the reaction and the largest bending moment, which follow from statics, have reference values. The sizing itself, which is what the prompt asks for, has none: the section depends on the material, shape, safety factor and limits the model chooses. Check it with the formulas and the criterion, against the answer's own numbers. A correct result at this level says the statics are right, not that the size is."
     quantities: [reaction_force, max_bending_moment]
     if_reported: [max_shear, stress_for_stated_section, deflection_for_stated_section, section_modulus_for_stated_allowable]
     criteria: [section_meets_its_own_limits]
   L1:
     checkable: true
+    partial: true
     note: As L0.
     quantities: [reaction_force, max_bending_moment]
     if_reported: [max_shear, stress_for_stated_section, deflection_for_stated_section, section_modulus_for_stated_allowable]
@@ -206,21 +208,28 @@ quantities:
   width:
     description: Smallest whole-millimeter width that meets both limits
     kind: fixed
-    type: integer
     unit: mm
-    value: 51
-    tolerance: {abs: 0, why: "A whole number. 50 mm deflects 15.7 mm and fails; 51 mm passes."}
+    value: 51.0
+    tolerance: {abs: 0.01, why: "Exact: 50 mm by 100 mm deflects 15.7 mm and fails; 51 mm by 102 mm passes. The hundredth of a millimeter only lets a width given in meters or centimeters convert cleanly."}
+    other_units: &length_units
+      - {unit: m, factor: 0.001}
+      - {unit: cm, factor: 0.1}
+    alternatives:
+      - id: depth_rounded_alone
+        condition: The answer gives 50 mm by 102 mm, says that the depth is then slightly more than twice the width, and shows that both limits are met.
+        value: 50.0
+        note: "A departure from the brief, which sets the depth at twice the width. Once that ratio is let go there is no smallest section (49 by 103 and 48 by 104 also meet both limits with less material), which is why the reference holds it. Record a match as this alternative."
     not_accepted:
-      - {value: 50, why: "Deflects 15.67 mm, over the limit"}
+      - {value: 50, why: "With a depth of 100 mm it deflects 15.67 mm, over the limit. With a depth of 102 mm it meets both limits, but the depth is then not twice the width; see the alternative"}
       - {value: 47, why: The size for the stress limit alone}
       - {value: 52, why: Not the smallest}
   depth:
     description: Depth of that section, twice the width
     kind: fixed
-    type: integer
     unit: mm
-    value: 102
-    tolerance: {abs: 0, why: A whole number.}
+    value: 102.0
+    tolerance: {abs: 0.01, why: "Exact, as for the width."}
+    other_units: *length_units
   governing_limit:
     description: Which of the two limits sets the size
     kind: fixed
@@ -253,6 +262,10 @@ quantities:
     unit: MPa
     value: 67.85
     tolerance: {rel: 0.01, why: "Accepts 67.8 and 68."}
+    alternatives:
+      - id: depth_rounded_alone
+        condition: The answer gives 50 mm by 102 mm and states the departure from the 2 to 1 ratio (see width).
+        value: 69.20
     other_units:
       - {unit: psi, factor: 145.038}
     accepted_examples:
@@ -266,6 +279,10 @@ quantities:
     unit: mm
     value: 14.48
     tolerance: {rel: 0.01, why: "Accepts 14.5."}
+    alternatives:
+      - id: depth_rounded_alone
+        condition: The answer gives 50 mm by 102 mm and states the departure from the 2 to 1 ratio (see width).
+        value: 14.77
     accepted_examples:
       - {value: 14.5, why: Three significant figures}
     not_accepted:

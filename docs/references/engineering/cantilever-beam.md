@@ -12,8 +12,10 @@ The question at every level: size a cantilever beam 1.5 m long that carries
 
 ## What is checkable
 
-- **L0 and L1:** the reaction and the largest bending moment follow from
-  statics alone. The section itself has no single answer: it depends on the
+- **L0 and L1, partly checkable:** only the reaction and the largest bending
+  moment have reference values; they follow from statics alone. A correct
+  result at these levels says the statics are right, not that the size is.
+  The section itself has no single answer: it depends on the
   material, the shape, the safety factor and the limits the model chooses.
   Those choices are what is measured; record them. The section is checked
   against the response's own numbers, with the formulas below.
@@ -98,6 +100,12 @@ Elementary beam formulas, found in any mechanics of materials textbook:
 The size below fails: 50 mm by 100 mm gives 72.0 MPa, which passes, but
 15.67 mm, which does not.
 
+The 2 to 1 ratio is what makes "the smallest" well defined. If only the
+depth is rounded up, 50 mm by 102 mm meets both limits (69.2 MPa, 14.77 mm)
+with less material, and so do 49 by 103 and 48 by 104: once the ratio is let
+go, there is no smallest section. The reference therefore holds the depth at
+exactly twice the width.
+
 ## Answers
 
 | Quantity | L0 and L1 | L2 |
@@ -118,7 +126,7 @@ The size below fails: 50 mm by 100 mm gives 72.0 MPa, which passes, but
 | --- | --- | --- |
 | Reaction, moment | ±0.5% | Statics; exact |
 | Required S and I | ±1% | Accepts three significant figures |
-| Width, depth | exact | Whole millimeters; 50 fails the deflection limit and 52 is not the smallest |
+| Width, depth | exact (±0.01 mm) | Whole millimeters; 50 mm by 100 mm fails the deflection limit and 52 mm is not the smallest. The hundredth only lets a size given in meters convert cleanly |
 | Stress, deflection at L2 | ±1% | Accepts 67.8 and 14.5 |
 | Stress and deflection of a model's own section (L0, L1) | ±2% | Section tables round their properties |
 
@@ -133,6 +141,13 @@ The size below fails: 50 mm by 100 mm gives 72.0 MPa, which passes, but
 
 Neither is accepted at L2, where the brief gives the load and the safety
 factor.
+
+## Alternative accepted (L2)
+
+- **Depth rounded alone.** 50 mm by 102 mm, with 69.2 MPa and 14.77 mm, is
+  accepted only when the response says that the depth is then slightly more
+  than twice the width and shows that both limits are met. It is recorded as
+  the alternative. 50 mm with no such statement is wrong.
 
 ## Pass criteria for the section (L0 and L1)
 
@@ -152,7 +167,7 @@ passes when:
 | Required S 21 739 mm³ (L2) | Yield strength used with no safety factor |
 | Required I 1.633 × 10^6 mm⁴ (L2) | The formula for an evenly spread load, w L⁴ / (8 E I) |
 | Width 47 mm (L2) | Sized for stress alone |
-| Width 50 mm (L2) | Deflects 15.67 mm |
+| Width 50 mm (L2) | With a depth of 100 mm it deflects 15.67 mm. With 102 mm it meets both limits but is not twice as deep as wide (see the alternative) |
 | Stress 135.7 MPa (L2) | Bent the weak way: S taken as 102 × 51² / 6 |
 
 ## Checks

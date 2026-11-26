@@ -13,8 +13,11 @@ The question at every level: what is the pressure drop in a pipe that carries
 
 ## What is checkable
 
-- **L0 and L1:** the velocity and the static head follow from the givens,
-  and the Reynolds number from the givens and a water temperature. The
+- **L0 and L1, partly checkable:** only the velocity and the static head
+  have reference values that hold for every answer, and neither is the
+  pressure drop the prompt asks for. A correct result at these levels says
+  those two are right, and no more. The Reynolds number follows from the
+  givens and a water temperature. The
   friction loss also depends on the pipe's roughness, the temperature and
   any fittings, which the prompt leaves to the model. Record them, and grade
   the friction against them. The pump is a choice with pass criteria.
