@@ -26,6 +26,12 @@ prompts:
   # Points away from the expected default: code in a general-purpose
   # language with an adaptive solver library, a plotted trajectory, a
   # document with headings, answers to whatever precision the code prints.
+  # Close to the expected default: drag that grows as the square of the
+  # speed is the likely assumption at L0 too. Kept in T2.2: at this speed
+  # no real object follows another law, and a brief that is wrong about
+  # the physics would measure how a model handles an error. Do not read
+  # the drag law as a persisting default for this task; it is measured at
+  # L0 and L1, where it is open.
   L2:
     A: |
       Work out the range of a projectile launched at 25 m/s and 30° above the horizontal, taking air resistance into account, for a first-year physics student who is learning how air resistance affects motion.

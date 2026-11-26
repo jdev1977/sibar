@@ -39,7 +39,7 @@ prompts:
       - Its depth is twice its width, and the load acts along the depth.
       - Use a safety factor of 3 on yield for the bending stress.
       - The tip may deflect at most 15 mm.
-      - Ignore the beam's own weight.
+      - The load at the free end is the only load on the beam.
 
       Give:
       - The required section modulus and second moment of area.
@@ -52,7 +52,7 @@ prompts:
     B: |
       Can you size a beam that is fixed at one end, reaches out 1.5 m and holds 4 kN at its tip? It's for an engineering student working through practice problems before an exam.
 
-      Here is what the problem lets you assume. The bar is solid and rectangular, made of 6061-T6 aluminum, whose Young's modulus is 68.9 GPa and whose yield strength is 276 MPa. Its cross-section is twice as deep as it is wide, with the load pushing in the deep direction. Bending stress gets a safety factor of 3 against yield, and the tip can move no more than 15 mm. Leave the bar's self-weight out.
+      Here is what the problem lets you assume. The bar is solid and rectangular, made of 6061-T6 aluminum, whose Young's modulus is 68.9 GPa and whose yield strength is 276 MPa. Its cross-section is twice as deep as it is wide, with the load pushing in the deep direction. Bending stress gets a safety factor of 3 against yield, and the tip can move no more than 15 mm. The force at the tip is the only load the bar carries.
 
       I need the section modulus and the second moment of area it calls for, the narrowest and shallowest cross-section in whole millimeters that satisfies both limits, which of the two limits decides the size, and the bending stress and tip deflection that size gives.
 
@@ -61,4 +61,6 @@ notes: >-
   Written for T2.1. "Cantilever" (A) and "fixed at one end" (B) say the same
   thing. The givens state no material, section shape or safety factor; those
   are the choices being measured. The setting is coursework, so nothing in
-  the prompt invites real-world use.
+  the prompt invites real-world use. T2.2: the L2 says that the tip load is
+  the only load, where it said to ignore the beam's own weight. Self-weight
+  is one of the choices recorded, so the brief does not name it.

@@ -4,8 +4,9 @@ Six math or science tasks, each at three levels of direction (L0, L1, L2) and
 in two wordings (A, B): 36 prompts. One YAML file per task, in the format
 described in [../README.md](../README.md). Written for task T2.1 in
 [tasks.md](../../tasks.md), under the leak-check rules in
-[docs/leak-check.md](../../docs/leak-check.md). The leak check itself is
-T2.2; reference solutions are T2.3.
+[docs/leak-check.md](../../docs/leak-check.md). The leak check (T2.2) read
+every prompt; its verdicts, reasons and rewrites are in
+[leak-check.md](leak-check.md). Reference solutions are T2.3.
 
 ## The tasks
 
@@ -39,7 +40,9 @@ L0 and L1 name none of the plan's open choices for math: no method
 (numerical, closed form, a named test or scheme), no presentation (table,
 plot, headings, code, a named language), no precision or rounding, no unit
 system, no rigor or length words, no analogy. The test file holds the word
-list.
+list. The plan's own task names stay at every level ("least squares", "pH
+curve", "air resistance"); T2.2 ruled on each, and
+[leak-check.md](leak-check.md) says which choices they touch.
 
 ## Givens: numbers that every level carries
 
@@ -100,7 +103,11 @@ Notes for T2.3, where a brief leaves a convention to the reference:
   reference takes the highest tabulated value or interpolates the peak, and
   set the tolerance to accept both.
 - **Hypothesis test.** The question says "mean" while the L2 test is about
-  location; grade the L2 decision and p-value against the dictated test.
+  location. Since T2.2 the L2 brief states that the lengths are symmetric
+  about their center, so the mean and the median are the same point. Grade
+  the L2 decision and p-value against the dictated test. At L0 and L1 the
+  question is two-sided and about the mean at every level; that is the
+  hypothesis, a given in words, and not a default.
 
 ## L2 directions
 
@@ -111,10 +118,10 @@ L2 in each file; the defaults are guesses until the pilot measures them.
 
 | Task | Dictated at L2 | Close to the expected default |
 | --- | --- | --- |
-| projectile-drag | Quadratic drag and constants, Heun's method by hand at 0.1 s, table of steps, paragraphs with displayed equations, 3 significant figures | Quadratic drag is itself the likely assumption |
+| projectile-drag | Quadratic drag and constants, Heun's method by hand at 0.1 s, table of steps, paragraphs with displayed equations, 3 significant figures | Quadratic drag is itself the likely assumption. Kept by T2.2: no real object at this speed follows another law. The drag law is read at L0 and L1 only |
 | loan-amortization | Payment found from the month-by-month balance with a stated check, cent rounding with last-payment adjustment, full dated schedule, answer first | None found |
 | titration-curve | One charge-balance equation solved numerically, listed volumes, table to 2 decimals, the curve's shape described in words | None found |
-| hypothesis-test | Exact Wilcoxon signed-rank, two-sided, 1% level, ranks listed, decision first, exact p-value | None found |
+| hypothesis-test | Exact Wilcoxon signed-rank, two-sided, 1% level, symmetry as the one assumption, ranks listed, decision first, exact p-value | Two-sided (it is the question at every level) |
 | least-squares-fit | Centered sums, table of sums, standard errors and interval, residuals, spring constant, 4 significant figures | None found |
 | entropy-explanation | Energy-sharing framing, one counting example, about 300 words of paragraphs, second person, a closing question | None found |
 
@@ -155,6 +162,9 @@ listed for pipelines:
   other number and no count word;
 - L0 and L1 use none of the listed math open choices;
 - no L2 names a listed default (such as a plotting library, a named test it
-  moves away from, or the tidiness picture of entropy);
+  moves away from, a normal distribution, or the tidiness picture of
+  entropy);
+- the hypothesis reads as two-sided at L0 and L1, with no phrase beside it
+  that could be read as one-sided;
 - each file has comments for its givens and for what is checkable;
 - the two L2 wordings have the same numbers (givens aside) in the same order.

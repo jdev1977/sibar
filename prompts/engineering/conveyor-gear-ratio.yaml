@@ -29,6 +29,10 @@ prompts:
   # Points away from the expected default: one bought gearbox (often a
   # worm gearbox) with a catalog ratio, the motor speed assumed silently,
   # the actual belt speed not worked out.
+  # Close to the expected default (T2.2): a 4-pole induction motor is the
+  # motor most likely assumed at L0, at about 1450 or 1750 rpm. The speed
+  # is a fact the ratio needs; do not read motor speed as a persisting
+  # default for this task.
   L2:
     A: |
       Work out the gear ratio for a conveyor whose belt runs at 0.4 m/s on a drive drum 150 mm in diameter, for a workshop owner who is building a conveyor to move boxes from a packing bench to the loading door.
