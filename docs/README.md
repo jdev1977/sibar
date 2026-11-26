@@ -21,6 +21,9 @@ Project documents. Present now:
 - [references/](references/README.md): worked reference solutions for the
   math and engineering tasks, with assumptions and tolerances (T2.3). The
   engineering ones are study data, not designs
+- [rubrics.md](rubrics.md): the rubric format, the items of each type, the
+  split with the extractors, the versioning rule and how to calibrate the
+  tagger (T2.4)
 
 Added by later tasks in [tasks.md](../tasks.md):
 

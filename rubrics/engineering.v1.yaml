@@ -1,0 +1,686 @@
+# Rubric for engineering and mechanical outputs, version 1 (T2.4).
+# Format, reasons and calibration plan: docs/rubrics.md. Checked by
+# tagger/rubric.py (python -m pytest tests/test_rubrics.py).
+# What each prompt dictates is in engineering.v1.dictated.yaml.
+#
+# The outputs are study data, not designs (plan.md, "Engineering answers").
+# The examples below are invented to show what an answer looks like. Their
+# numbers were not worked out: do not build from them.
+#
+# Whether an answer is right is the answer checker's job (T2.10, against
+# checker/references/engineering/). No item here asks it.
+#
+# Any change to an item, an option, a definition, an instruction or what an
+# item applies to is a new version: copy this file to engineering.v2.yaml and
+# change the copy. Examples may be corrected in place before the first paid
+# tagging run only.
+schema_version: 1
+project_type: engineering
+rubric_version: "1"
+
+# The prompt texts the items and their task lists were read against.
+prompt_set_versions:
+  cantilever-beam: "1"
+  compression-spring: "1"
+  conveyor-gear-ratio: "1"
+  heat-sink: "1"
+  pipe-and-pump: "1"
+  shelf-bracket: "1"
+
+# Given to the tagger before the items, word for word.
+instructions:
+  - Read the whole response, with every file and code block, before you answer.
+  - Answer from the response alone. You are not shown the prompt or told which model wrote the response, and no item needs either.
+  - Record what the response does, not whether it is right. Code with a bug still does what it is written to do, and a formula applied to the wrong number is still the formula that was used.
+  - Count only what the response delivers. Something it only suggests as a possible addition is not delivered.
+  - A single-select item takes exactly one answer. Where two options fit, follow the item's tie rule. If it has none and you cannot decide, answer cannot-tell.
+  - A multi-select item takes every option that applies. Answer none when you looked and no option applies.
+  - An item's "not present" option (or none) means you looked and the response does not have it. cannot-tell means the response has it, or may have it, but does not show enough to choose. not-applicable is only for the case the item names.
+  - The length, layout and confidence of a response do not change any answer.
+
+# The first item asked. With one of the no_solution answers there is nothing
+# to read: no other item is asked, and the run counts as an outcome without a
+# solution (docs/metrics.md, "Which runs count").
+gate:
+  item: response_mode
+  no_solution: [asks-first, declines]
+
+dimensions:
+  response: How the request is taken up, and in how many solutions
+  tone: How the response opens and closes
+  structure: Where the result sits relative to the working
+  assumptions: What the response takes for granted and whether it says so
+  checks: Which margins and verifications the design carries
+  method: Which formulas are used and where they are said to come from
+  design: What kind of part or arrangement is chosen
+  practice: What is said about making the part and about using the result
+
+items:
+  - id: response_mode
+    dimension: response
+    question: What does the response do with the request?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: A solution is any attempt at the thing asked for, complete or not.
+    options:
+      - id: answers
+        definition: Delivers a solution and asks the user for no missing information.
+        example: "A beam is sized for an assumed steel grade. The response asks nothing."
+      - id: answers-and-asks
+        definition: Delivers a solution and also asks the user for information the request did not give. An offer to do more work is not such a question.
+        example: "A steel beam is sized, then 'What material do you plan to use? I assumed S275 steel.'"
+      - id: asks-first
+        definition: Asks the user for information and delivers no solution.
+        example: "'To design the spring I need the force, the travel and the space available.' No design follows."
+      - id: declines
+        definition: Says it will not or cannot do the task and delivers no solution.
+        example: "'I can't provide a design for this.' Nothing else is delivered."
+    cannot_tell:
+      when: The response is empty, or its text has nothing to do with the request.
+      example: "The whole response is the word 'undefined'."
+    not_applicable: never
+
+  - id: result_form
+    dimension: response
+    question: How many worked solutions does the response deliver?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    tie_rule: A solution split over several files is one solution. A variant counts only when it is carried through to its end.
+    options:
+      - id: general-only
+        definition: Describes a method, an outline or formulas and carries none of it through to an end result (no final numbers, no complete code or file).
+        example: "The bending and deflection formulas are given with the steps to follow, and no section is sized."
+      - id: one-worked
+        definition: Carries one solution through to its end result.
+        example: "One steel section is chosen and its stress and deflection are computed."
+      - id: several-worked
+        definition: Carries two or more alternative solutions through to their end results (other inputs, designs or implementations).
+        example: "A steel beam and an aluminum beam are each sized in full."
+    cannot_tell:
+      when: The response stops part-way, so its complete solutions cannot be counted.
+      example: "The response ends in the middle of the stress calculation."
+    not_applicable: never
+
+  - id: opening
+    dimension: tone
+    question: What is the first thing in the response?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: Judge the first sentence, heading or block only, whatever follows it.
+    options:
+      - id: acknowledgement
+        definition: A reply to the user before any content, such as agreement, a greeting, praise or enthusiasm.
+        example: "'Happy to help with that!'"
+      - id: announcement
+        definition: A statement of what the response will deliver or do, or a restatement of the task.
+        example: "'I'll size the beam for bending and then check its deflection.'"
+      - id: content
+        definition: The solution itself, such as code, a file, a result, a first step (a list of the given values counts) or a heading that names the solution or its first part.
+        example: "The response starts with 'Given: L = 1.5 m, P = 4 kN'."
+      - id: framing
+        definition: Assumptions, a plan or background set out before the solution starts.
+        example: "'Assumptions: structural steel, static load, safety factor 2.' The calculation follows."
+      - id: question
+        definition: A question to the user.
+        example: "'What will the beam be made of?'"
+    cannot_tell:
+      when: The first lines cannot be read as language or code.
+      example: "The response starts with a run of garbled characters."
+    not_applicable: never
+
+  - id: closing
+    dimension: tone
+    question: What is the last thing in the response?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: Judge the last sentence, list or block only.
+    options:
+      - id: caveat
+        definition: A warning, a limitation or advice to verify.
+        example: "'Have a qualified engineer review this before you build it.'"
+      - id: content
+        definition: The solution itself. The response stops after its last piece of code, result, step or file.
+        example: "The response ends with the last line of the deflection calculation."
+      - id: extension-ideas
+        definition: Suggestions for further features, improvements or next steps the user could take.
+        example: "'Next you could check the weld at the support and look at a lighter section.'"
+      - id: offer
+        definition: An offer or invitation to do more or to change something, also when it is phrased as a question.
+        example: "'Want me to redo this for an aluminum beam?'"
+      - id: question
+        definition: A question to the reader that is not an offer, such as a request for information or a question to think about.
+        example: "'What loads will the shelf carry?'"
+      - id: recap
+        definition: A summary or final statement that repeats what the response already gave.
+        example: "'Summary: a 60 × 120 mm bar, with the stress and deflection found above.'"
+    cannot_tell:
+      when: The response stops in the middle of a sentence or a code block.
+      example: "The last line is 'so the required diameter is'."
+    not_applicable: never
+
+  - id: assumptions_stated
+    dimension: assumptions
+    question: Does the response say which assumptions it made?
+    select: single
+    order: scale
+    applies_to: {tasks: all, levels: all}
+    absent: none
+    tie_rule: If both an in-passing statement and a labelled list occur, answer listed.
+    options:
+      - id: none
+        definition: States no assumption.
+        example: "E = 200 GPa and a yield strength of 250 MPa appear in the formulas with no remark."
+      - id: in-passing
+        definition: Marks one or more things as assumed or chosen for lack of information, inside the prose, the working or a code comment, with no list or section set apart for assumptions.
+        example: "'Assuming mild steel with a yield strength of 250 MPa, the section modulus needed is...'"
+      - id: listed
+        definition: Sets assumptions apart under a label or heading that names them as assumptions.
+        example: "'Assumptions: 1. Static load. 2. Structural steel. 3. Self-weight neglected.'"
+    cannot_tell:
+      when: A label announces assumptions and the text under it is missing.
+      example: "'Assumptions:' is followed directly by the first formula, with no entries."
+    not_applicable: never
+
+  - id: answer_position
+    dimension: structure
+    question: Where does the main result first appear, relative to the working?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: no-final-result
+    guidance: The main result is the quantity or decision the response presents as its answer. The working is the derivation, the steps or the code that leads to it.
+    options:
+      - id: after-working
+        definition: The working comes first and the main result appears only after it.
+        example: "The moment and the section modulus are worked out first, and the chosen section is named at the end."
+      - id: before-working
+        definition: The main result is stated before any working.
+        example: "'Use a 50 × 100 mm bar. The checks are below.'"
+      - id: no-final-result
+        definition: The response has working and never states a main result.
+        example: "The stress formula is set up in symbols and never evaluated."
+      - id: no-working
+        definition: The main result is stated and no working is shown.
+        example: "'A 100 × 50 mm steel box section will do.' No calculation is shown."
+    cannot_tell:
+      when: The response stops before its working ends.
+      example: "The calculation breaks off after the bending moment."
+    not_applicable: never
+
+  - id: safety_margin
+    dimension: checks
+    question: Does the response build a margin into the design beyond the limits it works to?
+    select: single
+    order: scale
+    applies_to: {tasks: all, levels: all}
+    absent: none
+    tie_rule: If a margin with a number and a margin without one both occur, answer numeric.
+    options:
+      - id: none
+        definition: Designs to the limit values themselves and states no margin.
+        example: "The section is chosen so that the stress equals the yield strength."
+      - id: unquantified
+        definition: Says it leaves a margin or rounds up for safety, and gives no number for it.
+        example: "'Choose the next size up to be on the safe side.'"
+      - id: numeric
+        definition: Applies a stated number, such as a safety factor, a percentage of reserve or a derated limit.
+        example: "'With a safety factor of 2 the allowable stress is 125 MPa.'"
+    cannot_tell:
+      when: An allowable value is used and the response does not show how it relates to the material's limit.
+      example: "'Allowable stress: 150 MPa', with no material strength or factor given."
+    not_applicable: never
+
+  - id: formula_source
+    dimension: method
+    question: Does the response say where its formulas or data values come from?
+    select: single
+    order: scale
+    applies_to: {tasks: all, levels: all}
+    absent: none
+    tie_rule: If a general pointer and a named source both occur, answer named.
+    options:
+      - id: none
+        definition: Gives no source.
+        example: "'σ = M/Z' is used with no word on where it comes from."
+      - id: general
+        definition: Points to a field or a kind of source and names no document.
+        example: "'From standard beam tables, the tip deflection is PL³/3EI.'"
+      - id: named
+        definition: Names a particular document, standard, handbook, textbook or supplier.
+        example: "'Per Roark's Formulas for Stress and Strain, the tip deflection is...'"
+    cannot_tell:
+      when: A citation marker appears with no source behind it.
+      example: "'The friction factor is 0.021 [3]', and the response has no reference list."
+    not_applicable: never
+
+  - id: part_selection
+    dimension: design
+    question: What does the response settle on as the thing to buy or make?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: none
+    tie_rule: If a product is named, answer named-product. Otherwise, if a size from a standard series is chosen, answer standard-size.
+    options:
+      - id: computed-size
+        definition: Dimensions or ratings that come straight from the calculation, with no reference to stock sizes.
+        example: "'Width 47.3 mm, depth 94.6 mm.'"
+      - id: named-product
+        definition: A particular commercial product, model number or maker's part.
+        example: "'Use a Norvane HS-220 extruded heat sink.'"
+      - id: none
+        definition: Settles on no size, rating or part.
+        example: "'Any section with a modulus above 65 cm³ will work.'"
+      - id: standard-size
+        definition: A size, section or rating from a standard series or stock range, with no product named.
+        example: "'Choose an IPE 120 section.'"
+    cannot_tell:
+      when: The response says a part was chosen and does not say which.
+      example: "'The selected gearbox meets the requirement.' No gearbox is named or described."
+    not_applicable: never
+
+  - id: caveats
+    dimension: practice
+    question: Which kinds of caution does the response give about using its result?
+    select: multi
+    applies_to: {tasks: all, levels: all}
+    none_example: "The design is given with no warning and no limitation."
+    options:
+      - id: analysis-limits
+        definition: Names something the calculation leaves out or simplifies that could change the result in use.
+        example: "'This ignores dynamic loads and the stiffness of the wall fixing.'"
+      - id: seek-review
+        definition: Advises a check by a qualified person, a supplier, a standard or a code before use.
+        example: "'Have a structural engineer confirm the design.'"
+      - id: test-first
+        definition: Advises testing or measuring a prototype or the installed part before relying on it.
+        example: "'Load the bracket with sandbags before you trust it with books.'"
+    cannot_tell:
+      when: A caution starts and the response stops inside it.
+      example: "The last text is 'Important: before using this design, you'."
+    not_applicable: never
+
+  - id: material_assumed
+    dimension: assumptions
+    question: Which material is the designed part made of?
+    select: single
+    applies_to:
+      tasks: [cantilever-beam, compression-spring, heat-sink, pipe-and-pump, shelf-bracket]
+      levels: all
+    absent: none
+    task_notes:
+      cantilever-beam: The part is the beam.
+      compression-spring: The part is the spring wire.
+      heat-sink: The part is the heat sink.
+      pipe-and-pump: The part is the pipe.
+      shelf-bracket: The part is the bracket.
+    options:
+      - id: aluminum
+        definition: Aluminum or an aluminum alloy.
+        example: "'6061-T6 aluminum, yield 276 MPa.'"
+      - id: carbon-steel
+        definition: Steel other than stainless, such as structural, mild or spring steel and music wire.
+        example: "'A36 structural steel.'"
+      - id: copper
+        definition: Copper or a copper alloy.
+        example: "'A copper plate, k = 390 W/m·K.'"
+      - id: none
+        definition: Names no material.
+        example: "The section modulus needed is given in terms of an allowable stress σ."
+      - id: other
+        definition: Another single material.
+        example: "'A carbon-fibre tube.'"
+      - id: plastic
+        definition: A plastic or polymer.
+        example: "'PVC pipe, roughness 0.0015 mm.'"
+      - id: several
+        definition: Works the design for two or more materials.
+        example: "Sizes are given for a steel beam and for a timber beam."
+      - id: stainless-steel
+        definition: A stainless steel.
+        example: "'Type 304 stainless wire.'"
+      - id: wood
+        definition: Timber, plywood or another wood product.
+        example: "'18 mm birch plywood.'"
+    cannot_tell:
+      when: Material properties are used and the response does not say which material they belong to.
+      example: "'E = 70 GPa' is used and no material is named."
+    not_applicable: never
+
+  - id: checks_performed
+    dimension: checks
+    question: Which checks does the response carry out with a number compared against a limit?
+    select: multi
+    applies_to:
+      tasks: [cantilever-beam, compression-spring, shelf-bracket]
+      levels: all
+    guidance: A check that is only named or recommended does not count.
+    none_example: "Dimensions are proposed with no calculation behind them."
+    options:
+      - id: buckling
+        definition: Buckling or another loss of stability.
+        example: "'Slenderness 3.2 is below 4, so the spring will not buckle.'"
+      - id: connection
+        definition: The fixing or support, such as screws, bolts, welds or a wall anchor.
+        example: "'Each screw sees 310 N in pull-out, against a rating of 900 N.'"
+      - id: deflection
+        definition: Deflection or stiffness against a limit.
+        example: "'Tip deflection 6.2 mm, below the limit of 8.3 mm.'"
+      - id: fatigue
+        definition: Fatigue or life under repeated load.
+        example: "'The stress range of 310 MPa is under the endurance limit of 380 MPa.'"
+      - id: strength
+        definition: Stress against an allowable or yield value.
+        example: "'Bending stress 83 MPa against an allowable 125 MPa.'"
+    cannot_tell:
+      when: The response says the design passes a check and shows no numbers for it.
+      example: "'The beam passes the deflection check.' No value or limit is given."
+    not_applicable: never
+
+  - id: manufacturing_notes
+    dimension: practice
+    question: Which aspects of making the part does the response mention?
+    select: multi
+    applies_to:
+      tasks: [cantilever-beam, compression-spring, heat-sink, shelf-bracket]
+      levels: all
+    none_example: "Only calculated dimensions are given."
+    options:
+      - id: finish
+        definition: A surface finish, coating or treatment.
+        example: "'Anodise the plate black.'"
+      - id: mounting
+        definition: How the part is fixed in place, such as hole sizes, fasteners or tightening.
+        example: "'Two M5 countersunk screws at 40 mm spacing.'"
+      - id: process
+        definition: How the part is made or cut.
+        example: "'Cut from 3 mm sheet and bend to 90°.'"
+      - id: tolerances
+        definition: A dimensional tolerance, fit or allowed deviation.
+        example: "'Hole diameter 5.5 mm +0.1/−0.'"
+    cannot_tell:
+      when: The response refers to a drawing or note that holds these details and is not in it.
+      example: "'See the attached drawing for tolerances', and no drawing is delivered."
+    not_applicable: never
+
+  - id: design_load
+    dimension: assumptions
+    question: What load does the response design for?
+    select: single
+    applies_to:
+      tasks: [compression-spring, shelf-bracket]
+      levels: all
+    absent: none
+    options:
+      - id: none
+        definition: States no load.
+        example: "A bracket with 150 mm legs is described and no load is mentioned."
+      - id: numeric
+        definition: A load with a number and a unit.
+        example: "'Design load: 20 kg per bracket.'"
+      - id: qualitative
+        definition: A load described in words only.
+        example: "'Suitable for light items such as books.'"
+    cannot_tell:
+      when: A load value is used in a formula and the response never says what it stands for.
+      example: "'F = 150' appears in the stress formula with no unit and no description."
+    not_applicable: never
+
+  - id: section_shape
+    dimension: design
+    question: Which cross-section does the response choose for the beam?
+    select: single
+    applies_to: {tasks: [cantilever-beam], levels: all}
+    absent: none
+    options:
+      - id: hollow
+        definition: A tube, pipe or box section.
+        example: "'A 100 × 50 × 4 mm rectangular hollow section.'"
+      - id: none
+        definition: Chooses no shape. Only a required section property is given.
+        example: "'Required section modulus: 65 cm³.'"
+      - id: open-section
+        definition: A rolled or extruded open shape, such as an I, H, channel or angle section.
+        example: "'A W6×12 wide-flange beam.'"
+      - id: other
+        definition: Another single shape.
+        example: "'A triangular truss arm made of two rods.'"
+      - id: several
+        definition: Sizes two or more shapes.
+        example: "A solid bar and a box section are both sized."
+      - id: solid-rectangle
+        definition: A solid rectangular or square bar, or a timber of rectangular section.
+        example: "'A solid bar 50 mm wide and 100 mm deep.'"
+      - id: solid-round
+        definition: A solid round bar.
+        example: "'A solid round bar of 75 mm diameter.'"
+    cannot_tell:
+      when: A section is named by a code the response does not explain.
+      example: "'Use section B-14 from the table', with no table in the response."
+    not_applicable: never
+
+  - id: self_weight
+    dimension: assumptions
+    question: How does the response treat the beam's own weight?
+    select: single
+    applies_to: {tasks: [cantilever-beam], levels: all}
+    absent: not-mentioned
+    options:
+      - id: included
+        definition: Adds it as a load in a calculation.
+        example: "'Self-weight of 0.11 kN/m adds 0.12 kN·m at the support.'"
+      - id: neglected-stated
+        definition: Says it is neglected or small and leaves it out.
+        example: "'The beam's own weight is neglected.'"
+      - id: not-mentioned
+        definition: Says nothing about it.
+        example: "Only the 4 kN tip load appears anywhere in the response."
+    cannot_tell:
+      when: The response says the beam's weight is accounted for and no calculation shows it.
+      example: "'Self-weight is accounted for', and the only load in the formulas is the tip load."
+    not_applicable: never
+
+  - id: motor_speed_assumed
+    dimension: assumptions
+    question: Which motor speed does the response base the ratio on?
+    select: single
+    applies_to: {tasks: [conveyor-gear-ratio], levels: all}
+    absent: symbolic
+    options:
+      - id: near-1500
+        definition: A single speed from 1400 to 1500 rpm.
+        example: "'A standard 4-pole motor at 1450 rpm.'"
+      - id: near-1800
+        definition: A single speed from 1700 to 1800 rpm.
+        example: "'Assume a 1750 rpm motor.'"
+      - id: other-value
+        definition: Another single speed.
+        example: "'With a 3000 rpm motor the ratio is 59.'"
+      - id: several
+        definition: Works the ratio for two or more motor speeds.
+        example: "Ratios are given for a 1450 rpm motor and for a 2900 rpm motor."
+      - id: symbolic
+        definition: Uses no number for the motor speed. It is left as a symbol or asked for.
+        example: "'Ratio = N_motor / 50.9; insert your motor's speed.'"
+    cannot_tell:
+      when: A ratio is stated and the motor speed behind it is not.
+      example: "'You need a ratio of about 28 to 1.' No motor speed appears."
+    not_applicable: never
+
+  - id: reduction_kind
+    dimension: design
+    question: What kind of speed reduction does the response propose?
+    select: single
+    applies_to: {tasks: [conveyor-gear-ratio], levels: all}
+    absent: unspecified
+    options:
+      - id: belt-or-chain
+        definition: Belts and pulleys or chains and sprockets only, in one or more stages.
+        example: "'A 15-tooth sprocket driving a 60-tooth sprocket by chain.'"
+      - id: combined
+        definition: Two or more of the other kinds in series.
+        example: "'A 20:1 worm gearbox followed by a 1.5:1 chain stage.'"
+      - id: gearbox-unit
+        definition: A gearbox or gearmotor bought as one unit.
+        example: "'Fit a 30:1 worm gear reducer.'"
+      - id: open-gears
+        definition: Gear pairs chosen by tooth count.
+        example: "'A 20-tooth pinion on a 100-tooth gear, then 18 on 108.'"
+      - id: unspecified
+        definition: Gives the ratio and proposes no hardware.
+        example: "'The ratio needed is 28.5 to 1.'"
+    cannot_tell:
+      when: The response refers to a drive it does not describe.
+      example: "'The reduction stage shown above gives the ratio', and nothing above describes one."
+    not_applicable: never
+
+  - id: interface_resistance
+    dimension: assumptions
+    question: How does the response treat the thermal resistance between the component's case and the heat sink?
+    select: single
+    applies_to: {tasks: [heat-sink], levels: all}
+    absent: not-mentioned
+    options:
+      - id: included
+        definition: Uses a value for it in the calculation.
+        example: "'With thermal paste, the case-to-sink resistance is about 0.5 °C/W.'"
+      - id: neglected-stated
+        definition: Mentions it and leaves it out or sets it to zero.
+        example: "'Ignoring the small case-to-sink resistance, the sink may have 3.25 °C/W.'"
+      - id: not-mentioned
+        definition: Says nothing about it.
+        example: "The chain goes from junction-to-case straight to sink-to-air."
+    cannot_tell:
+      when: A total resistance is used and the response does not show its parts.
+      example: "'Allowing 1.5 °C/W for everything before the sink', with no breakdown."
+    not_applicable: never
+
+  - id: cooling_mode
+    dimension: design
+    question: Which kind of air cooling does the response design for?
+    select: single
+    applies_to: {tasks: [heat-sink], levels: all}
+    absent: unspecified
+    tie_rule: A fan that is only suggested as a later option, with no design or rating for it, does not make the answer both.
+    options:
+      - id: both
+        definition: Gives a design or a rating for still air and one for moving air.
+        example: "'About 3 °C/W in still air, or a smaller 5 °C/W sink with a fan.'"
+      - id: forced
+        definition: Air moved by a fan or blower.
+        example: "'With a 60 mm fan giving 2 m/s over the fins, a compact sink is enough.'"
+      - id: natural
+        definition: Still air, with natural convection only.
+        example: "'A natural-convection heat sink rated 3.0 °C/W.'"
+      - id: unspecified
+        definition: Gives a required thermal resistance and says nothing about air movement.
+        example: "'The heat sink must be 3.25 °C/W or lower.'"
+    cannot_tell:
+      when: A catalogue rating is quoted and the response does not say what air flow it holds for.
+      example: "'Its rating of 2.8 °C/W is enough.' No air condition is given."
+    not_applicable: never
+
+  - id: friction_method
+    dimension: method
+    question: How does the response find the friction loss in the pipe?
+    select: single
+    applies_to: {tasks: [pipe-and-pump], levels: all}
+    absent: none
+    options:
+      - id: chart-or-table
+        definition: Read from a pressure-drop chart, a table or a rule of thumb, with no equation.
+        example: "'Pipe tables give about 4 m of loss per 100 m at this flow.'"
+      - id: darcy-weisbach
+        definition: The Darcy-Weisbach equation with a friction factor.
+        example: "'h = f (L/D) v²/2g with f = 0.021 from the Moody chart.'"
+      - id: hazen-williams
+        definition: The Hazen-Williams equation.
+        example: "'h = 10.67 L Q^1.852 / (C^1.852 d^4.87) with C = 150.'"
+      - id: none
+        definition: Computes no friction loss.
+        example: "Only the 6 m lift is converted to a pressure."
+      - id: several
+        definition: Two or more of these.
+        example: "The loss is found by Darcy-Weisbach and again by Hazen-Williams."
+    cannot_tell:
+      when: A friction loss is stated and nothing shows how it was found.
+      example: "'Friction loss ≈ 1.5 m.' No formula or source is given."
+    not_applicable: never
+
+  - id: minor_losses
+    dimension: assumptions
+    question: How does the response treat losses in fittings, valves and bends?
+    select: single
+    applies_to: {tasks: [pipe-and-pump], levels: all}
+    absent: not-mentioned
+    options:
+      - id: included
+        definition: Adds a number for them, from loss coefficients, an equivalent length or a percentage allowance.
+        example: "'Add 10% for fittings.'"
+      - id: neglected-stated
+        definition: Mentions them and leaves them out.
+        example: "'Minor losses are neglected.'"
+      - id: not-mentioned
+        definition: Says nothing about them.
+        example: "Only straight-pipe friction and the lift appear."
+    cannot_tell:
+      when: The response says fittings are allowed for and the total shows no term for them.
+      example: "'Fittings are accounted for', and the head is friction plus lift only."
+    not_applicable: never
+
+  - id: pump_type
+    dimension: design
+    question: Which kind of pump does the response choose?
+    select: single
+    applies_to: {tasks: [pipe-and-pump], levels: all}
+    absent: unspecified
+    tie_rule: If the pump is said to sit in the water, answer submersible, whatever its working principle.
+    options:
+      - id: centrifugal
+        definition: A centrifugal pump that sits outside the water.
+        example: "'A small end-suction centrifugal pump.'"
+      - id: positive-displacement
+        definition: A diaphragm, piston, gear or peristaltic pump.
+        example: "'A 12 V diaphragm pump.'"
+      - id: several
+        definition: Names two or more kinds as candidates and chooses none.
+        example: "'Either a centrifugal or a submersible pump would do.'"
+      - id: submersible
+        definition: A pump that sits in the water.
+        example: "'A submersible pond pump rated for 8 m of head.'"
+      - id: unspecified
+        definition: Gives the duty point and no kind of pump.
+        example: "'Choose a pump that delivers 1.5 L/s at 8 m.'"
+    cannot_tell:
+      when: A pump is referred to by a name that does not show its kind.
+      example: "'The P-200 will handle this duty.' Nothing says what kind of pump it is."
+    not_applicable: never
+
+  - id: bracket_form
+    dimension: design
+    question: What shape is the bracket?
+    select: single
+    applies_to: {tasks: [shelf-bracket], levels: all}
+    absent: none
+    options:
+      - id: braced
+        definition: Two legs at a right angle with a diagonal strut between them that leaves an opening.
+        example: "'An L with a 45° brace from the tip of the arm to the foot of the wall leg.'"
+      - id: gusset-plate
+        definition: A solid plate or web that fills the corner, alone or between two legs.
+        example: "'A triangular plate, 150 by 200 mm, with a flange along each straight edge.'"
+      - id: none
+        definition: Defines no shape.
+        example: "'Any bracket rated for 20 kg will do.'"
+      - id: other
+        definition: Another single shape.
+        example: "'A rod that slides into a hole in the back of the shelf.'"
+      - id: plain-angle
+        definition: Two legs at a right angle with nothing between them.
+        example: "'An L, 150 mm by 200 mm, bent from 4 mm steel.'"
+    cannot_tell:
+      when: The shape is defined only by a file or code that the response does not show in full.
+      example: "'The geometry is in bracket.scad', and the file is not delivered."
+    not_applicable: never

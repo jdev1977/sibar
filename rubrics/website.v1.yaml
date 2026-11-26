@@ -1,0 +1,206 @@
+# Rubric for website outputs, version 1 (T2.4).
+# Format, reasons and calibration plan: docs/rubrics.md. Checked by
+# tagger/rubric.py (python -m pytest tests/test_rubrics.py).
+# What each prompt dictates is in website.v1.dictated.yaml.
+#
+# Small on purpose. The twelve website extractors read almost every website
+# choice the plan lists. This rubric holds the ones they cannot read: how the
+# response opens and closes around its code, and the placeholder content a
+# page invents (its name, its people, its contact details). The reasons, and
+# why copy tone is not an item, are in docs/rubrics.md, "Website".
+#
+# Any change to an item, an option, a definition, an instruction or what an
+# item applies to is a new version: copy this file to website.v2.yaml and
+# change the copy. Examples may be corrected in place before the first paid
+# tagging run only.
+schema_version: 1
+project_type: website
+rubric_version: "1"
+
+# The prompt texts the items and their task lists were read against.
+prompt_set_versions:
+  bakery-landing: "1"
+  dashboard: "1"
+  event-page: "1"
+  portfolio: "1"
+  pricing-page: "1"
+  todo-app: "1"
+
+# Given to the tagger before the items, word for word.
+instructions:
+  - Read the whole response, with every file and code block, before you answer.
+  - Answer from the response alone. You are not shown the prompt or told which model wrote the response, and no item needs either.
+  - Record what the response does, not whether it is right. Code with a bug still does what it is written to do, and a formula applied to the wrong number is still the formula that was used.
+  - Count only what the response delivers. Something it only suggests as a possible addition is not delivered.
+  - A single-select item takes exactly one answer. Where two options fit, follow the item's tie rule. If it has none and you cannot decide, answer cannot-tell.
+  - A multi-select item takes every option that applies. Answer none when you looked and no option applies.
+  - An item's "not present" option (or none) means you looked and the response does not have it. cannot-tell means the response has it, or may have it, but does not show enough to choose. not-applicable is only for the case the item names.
+  - The length, layout and confidence of a response do not change any answer.
+
+# The first item asked. With one of the no_solution answers there is nothing
+# to read: no other item is asked, and the run counts as an outcome without a
+# solution (docs/metrics.md, "Which runs count").
+gate:
+  item: response_mode
+  no_solution: [asks-first, declines]
+
+dimensions:
+  response: How the request is taken up
+  tone: How the response opens and closes around its code
+  invented-content: The name, the people and the contact details a page shows
+
+items:
+  - id: response_mode
+    dimension: response
+    question: What does the response do with the request?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: A solution is any attempt at the thing asked for, complete or not.
+    options:
+      - id: answers
+        definition: Delivers a solution and asks the user for no missing information.
+        example: "A complete page for a bakery. The response asks nothing."
+      - id: answers-and-asks
+        definition: Delivers a solution and also asks the user for information the request did not give. An offer to do more work is not such a question.
+        example: "A page is given, then 'What is the bakery called? I used a made-up name.'"
+      - id: asks-first
+        definition: Asks the user for information and delivers no solution.
+        example: "'What is the bakery's name, and which sections do you want?' No page follows."
+      - id: declines
+        definition: Says it will not or cannot do the task and delivers no solution.
+        example: "'I can't build websites.' Nothing else is delivered."
+    cannot_tell:
+      when: The response is empty, or its text has nothing to do with the request.
+      example: "The whole response is the word 'undefined'."
+    not_applicable: never
+
+  - id: opening
+    dimension: tone
+    question: What is the first thing in the response?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: Judge the first sentence, heading or block only, whatever follows it.
+    options:
+      - id: acknowledgement
+        definition: A reply to the user before any content, such as agreement, a greeting, praise or enthusiasm.
+        example: "'Absolutely! Here's a website for your bakery.'"
+      - id: announcement
+        definition: A statement of what the response will deliver or do, or a restatement of the task.
+        example: "'I'll create a single-page site with a menu and a contact section.'"
+      - id: content
+        definition: The solution itself, such as code, a file, a result, a first step (a list of the given values counts) or a heading that names the solution or its first part.
+        example: "The response starts with '<!DOCTYPE html>'."
+      - id: framing
+        definition: Assumptions, a plan or background set out before the solution starts.
+        example: "'Design notes: warm colors, one page, no build step.' The code follows."
+      - id: question
+        definition: A question to the user.
+        example: "'What is the bakery called?'"
+    cannot_tell:
+      when: The first lines cannot be read as language or code.
+      example: "The response starts with a run of garbled characters."
+    not_applicable: never
+
+  - id: closing
+    dimension: tone
+    question: What is the last thing in the response?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: always-present
+    guidance: Judge the last sentence, list or block only.
+    options:
+      - id: caveat
+        definition: A warning, a limitation or advice to verify.
+        example: "'Note: the order form does not send anything yet; it needs a server.'"
+      - id: content
+        definition: The solution itself. The response stops after its last piece of code, result, step or file.
+        example: "The response ends with '</html>'."
+      - id: extension-ideas
+        definition: Suggestions for further features, improvements or next steps the user could take.
+        example: "'You could add online ordering or a photo gallery next.'"
+      - id: offer
+        definition: An offer or invitation to do more or to change something, also when it is phrased as a question.
+        example: "'Want me to add a dark mode?'"
+      - id: question
+        definition: A question to the reader that is not an offer, such as a request for information or a question to think about.
+        example: "'Which products do you actually sell?'"
+      - id: recap
+        definition: A summary or final statement that repeats what the response already gave.
+        example: "'This page includes a hero, a menu, an about section and a contact form.'"
+    cannot_tell:
+      when: The response stops in the middle of a sentence or a code block.
+      example: "The last line is '<footer class=\"site-fo'."
+    not_applicable: never
+
+  - id: name_given
+    dimension: invented-content
+    question: What name does the page give the business, product, event or person it is for?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: none
+    tie_rule: If more than one kind of name occurs, go by the page's main heading or header.
+    guidance: Go by the text a visitor would see, and the page title.
+    options:
+      - id: generic-label
+        definition: A label that only says what kind of thing it is.
+        example: "The header reads 'Bakery' and the title is 'Bakery Website'."
+      - id: none
+        definition: No name appears in the page's visible text or its title.
+        example: "The page opens with a photo and a menu, and no name is shown anywhere."
+      - id: placeholder
+        definition: A stand-in that asks to be replaced, or a stock stand-in name.
+        example: "'[Your Bakery Name]' in the header."
+      - id: specific-name
+        definition: A particular name of its own, such as a business, product or personal name.
+        example: "'Golden Crust Bakery' in the header and in the footer."
+    cannot_tell:
+      when: The name is filled in by a script from data the response does not show.
+      example: "The header is set from 'config.siteName', and no config is delivered."
+    not_applicable: never
+
+  - id: people_presented
+    dimension: invented-content
+    question: Which people does the page present?
+    select: multi
+    applies_to: {tasks: all, levels: all}
+    guidance: Go by the text a visitor would see.
+    none_example: "The page lists products and opening hours and names no person."
+    options:
+      - id: owner-or-team
+        definition: A named owner, founder, author, speaker or team member.
+        example: "'Meet our head baker, Marie Laurent.'"
+      - id: quoted-customers
+        definition: A testimonial or review attributed to a named person.
+        example: "'\"Best bread in town!\" Sarah M.'"
+      - id: unnamed-quotes
+        definition: A testimonial or review with no person's name on it.
+        example: "'\"I come here every weekend.\" A regular customer'"
+    cannot_tell:
+      when: The people are filled in by a script from data the response does not show.
+      example: "Testimonials are rendered from 'reviews.json', which is not delivered."
+    not_applicable: never
+
+  - id: contact_details
+    dimension: invented-content
+    question: How does the page fill in contact details?
+    select: single
+    applies_to: {tasks: all, levels: all}
+    absent: none
+    tie_rule: If both values written as if real and stand-ins occur, answer filled-in.
+    guidance: Contact details are a street address, a phone number or an email address in the text a visitor would see.
+    options:
+      - id: filled-in
+        definition: Values written as if they were real.
+        example: "'12 Mill Lane · 555-0100 · hello@example.com'"
+      - id: none
+        definition: No address, phone number or email address appears.
+        example: "The footer holds only a copyright line."
+      - id: placeholder
+        definition: Stand-ins that ask to be replaced.
+        example: "'[Your address here]' and 'your@email.com'."
+    cannot_tell:
+      when: The details are filled in by a script from data the response does not show.
+      example: "The footer is built from 'site.contact', and no such data is delivered."
+    not_applicable: never
