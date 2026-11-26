@@ -7,7 +7,7 @@ its package and add its module name to :data:`PACKAGES`.
 
 import importlib
 
-PACKAGES = ("extractors.website", "extractors.pipeline")
+PACKAGES = ("extractors.website", "extractors.pipeline", "extractors.math")
 
 
 def all_extractors():
