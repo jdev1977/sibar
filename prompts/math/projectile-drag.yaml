@@ -15,10 +15,10 @@ prompt_set_version: "1"
 prompts:
   L0:
     A: Work out the range of a projectile launched at 25 m/s and 30° above the horizontal, taking air resistance into account.
-    B: Can you figure out how far a projectile goes if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included?
+    B: Can you figure out how far away a projectile lands if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included?
   L1:
     A: Work out the range of a projectile launched at 25 m/s and 30° above the horizontal, taking air resistance into account, for a first-year physics student who is learning how air resistance affects motion.
-    B: Can you figure out how far a projectile goes if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included? It's for a first-year physics student who is learning what air resistance does to moving objects.
+    B: Can you figure out how far away a projectile lands if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included? It's for a first-year physics student who is learning what air resistance does to moving objects.
   # L2 direction: quadratic drag with stated constants, stepped by hand with
   # Heun's method at a fixed step, a table of the steps, plain paragraphs
   # with equations on their own lines, 3 significant figures, the no-air
@@ -45,11 +45,11 @@ prompts:
       - Write the explanation as plain paragraphs addressed to the student, with each equation on its own line.
       - Give every final answer to 3 significant figures.
     B: |
-      Can you figure out how far a projectile goes if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included? It's for a first-year physics student who is learning what air resistance does to moving objects.
+      Can you figure out how far away a projectile lands if it's launched at 25 m/s, 30° above the horizontal, when air resistance is included? It's for a first-year physics student who is learning what air resistance does to moving objects.
 
       Think of it as a soccer ball kicked off flat ground. The ball has a mass of 0.43 kg and measures 0.22 m across. Air pushes back on it with a force that grows as the square of its speed; take 0.25 for the drag coefficient and 1.2 kg/m³ for the density of the air. Use 9.81 m/s² for g, and leave out spin and wind.
 
-      What I need is how far it travels, how long it stays up and how high it climbs, plus how far that same kick would carry if there were no air.
+      What I need is how far away it lands, how long it stays up and how high it climbs, plus how far away that same kick would land if there were no air.
 
       Please advance the motion by hand using Heun's method (the improved Euler method), 0.1 s at a time, and get the landing spot by interpolating linearly between the final two steps. Lay the steps out as a table with columns for time, x, y and the horizontal and vertical velocity. The explanation should speak to the student in plain paragraphs, putting each equation on a line by itself, and every final answer should have 3 significant figures.
 notes: >-

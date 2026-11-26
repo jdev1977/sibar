@@ -7,9 +7,10 @@
 # of pipe, 40 mm inside diameter.
 # Units: given in SI, so the unit system is closed for this task.
 # Checkable: every level: velocity 1.19 m/s; Reynolds number about 4.8e4
-# near 20 °C (turbulent); static head 6 m. Friction loss is about 1.5 to
-# 1.8 m of water for 35 m of straight pipe, smooth to commercial steel;
-# grade it against the roughness the model states.
+# near 20 °C (turbulent); static head 6 m. Friction loss for 35 m of
+# straight pipe (Colebrook) is about 1.35 to 1.6 m of water: 1.34 m smooth
+# to 1.56 m commercial steel at 20 °C, 1.31 to 1.59 m over 15 to 25 °C;
+# grade it against the roughness and temperature the model states.
 # At L2 (Hazen-Williams, C 140, 43 m equivalent length): friction about
 # 1.84 m, total head about 7.84 m, hydraulic power about 115 W, electrical
 # about 288 W, about 24 A at 12 V.

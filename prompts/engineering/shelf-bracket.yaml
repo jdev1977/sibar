@@ -35,7 +35,7 @@ prompts:
       Requirements:
       - The shelf is 10 in deep and 3/4 in thick. Two brackets hold it, and each carries 40 lb spread evenly over the shelf's depth.
       - Each bracket is fixed to a wall stud with two screws, one above the other.
-      - It is cut from 1/2 in birch plywood on a laser cutter that takes only flat outlines, so the whole bracket is one flat piece.
+      - It is cut from 1/4 in birch plywood on a laser cutter that takes only flat outlines, so the whole bracket is one flat piece.
       - The profile is a solid quarter circle: one straight edge against the wall, one straight edge under the shelf, and a curved edge between them.
       - Give all dimensions in inches, to the nearest 1/16 in.
 
@@ -47,7 +47,7 @@ prompts:
     B: |
       Can you design a bracket to hold up a shelf, and give me a CAD file of it? I'm a homeowner putting up a kitchen shelf that will hold a row of cookbooks.
 
-      The shelf measures 10 in from front to back and is 3/4 in thick. It rests on two brackets, each taking 40 lb spread evenly from front to back. Every bracket goes into a wall stud with two screws, one placed above the other. I'll be cutting it out of 1/2 in birch plywood on a laser cutter that accepts flat outlines only, so each bracket must be a single flat piece. For its shape I want a solid quarter circle, with one straight edge on the wall, the other straight edge beneath the shelf and the curve joining them. Please dimension everything in inches, to the nearest 1/16 in.
+      The shelf measures 10 in from front to back and is 3/4 in thick. It rests on two brackets, each taking 40 lb spread evenly from front to back. Every bracket goes into a wall stud with two screws, one placed above the other. I'll be cutting it out of 1/4 in birch plywood on a laser cutter that accepts flat outlines only, so each bracket must be a single flat piece. For its shape I want a solid quarter circle, with one straight edge on the wall, the other straight edge beneath the shelf and the curve joining them. Please dimension everything in inches, to the nearest 1/16 in.
 
       What I need back is the outline as a CAD file the laser cutter can take, with the screw holes in place, plus a description of the outline with its dimensions; the bending moment at the point where the bracket meets the wall; the pull-out force on the upper screw; and the bending stress in the plywood at its weakest section, set against a working stress of 1000 psi.
 notes: >-
@@ -56,4 +56,8 @@ notes: >-
   format open, as "website" leaves the technology open. At L2 the laser
   cutter is a real constraint written as a need ("takes only flat
   outlines"), not as a format. The setting is a kitchen shelf of books,
-  which is not safety-critical.
+  which is not safety-critical. The plywood is 1/4 in, a thickness common
+  laser cutters take; the problem stays well posed, because the moment at
+  the wall (200 lb·in) does not depend on thickness, and the stress check
+  follows from the outline the model draws (a wall edge 8 in deep gives
+  about 75 psi, far below the 1000 psi working stress).

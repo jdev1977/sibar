@@ -72,7 +72,7 @@ comment, for T2.3.
 | cantilever-beam | 1.5 m, 4 kN | Reaction 4 kN, maximum moment 6 kN·m | Section, given the stated material and limits | Allowable 92 MPa; deflection governs; 51 mm by 102 mm |
 | conveyor-gear-ratio | 0.4 m/s, 150 mm | Drum speed 50.9 rpm | Overall ratio, given the stated motor speed | Exact ratio 33.87 at 1725 rpm; belt speed within 2% for the stated tooth counts |
 | heat-sink | 20 W, 1.0 °C/W, 125 °C, 40 °C | 4.25 °C/W junction to air; 3.25 °C/W case to air | Heat-sink limit, given the stated interface | Plate at most 2.95 °C/W; square side 135 mm; junction about 121 °C |
-| pipe-and-pump | 1.5 L/s, 6 m, 35 m, 40 mm | Velocity 1.19 m/s; Reynolds number about 4.8e4; static head 6 m | Friction loss (about 1.5 to 1.8 m), given the stated roughness | Friction about 1.84 m; head about 7.84 m; about 115 W hydraulic, 288 W electrical, 24 A |
+| pipe-and-pump | 1.5 L/s, 6 m, 35 m, 40 mm | Velocity 1.19 m/s; Reynolds number about 4.8e4; static head 6 m | Friction loss (about 1.35 to 1.6 m by Colebrook, smooth to commercial steel), given the stated roughness and temperature | Friction about 1.84 m; head about 7.84 m; about 115 W hydraulic, 288 W electrical, 24 A |
 | shelf-bracket | None | Not checkable | Not checkable | Moment at the wall 200 lb·in; stress and screw force for the stated outline |
 | compression-spring | None | Not checkable | Not checkable | Rate 6.0 lbf/in; rate and stresses consistent with the stated wire and coils |
 

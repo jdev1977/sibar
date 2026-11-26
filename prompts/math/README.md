@@ -84,6 +84,24 @@ Each file repeats its own line of this table in a comment, for T2.3. Values
 are approximate until T2.3 writes and re-solves the references and sets the
 tolerances.
 
+Notes for T2.3, where a brief leaves a convention to the reference:
+
+- **Loan, interest rounding.** The L2 brief rounds each payment to the cent
+  and lets the last payment absorb the difference, but does not say whether
+  each month's interest is rounded to the cent before it is applied.
+  Lenders usually round it; exact arithmetic does not. State the convention
+  the reference uses, and set the tolerance on the final payment and the
+  total interest wide enough to accept both (they differ by a few cents).
+  At L0 and L1 there is no rounding rule, so grade the payment to the cent
+  and the total interest within a few cents.
+- **Projectile, maximum height.** "Maximum height" is the highest point of
+  the path above the launch level. With a fixed step of 0.1 s the highest
+  tabulated y can sit a little below the true peak. State whether the
+  reference takes the highest tabulated value or interpolates the peak, and
+  set the tolerance to accept both.
+- **Hypothesis test.** The question says "mean" while the L2 test is about
+  location; grade the L2 decision and p-value against the dictated test.
+
 ## L2 directions
 
 Each L2 points method and presentation **away** from the expected default

@@ -11,7 +11,7 @@ prompts:
     A: Write a pipeline that cleans a CSV file and loads it into a database.
     B: Can you set up a pipeline that takes a CSV file, tidies up the data and puts it into a database?
   L1:
-    A: Write a pipeline that cleans a CSV file of orders exported from a small business that sells online and loads it into a database, so the owner can look up past orders.
+    A: Write a pipeline that cleans a CSV file of orders, exported from a small business that sells online, and loads it into a database, so the owner can look up past orders.
     B: Can you set up a pipeline that takes the CSV file of orders a small business exports from its online sales, tidies up the data and puts it into a database? The owner wants to be able to look up past orders.
   # L2 direction: the language's standard library only, a test for each
   # cleaning rule, rejected rows kept in a separate file with a reason, a

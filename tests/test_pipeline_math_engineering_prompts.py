@@ -108,6 +108,8 @@ ENGINEERING_HINTS = """
     centrifugal submersible worm helical spur gearbox pulley sprocket chain
     timing coil wire gusset brace l-shaped triangular simple cheap low-cost
     lightweight strong sturdy robust heavy-duty optimal optimized 3d
+    mm cm km meter millimeter centimeter kilometer newton kilogram kg kn
+    mpa gpa kpa watt kelvin celsius fahrenheit rpm hz gallon
 """.split() + ["safety factor", "factor of safety", "music wire"]
 
 ENGINEERING_DEFAULTS = """
@@ -135,16 +137,21 @@ URL = re.compile(r"https?://([^/\s]+)")
 IP = re.compile(r"(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d.])")
 DOC_IP_PREFIXES = ("192.0.2.", "198.51.100.", "203.0.113.")
 INCHES = re.compile(r"\d in\b")
+# Unit words and symbols, for the tasks that leave the unit system open.
+UNIT_WORDS = word_pattern("""
+    mm cm km m meter millimeter inch inches ft feet foot lb lbs lbf pound
+    newton n kg kilogram psi ksi mpa gpa kn
+""".split())
 
 
 SETS = {
     "pipeline": PromptSet(
         expected={
-            "ci-workflow": ("1", "52e01976b8258add"),
-            "csv-to-database": ("1", "e258fe725bbc7c3c"),
+            "ci-workflow": ("1", "ad444850e7410e84"),
+            "csv-to-database": ("1", "e1ba3b00bd820744"),
             "daily-api-fetch": ("1", "37ab96b8d765524b"),
-            "data-validation": ("1", "a4ec9976ba36b92e"),
-            "image-resize": ("1", "5be23bf811b99a95"),
+            "data-validation": ("1", "aab195ed3afb1785"),
+            "image-resize": ("1", "d74c5bfc385ffd6b"),
             "log-aggregation": ("1", "4e0866ef57fc5434"),
         },
         subject={
@@ -172,11 +179,11 @@ SETS = {
     ),
     "math": PromptSet(
         expected={
-            "entropy-explanation": ("1", "4d9ec47968080661"),
-            "hypothesis-test": ("1", "a0f6dfafc4bb7a85"),
+            "entropy-explanation": ("1", "f574ef4ed6e5ea31"),
+            "hypothesis-test": ("1", "ca599b9fe506f1e4"),
             "least-squares-fit": ("1", "a0fcfb2f0ccfc30d"),
             "loan-amortization": ("1", "311262c3458aee00"),
-            "projectile-drag": ("1", "083e88af469e2b2f"),
+            "projectile-drag": ("1", "3907055e1d938492"),
             "titration-curve": ("1", "68bf8c981ab55e90"),
         },
         subject={
@@ -217,7 +224,7 @@ SETS = {
             "conveyor-gear-ratio": ("1", "9c64524567a4382b"),
             "heat-sink": ("1", "19c4af351a5aff5b"),
             "pipe-and-pump": ("1", "788c9e51d7e7cdc5"),
-            "shelf-bracket": ("1", "040bba9ef5a76bf2"),
+            "shelf-bracket": ("1", "1ec967816e681654"),
         },
         subject={
             "cantilever-beam": "beam",
@@ -268,9 +275,15 @@ def givens(type_name, task_id):
     return SETS[type_name].givens.get(task_id, ())
 
 
+def given_pattern(given):
+    """A given as a whole token: "6 m" must not match inside "16 m" or
+    "6 mm"."""
+    return re.compile(rf"(?<![\w.]){re.escape(given)}(?!\w)")
+
+
 def without_givens(type_name, task_id, text):
     for given in givens(type_name, task_id):
-        text = text.replace(given, " ")
+        text = given_pattern(given).sub(" ", text)
     return text
 
 
@@ -348,13 +361,15 @@ def test_every_level_keeps_the_task_subject(item):
 def test_every_prompt_holds_the_givens_word_for_word(item):
     type_name, task_id, _, _, text = item
     for given in givens(type_name, task_id):
-        assert given in text
+        assert given_pattern(given).search(text), given
 
 
 @pytest.mark.parametrize("item", texts(("L0", "L1")), ids=text_id)
 def test_l0_and_l1_name_none_of_the_open_choices(item):
-    type_name, _, _, _, text = item
-    assert SETS[type_name].hints.findall(text) == []
+    """Givens are removed first: their units are part of the givens."""
+    type_name, task_id, _, _, text = item
+    rest = without_givens(type_name, task_id, text)
+    assert SETS[type_name].hints.findall(rest) == []
 
 
 @pytest.mark.parametrize("item", texts(("L0", "L1")), ids=text_id)
@@ -402,6 +417,10 @@ def test_units_open_tasks_give_units_only_at_l2(task_id):
     assert givens("engineering", task_id) == ()
     for wording in WORDINGS:
         assert INCHES.search(task.text("L2", wording))
+        for level in ("L0", "L1"):
+            text = task.text(level, wording)
+            assert UNIT_WORDS.findall(text) == []
+            assert NUMBER.findall(text) == []
 
 
 @pytest.mark.parametrize("item", texts(), ids=text_id)
@@ -531,6 +550,20 @@ def test_the_safety_check_catches_a_safety_critical_use():
     assert SAFETY.findall("Size a beam for a balcony that holds people.")
     assert SAFETY.findall("Pick bolts for a pressure vessel flange.")
     assert SAFETY.findall("Size a beam fixed at one end.") == []
+
+
+def test_givens_match_whole_tokens_only():
+    pattern = given_pattern("6 m")
+    assert pattern.search("pumped 6 m uphill")
+    assert not pattern.search("pumped 16 m uphill")
+    assert not pattern.search("a 6 mm pipe")
+
+
+def test_unit_words_are_caught():
+    assert UNIT_WORDS.findall("Design a spring 20 mm long for 5 N.")
+    assert UNIT_WORDS.findall("Design a bracket for a 10-inch shelf.")
+    assert UNIT_WORDS.findall("Design a compression spring.") == []
+    assert SETS["engineering"].hints.findall("Size it in mm and kg.")
 
 
 def test_givens_are_removed_before_numbers_are_counted():

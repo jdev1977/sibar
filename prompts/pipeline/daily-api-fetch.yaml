@@ -6,7 +6,10 @@
 # run with the network blocked, so the record shows how they fail; their own
 # tests run as written. The L2 brief names a reserved host
 # (api.example.com) and the exact response, so the sandbox (T2.7) can serve
-# that response from a local stub at that host.
+# that response from a local stub at that host. The URL is https, so the
+# sandbox must resolve api.example.com to the stub and have the program
+# trust the stub's certificate (a local certificate authority installed in
+# the sandbox), or the run fails for a reason that is not the model's.
 schema_version: 1
 project_type: pipeline
 task_id: daily-api-fetch
@@ -19,8 +22,8 @@ prompts:
     A: Write a pipeline that fetches the day's air quality readings from a city's open data API every day and stores them, so a local environmental group can follow pollution levels over time.
     B: Can you set up a daily pipeline that pulls the day's air quality readings from a city's open data API and saves them? An environmental group in the area wants to watch how pollution levels develop.
   # L2 direction: run once and exit under the machine's own scheduler, fetch
-  # any day a failed run missed, a fixed retry rule (3 tries, a minute
-  # apart, then an error), one CSV file per month, a re-run that changes
+  # any day a failed run missed, a fixed retry rule (up to 3 retries after the
+  # first try, a minute apart, then an error), one CSV file per month, a re-run that changes
   # nothing, one log line per run.
   # Points away from the expected default: a loop or scheduling library that
   # keeps the program running, no catch-up after a failed day, no retries or

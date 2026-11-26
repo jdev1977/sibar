@@ -18,8 +18,8 @@ prompts:
     A: 'Test whether the mean of these measurements differs from 50: 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.'
     B: Can you test whether these measurements have a mean that differs from 50? They are 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.
   L1:
-    A: 'Test whether the mean of these measurements differs from 50, for a quality-control technician deciding whether a new batch of parts is on target: 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.'
-    B: Can you test whether these measurements have a mean that differs from 50? They are 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5. A quality-control technician took them from a new batch of parts and needs to decide whether the batch is on target.
+    A: 'Test whether the mean of these measurements differs from 50, for a quality-control technician who took them from a new batch of parts and is deciding whether the batch is on target: 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.'
+    B: Can you test whether these measurements have a mean that differs from 50? They are 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5. They're a sample a quality-control technician pulled from a fresh batch of parts, to judge whether that batch meets its target.
   # L2 direction: the exact Wilcoxon signed-rank test, two-sided, at the 1%
   # level, with the ranks listed by hand, the decision first in one plain
   # sentence, the exact p-value as a fraction and a decimal.
@@ -28,7 +28,7 @@ prompts:
   # conclusion. The decision changes as well (see Checkable above).
   L2:
     A: |
-      Test whether the mean of these measurements differs from 50, for a quality-control technician at Pellmore Machine Works deciding whether a new batch of parts is on target: 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.
+      Test whether the mean of these measurements differs from 50, for a quality-control technician at Pellmore Machine Works who took them from a new batch of parts and is deciding whether the batch is on target: 50.8, 51.6, 49.7, 52.3, 51.1, 50.4, 52.0, 51.5.
 
       Details:
       - The values are the lengths in millimeters of 8 pins taken from the batch, and the target length is 50 mm.

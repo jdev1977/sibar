@@ -86,7 +86,11 @@ with no network:
   (error handling is one of the open choices). Their own tests, usually with
   a fake response, run as written. The L2 brief names the reserved host
   `api.example.com` and gives the exact response, so the sandbox can serve
-  that response from a local stub at that host.
+  that response from a local stub at that host. The URL is `https`, so the
+  sandbox must both resolve `api.example.com` to the stub and make the
+  program trust the stub's certificate (for example, a local certificate
+  authority installed in the sandbox's trust store and the language's).
+  Without both, an L2 output fails for a reason that is not the model's.
 - **ci-workflow.** A workflow cannot run without its build service. The
   sandbox checks that the configuration parses and runs the commands it
   names against a fixture package that matches the L2 description. At L0 and
@@ -101,6 +105,13 @@ with no network:
   repeat; the log lines hold four requests (one with status 500) and one
   malformed line; the readings hold one valid reading and one that breaks
   three rules and carries one warning.
+- **data-validation, clock.** One rule says a reading may be no later than
+  the moment of the check. The sample readings are dated March 2026, before
+  any run, so they pass it; the sandbox should still run this task with a
+  fixed clock, as the renderer does for websites, so the rule behaves the
+  same on every run. The L2 brief gives the input layout (one folder per
+  day, one file per station), the header of `stations.csv` and where valid
+  readings go, so a fixture can be built from it.
 
 ## The wordings
 
@@ -119,7 +130,8 @@ wording factor.
 Every name is invented (Brindlecote Tea, Quellmouth, Fernhollow Recipes,
 Saltmarsh Pottery, tallyfold, Ostley Valley). Emails and hosts use
 `example.com`; the addresses in the log sample come from the ranges reserved
-for documentation. Dates are in March 2027 and written the US way; prices use
+for documentation. Dates are in March 2027 (March 2026 in data-validation,
+see above) and written the US way; prices use
 dollars. No prompt uses text from the private catalogues.
 
 ## Versions

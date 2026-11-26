@@ -24,14 +24,20 @@ prompts:
     A: |
       Write a data validation step for the pipeline of the Ostley Valley Weather Network, which collects daily readings from weather stations run by volunteers, so that bad readings are caught before they reach the shared dataset.
 
-      Input: one file per station per day, in JSON Lines (one JSON object per line), for example:
+      Input: the step runs once a day on that day's folder, such as incoming/2026-03-02/. The folder holds one file per station, named by its station code, such as OV-014.jsonl, in JSON Lines (one JSON object per line), for example:
 
-      {"station": "OV-014", "time": "2027-03-02T13:00:00Z", "temp_c": 11.4, "humidity_pct": 81, "rain_mm": 0.2, "battery_v": 3.9}
-      {"station": "OV-014", "time": "2027-03-02T14:00:00Z", "temp_c": 61.0, "humidity_pct": 104, "rain_mm": -1, "battery_v": 3.1}
+      {"station": "OV-014", "time": "2026-03-02T13:00:00Z", "temp_c": 11.4, "humidity_pct": 81, "rain_mm": 0.2, "battery_v": 3.9}
+      {"station": "OV-014", "time": "2026-03-02T14:00:00Z", "temp_c": 61.0, "humidity_pct": 104, "rain_mm": -1, "battery_v": 3.1}
+
+      The registered stations are listed in stations.csv, which has a header row and then one station per line:
+
+      station,name
+      OV-014,Mill Lane School
+      OV-027,Fenby Farm
 
       Rules:
-      - station is "OV-" followed by three digits, and is on the list of registered stations in stations.csv.
-      - time is a UTC time on the hour, within the day the file is named for, and no later than the moment of the check.
+      - station is "OV-" followed by three digits, and is listed in stations.csv.
+      - time is a UTC time on the hour, within the day the folder is named for, and no later than the moment of the check.
       - temp_c is between -40 and 50.
       - humidity_pct is a whole number from 0 to 100.
       - rain_mm is 0 or more and below 150.
@@ -39,8 +45,8 @@ prompts:
       - Every field is present, and a station sends at most one reading for each hour.
 
       Output:
-      - Valid readings go on to the next step unchanged, in the same format.
-      - Each rejected reading goes to a rejects file, together with every rule it broke.
+      - Valid readings go on to the next step unchanged, in the same format, in a file of the same name under passed/2026-03-02/.
+      - Each rejected reading goes to a rejects file for the day, together with every rule it broke.
       - A summary per station: readings checked, passed, rejected and warned.
       - The exit code is 0 when fewer than 5% of the readings are rejected and 2 otherwise, so the next step can stop.
 
@@ -50,14 +56,20 @@ prompts:
     B: |
       Can you set up a step in our data pipeline that checks whether incoming data is valid? We're the Ostley Valley Weather Network. Our pipeline collects daily readings from weather stations that volunteers run, and bad readings need to be caught before they get into the shared dataset.
 
-      Every station sends a file each day in JSON Lines, meaning a JSON object on each line, like these:
+      Each day the step runs once on that day's folder, for example incoming/2026-03-02/. In it, every station has one file named after its station code, such as OV-014.jsonl, in JSON Lines, meaning a JSON object on each line, like these:
 
-      {"station": "OV-014", "time": "2027-03-02T13:00:00Z", "temp_c": 11.4, "humidity_pct": 81, "rain_mm": 0.2, "battery_v": 3.9}
-      {"station": "OV-014", "time": "2027-03-02T14:00:00Z", "temp_c": 61.0, "humidity_pct": 104, "rain_mm": -1, "battery_v": 3.1}
+      {"station": "OV-014", "time": "2026-03-02T13:00:00Z", "temp_c": 11.4, "humidity_pct": 81, "rain_mm": 0.2, "battery_v": 3.9}
+      {"station": "OV-014", "time": "2026-03-02T14:00:00Z", "temp_c": 61.0, "humidity_pct": 104, "rain_mm": -1, "battery_v": 3.1}
 
-      Here's what makes a reading valid. Its station is "OV-" plus three digits and appears on the registered list in stations.csv. Its time falls on the hour in UTC, inside the day the file is named for, and isn't later than the moment of checking. temp_c lies between -40 and 50; humidity_pct is a whole number from 0 to 100; rain_mm is at least 0 and under 150; and battery_v lies between 3.0 and 4.3, though anything under 3.3 passes with a warning. All fields have to be there, and a station can send only one reading per hour.
+      The registered stations are in stations.csv, which starts with a header row and then has one station per line:
 
-      Readings that pass should flow on to the next step untouched and in the same format. A reading that fails should land in a rejects file, listed with all the rules it broke. For each station I'd like a summary of how many readings were checked, passed, rejected and warned. Please exit with code 0 if under 5% of the readings are rejected, and with 2 if not, so the next step knows to stop.
+      station,name
+      OV-014,Mill Lane School
+      OV-027,Fenby Farm
+
+      Here's what makes a reading valid. Its station is "OV-" plus three digits and appears in stations.csv. Its time falls on the hour in UTC, inside the day the folder is named for, and isn't later than the moment of checking. temp_c lies between -40 and 50; humidity_pct is a whole number from 0 to 100; rain_mm is at least 0 and under 150; and battery_v lies between 3.0 and 4.3, though anything under 3.3 passes with a warning. All fields have to be there, and a station can send only one reading per hour.
+
+      Readings that pass should flow on to the next step untouched and in the same format, in a file of the same name under passed/2026-03-02/. A reading that fails should land in the day's rejects file, listed with all the rules it broke. For each station I'd like a summary of how many readings were checked, passed, rejected and warned. Please exit with code 0 if under 5% of the readings are rejected, and with 2 if not, so the next step knows to stop.
 
       Our coordinator needs to be able to change the rules without touching the code, so they should live in a file of their own. And the step should apply every rule to every reading, so a rejected one shows all of its problems together.
 notes: >-
@@ -65,4 +77,7 @@ notes: >-
   the input format and the reporting are left open at L0 and L1. The two
   sample readings give a known result: the first passes; the second breaks
   three rules (temperature, humidity, rain) and carries one warning
-  (battery).
+  (battery). The sample dates are in March 2026, before any run, so the
+  "no later than the moment of the check" rule passes them; the sandbox
+  (T2.7) should still run this task with a fixed clock, as the renderer
+  does for websites, so that the rule behaves the same on every run.

@@ -14,10 +14,10 @@ prompt_set_version: "1"
 prompts:
   L0:
     A: Write a continuous integration workflow for a small software package.
-    B: Can you set up continuous integration for a little software package?
+    B: Can you set up a workflow that runs continuous integration for a little software package?
   L1:
     A: Write a continuous integration workflow for a small open-source software package maintained by a few volunteers, so that every proposed change is checked before it is merged.
-    B: Can you set up continuous integration for a little open-source software package? A few volunteers maintain it, and they want each change people propose to be checked before it goes in.
+    B: Can you set up a workflow that runs continuous integration for a little open-source software package? A few volunteers maintain it, and they want each change people propose to be checked before it goes in.
   # L2 direction: the package is a Go library (its language is content of
   # the brief, as it would be in a real request), tested on three operating
   # systems and two language releases, formatting and vet checks, a
@@ -44,7 +44,7 @@ prompts:
       - On a version tag, also check that the changelog has an entry for that version, and fail if it is missing.
       - Finish within 10 minutes, and cancel an older run on the same branch when a newer one starts.
     B: |
-      Can you set up continuous integration for tallyfold, a little open-source software package? A few of us volunteers maintain it, and we want each change people propose to be checked before it goes in.
+      Can you set up a workflow that runs continuous integration for tallyfold, a little open-source software package? A few of us volunteers maintain it, and we want each change people propose to be checked before it goes in.
 
       It's a Go library that depends on nothing outside the standard library, and its tests live beside the code, as is usual in Go. It has to run on Linux, macOS and Windows. Our default branch is named main; we mark releases with tags like v1.4.0, and every release gets an entry in CHANGELOG.md, the changelog.
 

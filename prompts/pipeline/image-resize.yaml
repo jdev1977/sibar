@@ -13,10 +13,10 @@ prompt_set_version: "1"
 prompts:
   L0:
     A: Write code that resizes a batch of images.
-    B: Can you set up a way to resize a whole batch of images at once?
+    B: Can you set up a way to resize a batch of images?
   L1:
     A: Write code that resizes a batch of product photos for a pottery studio's website, so the photos load quickly for its customers.
-    B: Can you set up a way to resize a whole batch of product photos at once? They're for a pottery studio's website, and they need to load quickly for its customers.
+    B: Can you set up a way to resize a batch of product photos? They're for a pottery studio's website, and they need to load quickly for its customers.
   # L2 direction: every processor core used, photos already done skipped so
   # a re-run is quick, a dry-run option, phone photos turned upright,
   # camera and location details removed, a failure that leaves the other
@@ -43,7 +43,7 @@ prompts:
       - A photo that fails leaves the others unaffected.
       - At the end, print how many photos were resized, skipped and failed, with the reason for each failure.
     B: |
-      Can you set up a way to resize a whole batch of product photos at once? They're for our Saltmarsh Pottery website, and they need to load quickly for our customers.
+      Can you set up a way to resize a batch of product photos? They're for our Saltmarsh Pottery website, and they need to load quickly for our customers.
 
       The photos sit in one folder and were taken on the studio's camera and phone; their names look like mug-blue-01.jpg or vase-tall-03.png. A few are at least 6000 pixels wide, a few are under the target size already, some phone shots are saved on their side with a flag saying which way to rotate them, and some PNG files have see-through backgrounds.
 
