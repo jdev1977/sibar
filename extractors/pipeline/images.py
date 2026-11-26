@@ -48,7 +48,7 @@ _METADATA = tuple((name, kind, re.compile(pattern, flags))
 
 def images(inputs):
     output = get_output(inputs)
-    if not output.programs:
+    if not output.main:
         return dict(NO_INPUT)
     read = read_imports(inputs)
     used = set() if read is None else read[0] | read[1]

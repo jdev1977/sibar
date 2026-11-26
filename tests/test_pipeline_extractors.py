@@ -208,6 +208,45 @@ def test_how_files_are_read(source, expected):
     assert one_file(source)["operations"]["file_reading"] == expected
 
 
+def test_tests_inside_the_pipeline_script_do_not_hide_the_script():
+    out = one_file(
+        "import logging\nimport sys\nimport unittest\n\n"
+        "def load(path):\n    with open(path) as handle:\n"
+        "        for line in handle:\n            logging.info(line)\n\n"
+        "class LoadTest(unittest.TestCase):\n    def test_load(self):\n"
+        "        self.assertTrue(True)\n\n"
+        "if __name__ == '__main__':\n    load(sys.argv[1])\n")
+    check(out["testing"], {"tests_present": True, "test_files": 1})
+    check(out["logging"], {"logging_style": "logging-library"})
+    check(out["config"], {"config_sources": ["arguments"]})
+    check(out["operations"], {"file_reading": "streaming"})
+
+
+def test_only_test_code_leaves_the_pipeline_s_behaviour_unread():
+    out = one_file("def test_a():\n    assert 1\n", "test_a.py")
+    check(out["testing"], {"tests_present": True})
+    for name in ("logging", "config", "operations", "images"):
+        assert out[name] == {"status": "no-input"}, name
+
+
+def test_a_list_made_from_a_reader_reads_the_whole_file():
+    out = one_file("with open('a') as f:\n    reader = csv.DictReader(f)\n"
+                   "    rows = list(reader)\n")
+    assert out["operations"]["file_reading"] == "whole-file"
+
+
+@pytest.mark.parametrize("source, written", [
+    ("rows = open('in.jsonl').read()\n", False),
+    ("df = pd.read_json('in.jsonl', lines=True)\n", False),
+    ("out = open('passed.jsonl', 'w')\n", True),
+    ("out.write(json.dumps(row) + '\\n')\n", True),
+    ("df.to_json(path, orient='records', lines=True)\n", True),
+])
+def test_json_lines_count_as_output_only_where_they_are_written(source, written):
+    formats = one_file(source)["operations"]["output_formats"]
+    assert ("jsonl" in formats) is written
+
+
 def test_an_unrecognised_import_makes_stdlib_only_undetermined():
     out = one_file("import helpers\nimport csv\n")
     check(out["libraries"], {"stdlib_only": None, "other_imports": ["helpers"],

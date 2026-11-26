@@ -164,5 +164,13 @@ def test_code_blocks_without_stored_files_leave_code_undetermined():
     assert out["code"]["code_present"] is None
 
 
+def test_latex_powers_inside_text_commands_and_a_diameter_symbol():
+    out = reply(r"Air resistance: $d = 0.22\ \text{m}$, "
+                r"$\rho = 1.2\,\mathrm{kg\,m^{-3}}$.")
+    check(out["constants"], {"projectile_diameter": "0.22 m",
+                             "air_density": "1.2"})
+    check(out["units"], {"unit_style": "exponent"})
+
+
 def test_empty_text_is_no_input():
     assert all(v == {"status": "no-input"} for v in run_inputs(Inputs(())).values())

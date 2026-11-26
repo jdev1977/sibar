@@ -7,6 +7,7 @@ from dataclasses import dataclass
 _PLAIN_SUPER = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺", "0123456789-+")
 _SUPERSCRIPT = re.compile("[⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]{1,6}")
 _SPACES = re.compile(r"[ \t   ]{1,}")
+_BRACED_POWER = re.compile(r"\^\{([-+]?\d{1,3})\}")
 _TEXT = re.compile(r"\\(?:text|mathrm|mathbf|textbf|operatorname|mathit)"
                    r"[ ]?\{([^{}]{0,80})\}")
 _REPLACE = (
@@ -32,6 +33,7 @@ def normalise(text):
     text = _SPACES.sub(" ", text)
     for old, new in _REPLACE:
         text = text.replace(old, new)
+    text = _BRACED_POWER.sub(r"^\1", text)      # so \text{m^{-3}} has no braces
     for _ in range(2):
         text = _TEXT.sub(r"\1", text)
     text = _SUPERSCRIPT.sub(lambda m: "^" + m[0].translate(_PLAIN_SUPER), text)

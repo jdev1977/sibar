@@ -215,7 +215,8 @@ _CONSTANTS = {
     "projectile_mass": (_PROJECTILE, [
         _symbol(r"m"), _named(r"\b[Mm]ass\b")], 1e-4, 1e4, {"kg": 1, "g": 1e-3}),
     "projectile_diameter": (_PROJECTILE, [
-        _named(r"\b[Dd]iameter\b")], 1e-4, 100, {"m": 1, "cm": 1e-2, "mm": 1e-3}),
+        _named(r"\b[Dd]iameter\b"), _symbol(r"[dD]")], 1e-4, 1.0,
+        {"m": 1, "cm": 1e-2, "mm": 1e-3}),
     "ka_value": (_TITRATION, [
         _symbol(r"K_?\{?a\}?"), _named(r"(?i:acid dissociation constant)(?: \$?K_?\{?a\}?\$?)?")],
         1e-8, 1e-2, None),

@@ -73,7 +73,8 @@ _RANGE = re.compile(r" ?(?:-|–|—|to) ?(?=\d)")
 _COMPUTED = re.compile(r"\b(?:actual|achieved|resulting|calculated|computed|"
                        r"provide[sd]?|giv(?:es|ing|en)|yield(?:s|ing)|obtained)\b",
                        re.IGNORECASE)
-_EXPRESSION = re.compile(r" ?[/×*÷]")
+# part of a sum, or set against a limit: "SF = 1.8 > 1.5"
+_EXPRESSION = re.compile(r" ?[/×*÷<>≥≤]")
 
 
 def _chosen(written):

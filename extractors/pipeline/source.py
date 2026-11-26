@@ -1,8 +1,9 @@
 """The code of a pipeline output, split once and shared by the extractors.
 
 ``programs`` are the files in a programming or scripting language,
-``configs`` the configuration files. A **test file** is one that holds tests;
-features about how the pipeline behaves read the other programs only.
+``configs`` the configuration files. A **test file** is one that holds tests
+and nothing else; features about how the pipeline behaves read the other
+programs only.
 """
 
 import re
@@ -25,13 +26,16 @@ _TEST_MARKS = {
     "r": re.compile(r"\btest_that\("),
 }
 _ASSERT = re.compile(r"\bassert|TestCase\b|\bpytest\b")
+_TOP_LEVEL = re.compile(r"^(?:async )?(?:def|class) (\w{1,100})", re.M)
+_TEST_DEFINITION = re.compile(r"^(?:test|Test)|Tests?$|TestCase$")
 
 
 @dataclass(frozen=True)
 class Code:
     source: object          # extractors.common.response.Source
     parts: object           # extractors.common.code.Parts
-    is_test: bool
+    has_tests: bool
+    is_test: bool           # a file of tests and nothing else
     lines: int              # non-blank lines of code
 
     @property
@@ -55,14 +59,23 @@ class Output:
         return "\n".join(getattr(c.parts, which) for c in chosen)
 
 
-def _is_test(source, parts):
+def _test_reading(source, parts):
+    """``(holds tests, is a test file)``. A script with tests inside it holds
+    tests and is still the pipeline."""
     marks = _TEST_MARKS.get(source.language)
     if not marks or not marks.search(parts.code):
-        return False
+        return False, False
     if _TEST_NAME.search(source.name) or _TEST_FOLDER.search(source.path):
-        return True
+        return True, True
+    if source.language != "python":
+        # an unnamed block of JavaScript or Ruby tests; Rust and Go keep
+        # tests beside the code
+        return True, source.language in ("javascript", "typescript", "ruby")
     # elsewhere, a function named test_... needs an assertion to be a test
-    return source.language != "python" or bool(_ASSERT.search(parts.bare))
+    if not _ASSERT.search(parts.bare):
+        return False, False
+    names = _TOP_LEVEL.findall(parts.bare)
+    return True, bool(names) and all(_TEST_DEFINITION.search(n) for n in names)
 
 
 def _build(inputs):
@@ -71,7 +84,8 @@ def _build(inputs):
         if source.language in code.PROGRAMMING | code.SCRIPTING:
             parts = code.split(source.language, source.text)
             lines = sum(1 for line in parts.code.split("\n") if line.strip())
-            programs.append(Code(source, parts, _is_test(source, parts), lines))
+            programs.append(Code(source, parts, *_test_reading(source, parts),
+                                 lines))
         elif source.language in code.CONFIG:
             configs.append(source)
     return Output(tuple(programs), tuple(configs))

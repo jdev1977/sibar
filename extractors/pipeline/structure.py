@@ -95,7 +95,7 @@ def testing(inputs):
     output = get_output(inputs)
     if not output.programs:
         return dict(NO_INPUT)
-    tests = [c for c in output.programs if c.is_test]
+    tests = [c for c in output.programs if c.has_tests]
     frameworks = set()
     for item in tests:
         # `bare` empties strings; the imports of a JavaScript test are strings

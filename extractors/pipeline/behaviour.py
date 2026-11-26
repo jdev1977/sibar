@@ -38,7 +38,7 @@ def _libraries_used(inputs):
 
 def logging_features(inputs):
     output = get_output(inputs)
-    if not output.programs:
+    if not output.main:
         return dict(NO_INPUT)
     doc = get_doc(inputs)
     known = [c for c in output.main if c.language in _PRINT]
@@ -133,7 +133,7 @@ def _key_source(code):
 
 def config(inputs):
     output = get_output(inputs)
-    if not output.programs:
+    if not output.main:
         return dict(NO_INPUT)
     code = output.text("code")
     sources = set()
@@ -239,6 +239,9 @@ def _reading(code):
         if re.search(rf"\bfor [\w, ]{{1,60}} in (?:enumerate\( ?)?{re.escape(name)}"
                      rf"(?![\w.(\[])", code):
             stream.add("line-loop")
+    for name in handles[:_MAX_HANDLES] + readers[:_MAX_HANDLES]:
+        if re.search(rf"\blist\( ?{re.escape(name)} ?\)", code):
+            whole.add("list-of-rows")
     if whole and stream:
         style = "both"
     elif whole:
@@ -256,7 +259,11 @@ _OUTPUTS = (
                    r"\bcreateObjectCsvWriter\(|\bwrite\.csv2?\("),
     ("json", False, r"\bjson\.dumps?\(|\.to_json\(|\bJSON\.stringify\(|"
                     r"\bjson\.(?:NewEncoder|Marshal\w{0,10})\(|\bwrite_json\("),
-    ("jsonl", True, r"\.(?:jsonl|ndjson)\b|\blines ?= ?True\b"),
+    # a .jsonl name alone may be the input, so only a writing call counts
+    ("jsonl", True, r"\.to_json\([^\n]{0,120}\blines ?= ?True\b|"
+                    r"\.(?:jsonl|ndjson)[\"'][^\n]{0,20}[\"'][wa]t?[\"']|"
+                    r"\bjson\.dumps\([^\n]{0,100}\) ?\+ ?[\"']\\n[\"']|"
+                    r"\{json\.dumps\([^\n]{0,100}\)\}\\n|\.sink_ndjson\(|\.write_ndjson\("),
     ("parquet", False, r"\.(?:to|write|sink)_parquet\(|\bpq\.write_table\("),
     ("database", True, r"\bINSERT(?: OR \w{1,10})? INTO\b|\.to_sql\(|\binsert_(?:one|many)\(|"
                        r"\bbulk_insert\w{0,20}\(|\bCOPY \w{1,60} FROM STDIN"),
@@ -286,7 +293,7 @@ _PARALLEL = tuple((name, re.compile(pattern)) for name, pattern in (
 
 def operations(inputs):
     output = get_output(inputs)
-    if not output.programs:
+    if not output.main:
         return dict(NO_INPUT)
     code, bare = output.text("code"), output.text("bare")
     retry_libraries = {name for key, name in _RETRY_LIBRARIES.items()

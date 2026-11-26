@@ -126,6 +126,7 @@ def test_negative():
     ("The safety factor ≈ 2.1 here.", None),
     ("Safety factor: 2.87", None),
     ("A design factor of 1.25 is used.", "1.25"),
+    ("Here SF = 1.8 > 1.5, so it passes.", None),
     ("The ratio is 2.", "none"),
     ("This is safe, by a factor of 2.", "none"),
 ])
