@@ -8,7 +8,7 @@ from extractors.website import colors
 from extractors.website.palette import page_background
 from extractors.website.site import get_site
 
-NAME, VERSION = "website.dark-mode", "1"
+NAME, VERSION = "website.dark-mode", "2"
 _DARK_CLASS = re.compile(r"\.(?:dark|dark-mode|dark-theme|theme-dark)(?![\w-])")
 _DARK_ATTRIBUTE = re.compile(r"\[data-(?:theme|mode|bs-theme|color-scheme)"
                              r"\s*=\s*['\"]?dark")
@@ -87,7 +87,12 @@ def extract(inputs):
         else:
             system = True  # Tailwind's dark: variant follows the system by default
     background, _ = page_background(site)
-    if system and toggle:
+    control = has_toggle_control(site)
+    forced = site.forced_dark()
+    can_switch = control or "toggle-script" in found
+    if forced and not can_switch:
+        mode = "dark-only"  # starts dark, and nothing switches it back
+    elif system and toggle:
         mode = "both"
     elif system:
         mode = "system"
@@ -97,11 +102,11 @@ def extract(inputs):
         mode = "dark-only"
     else:
         mode = "none"
-    control = has_toggle_control(site)
     return {
         "status": site.status(),
         "dark_mode": mode,
         "mechanisms": sorted(found),
+        "forced_dark": forced,
         "theme_toggle": control or "toggle-script" in found,
     }
 

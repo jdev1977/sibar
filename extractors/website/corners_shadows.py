@@ -9,10 +9,10 @@ from extractors.website import colors, tailwind
 from extractors.website.css import significant
 from extractors.website.site import get_site
 from extractors.website.values import (
-    Resolver, color_nodes, most_common, px_text, to_px, visible,
+    Resolver, color_nodes, most_common, px_text, substitute_vars, to_px, visible,
 )
 
-NAME, VERSION = "website.corners-shadows", "1"
+NAME, VERSION = "website.corners-shadows", "2"
 FULL_PX = 999  # a radius this large draws a pill or circle
 SOFT_BLUR_PX = 10
 
@@ -67,9 +67,10 @@ def _layers(nodes):
 def shadow_kinds(declaration, resolver):
     """Kinds of each layer of a box-shadow: ``inset``, ``hard`` (no blur,
     offset), ``glow`` (no offset, blurred), ``subtle`` (blur under 10px),
-    ``soft``; plus ``colored`` when its colour is not neutral."""
+    ``soft``; plus ``colored`` when its colour is not neutral. ``var()`` is
+    followed first."""
     kinds = set()
-    for layer in _layers(declaration.value):
+    for layer in _layers(substitute_vars(declaration.value, resolver)):
         if not layer or (len(layer) == 1 and layer[0].type == "ident"
                          and layer[0].lower_value == "none"):
             continue
@@ -104,20 +105,8 @@ def extract(inputs):
         prop = declaration.prop
         if prop == "border-radius" or (prop.startswith("border-") and
                                        prop.endswith("-radius")):
-            value = declaration.value
-            if any(n.type == "function" and n.lower_name == "var"
-                   for n in significant(value)):
-                inner = []
-                for n in significant(value):
-                    if n.type == "function" and n.lower_name == "var":
-                        args = significant(n.arguments)
-                        looked = resolver.lookup(args[0].value) if args and \
-                            args[0].type == "ident" else None
-                        inner += list(looked or [])
-                    else:
-                        inner.append(n)
-                value = inner
-            radii.update(_radius_values(value))
+            radii.update(_radius_values(substitute_vars(declaration.value,
+                                                        resolver)))
         elif prop == "box-shadow":
             found = shadow_kinds(declaration, resolver)
             if found:
@@ -145,8 +134,10 @@ def extract(inputs):
         if kind is not None and kind != "none":
             shadows += 1
             kinds.add(kind)
-        elif utility.base.startswith("shadow-") and tailwind.color(utility):
-            kinds.add("colored")
+        elif utility.base.startswith("shadow-") and site.color(utility):
+            hex_color = site.color(utility)[2]
+            if hex_color is None or colors.is_chromatic(colors.classify(hex_color)):
+                kinds.add("colored")
         elif utility.base.startswith("backdrop-blur"):
             backdrop = True
         elif utility.base.startswith("text-shadow") and utility.base != \

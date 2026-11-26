@@ -183,7 +183,9 @@ def test_colour_functions(text, expected):
     ("#4f46e5", "indigo-mid"), ("#a855f7", "purple-mid"), ("#8b5cf6", "violet-mid"),
     ("#3b82f6", "blue-mid"), ("#f59e0b", "orange-mid"), ("#8b4513", "brown-dark"),
     ("#fdf6e3", "yellow-light"), ("#6b7280", "gray-mid"), ("#f9fafb", "white"),
-    ("#0f172a", "blue-dark"), ("#111111", "black"), ("#ef4444", "red-mid"),
+    ("#0f172a", "black"), ("#111111", "black"), ("#ef4444", "red-mid"),
+    ("#64748b", "gray-mid"), ("#334155", "gray-dark"), ("#1e3a8a", "blue-dark"),
+    ("#14213d", "blue-dark"), ("#667eea", "blue-mid"),
     ("#10b981", "green-mid"), ("#14b8a6", "teal-mid"), ("#ec4899", "pink-mid"),
 ])
 def test_colour_classes(hex_color, expected):

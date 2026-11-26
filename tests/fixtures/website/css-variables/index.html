@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bloom &amp; Brew | Artisan Coffee Roasters</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-inner">
+      <a href="#" class="logo">☕ Bloom &amp; Brew</a>
+      <nav class="nav-links">
+        <a href="#about">About</a>
+        <a href="#menu">Menu</a>
+        <a href="#visit">Visit</a>
+      </nav>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme"><i class="fa-solid fa-moon"></i></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container hero-content">
+        <h1 class="hero-title">Crafted with <span class="gradient-text">Passion</span>, Served with Love</h1>
+        <p class="hero-subtitle">Experience the vibrant world of specialty coffee — meticulously sourced and roasted in small batches.</p>
+        <div class="hero-buttons">
+          <a href="#menu" class="btn btn-primary">Explore Our Menu</a>
+          <a href="#visit" class="btn btn-outline">Find Us</a>
+        </div>
+      </div>
+    </section>
+
+    <section id="about" class="about">
+      <div class="container">
+        <h2 class="section-title">Our Story</h2>
+        <p>Founded in 2015, Bloom &amp; Brew is more than just a coffee shop — it's a community gathering place.</p>
+      </div>
+    </section>
+
+    <section id="menu" class="menu">
+      <div class="container">
+        <h2 class="section-title">Our Menu</h2>
+        <div class="menu-grid" id="menuGrid"></div>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="container stats-grid">
+        <div class="stat"><span class="stat-number" data-target="5000">0</span><p>Happy Customers</p></div>
+        <div class="stat"><span class="stat-number" data-target="12">0</span><p>Origins</p></div>
+        <div class="stat"><span class="stat-number" data-target="8">0</span><p>Years</p></div>
+      </div>
+    </section>
+
+    <section id="visit" class="visit">
+      <div class="container">
+        <h2 class="section-title">Visit Us</h2>
+        <form class="newsletter-form">
+          <input type="email" placeholder="Enter your email">
+          <button type="submit" class="btn btn-primary">Subscribe</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>&copy; 2025 Bloom &amp; Brew. All rights reserved.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

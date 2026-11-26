@@ -4,7 +4,9 @@ shared by the website extractors."""
 import tinycss2
 
 from extractors.website import colors
-from extractors.website.css import is_page_selector, significant, walk
+from extractors.website.css import (
+    is_dark_page_selector, is_page_selector, significant, walk,
+)
 
 # Properties whose plain words (``red``, ``navy``) are colours.
 COLOR_PROPERTIES = frozenset({
@@ -27,20 +29,24 @@ class Resolver:
 
     A name takes its value from the last declaration outside ``@media`` on
     ``:root``, ``html`` or ``body``; failing that, from the last outside
-    ``@media`` whose selector does not mention dark.
+    ``@media`` whose selector does not mention dark. With ``dark`` (a page
+    forced into its dark theme), declarations on dark selectors of the page
+    (``.dark``, ``html.dark``, ``[data-theme="dark"]``) win over both.
     """
 
-    def __init__(self, declarations):
-        page, other = {}, {}
+    def __init__(self, declarations, dark=False):
+        page, other, forced = {}, {}, {}
         for declaration in declarations:
             if not declaration.prop.startswith("--") or declaration.media:
                 continue
             if is_page_selector(declaration.selector) or declaration.selector in (
                     ":root", "@theme"):
                 page[declaration.prop] = declaration
+            elif dark and is_dark_page_selector(declaration.selector):
+                forced[declaration.prop] = declaration
             elif "dark" not in declaration.selector.lower():
                 other[declaration.prop] = declaration
-        self.values = {**other, **page}
+        self.values = {**other, **page, **forced}
 
     def lookup(self, name):
         declaration = self.values.get(name.lower() if name.startswith("--")
@@ -93,6 +99,23 @@ def color_nodes(nodes, prop, resolver=None, depth=0):
                 elif not any(a.type == "literal" and a.value == "," for a in args):
                     unread += 1
     return found, unread
+
+
+def substitute_vars(nodes, resolver, depth=0):
+    """``nodes`` with each top-level ``var(--name)`` replaced by the value it
+    resolves to (followed :data:`MAX_VAR_DEPTH` levels); an unresolved
+    ``var()`` is kept, so callers can tell it was not read."""
+    result = []
+    for node in nodes or ():
+        if node.type == "function" and node.lower_name == "var" and resolver:
+            args = significant(node.arguments)
+            value = (resolver.lookup(args[0].value)
+                     if args and args[0].type == "ident" else None)
+            if value is not None and depth < MAX_VAR_DEPTH:
+                result += substitute_vars(value, resolver, depth + 1)
+                continue
+        result.append(node)
+    return result
 
 
 def visible(found):

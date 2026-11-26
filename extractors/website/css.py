@@ -220,6 +220,27 @@ def selector_parts(selector):
     return [part.strip().lower() for part in selector.split(",") if part.strip()]
 
 
+_DARK_MARKER = re.compile(
+    r"\.(?:dark|dark-mode|dark-theme|theme-dark)(?![\w-])"
+    r"|\[data-(?:theme|mode|bs-theme|color-scheme)\s*=\s*['\"]?dark['\"]?\s*\]")
+
+
+def is_dark_page_selector(selector):
+    """True if every selector in the list is the page (``html``, ``body``,
+    ``:root``) marked dark: ``.dark``, ``html.dark``, ``.dark body``,
+    ``[data-theme="dark"]``."""
+    parts = selector_parts(selector)
+    if not parts:
+        return False
+    for part in parts:
+        if not _DARK_MARKER.search(part):
+            return False
+        rest = _DARK_MARKER.sub(" ", part).split()
+        if any(word not in ("html", "body", ":root") for word in rest):
+            return False
+    return True
+
+
 def is_page_selector(selector):
     """True if every selector in the list is ``html``, ``body`` or ``:root``."""
     parts = selector_parts(selector)

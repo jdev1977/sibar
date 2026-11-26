@@ -36,6 +36,9 @@ IMPLIED_END = {
     "li": {"li"}, "dt": {"dt", "dd"}, "dd": {"dt", "dd"}, "tr": {"tr", "td", "th"},
     "td": {"td", "th"}, "th": {"td", "th"}, "option": {"option"},
 }
+# Elements whose text belongs to the block around them.
+INLINE = frozenset("a abbr b bdi bdo cite code data dfn em font i kbd mark q s samp "
+                   "small span strong sub sup time u var br wbr".split())
 MAX_ELEMENTS = 100_000
 MAX_DEPTH = 512
 MAX_NAME = 200
@@ -65,6 +68,7 @@ class Element:
     depth: int
     hidden: bool  # inside script, style, template, noscript or head
     component: bool = False  # JSX: <Button>, not an HTML element
+    mapped: bool = False  # JSX: written right after ".map(", so repeated
     children: list = field(default_factory=list)
     text_start: int = 0  # len(texts) when the element started
     end: int = 0  # index after the last element inside this one
@@ -141,6 +145,37 @@ class Document:
                    if self.elements[owner].tag == "title"]
         return [p for p in (_SPACES.sub(" ", piece).strip() for piece in pieces) if p]
 
+    def copy_units(self):
+        """Visible text joined per block element, in order: a heading whose
+        words are split by ``<span>`` or ``<a>`` is one unit. The title is a
+        unit of its own."""
+        blocks, units, order = {}, {}, []
+        for text, owner in self.texts:
+            if owner < 0:
+                if self.jsx:
+                    continue
+                key = -1
+            else:
+                element = self.elements[owner]
+                if element.hidden:
+                    continue
+                key = blocks.get(owner)
+                if key is None:
+                    climb = element
+                    while (climb.tag in INLINE and not climb.component
+                           and climb.parent >= 0):
+                        climb = self.elements[climb.parent]
+                    key = blocks[owner] = climb.index
+            if key not in units:
+                units[key] = []
+                order.append(key)
+            units[key].append(text)
+        found = [_SPACES.sub(" ", " ".join(units[key])).strip() for key in order]
+        found += [content if self.jsx else html.unescape(content)
+                  for owner, content in self.raws
+                  if self.elements[owner].tag == "title"]
+        return [unit for unit in (_SPACES.sub(" ", u).strip() for u in found) if unit]
+
 
 def _jsx_text(text):
     """Text in JSX with ``{...}`` expressions removed."""
@@ -175,7 +210,7 @@ class _Builder:
             if name == tag:
                 return
 
-    def start(self, name, attrs, self_closing):
+    def start(self, name, attrs, self_closing, mapped=False):
         doc = self.doc
         if len(doc.elements) >= MAX_ELEMENTS:
             doc.truncated = True
@@ -193,7 +228,7 @@ class _Builder:
             depth=len(self.stack),
             hidden=(tag in HIDDEN or bool(parent_element and parent_element.hidden)),
             component=doc.jsx and (name[:1].isupper() or "." in name),
-            text_start=len(doc.texts))
+            text_start=len(doc.texts), mapped=mapped)
         doc.elements.append(element)
         if parent_element is not None:
             parent_element.children.append(element.index)
@@ -295,6 +330,7 @@ def parse_html(text, path="", jsx=False, fragment=False):
     length, i = len(text), 0
     while i < length and not doc.truncated:
         j = text.find("<", i)
+        i_before = i
         if j < 0:
             builder.text(text[i:])
             break
@@ -327,7 +363,8 @@ def parse_html(text, path="", jsx=False, fragment=False):
                 doc.unterminated = True
                 break
             name, attrs, self_closing, i = parsed
-            element = builder.start(name, attrs, self_closing)
+            mapped = jsx and ".map(" in text[max(i_before, j - 200):j]
+            element = builder.start(name, attrs, self_closing, mapped)
             tag = name.translate(_ASCII_LOWER)
             if element is not None and tag in RAW_TEXT and not self_closing:
                 close = lower.find("</" + tag, i)

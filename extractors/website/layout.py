@@ -10,7 +10,7 @@ from extractors.website.css import selector_parts, significant
 from extractors.website.site import get_site
 from extractors.website.values import to_px
 
-NAME, VERSION = "website.layout", "1"
+NAME, VERSION = "website.layout", "2"
 MAX_SECTIONS = 30
 MAX_UNWRAP = 6
 MIN_CARDS = 3
@@ -60,7 +60,8 @@ WORD_KIND = {word: kind for kind, words in SECTION_WORDS.items()
 _IGNORED = frozenset({"section", "container", "wrapper", "wrap", "inner", "content",
                       "block", "area", "main", "page", "site", "box", "row", "col",
                       "grid", "flex", "py", "px", "bg", "mx", "auto", "w", "full"})
-_SPLIT = re.compile(r"[-_\s:/]+|(?<=[a-z])(?=[A-Z])")
+_CAMEL = re.compile(r"(?<=[a-z])(?=[A-Z])")
+_ALNUM = re.compile(r"[a-z0-9]+")
 _TESTIMONIAL = re.compile(r"\bwhat (?:our |people |they |customers |clients )?"
                           r"(?:customers |clients |people |guests )?(?:say|are saying)")
 _NAV_SELECTOR = re.compile(
@@ -70,13 +71,20 @@ _REPEAT = re.compile(r"repeat\(\s*(auto-fit|auto-fill|\d{1,2})\s*,")
 
 
 def _words(text):
-    return [w.lower() for w in _SPLIT.split(text or "") if w]
+    """Lower-case words of a name or text: ``HeroSection``, ``hero_section``
+    and "Hero section!" all give ``hero``, ``section``."""
+    spaced = _CAMEL.sub(" ", text or "")
+    return _ALNUM.findall(spaced.lower())
 
 
 def _kind_from_words(words, joined=""):
+    """The kind named by ``words``; multi-word names (``get-started``) are
+    matched with any separator, so a heading "Ready to get started?" or a
+    class ``get_started`` finds them as an id ``get-started`` does."""
+    joined = "-" + "-".join(_words(joined)) + "-"
     for phrase in ("how-it-works", "call-to-action", "get-started", "find-us",
                    "pre-order"):
-        if phrase in joined:
+        if f"-{phrase}-" in joined:
             return WORD_KIND[phrase]
     for word in words:
         if word not in _IGNORED and word in WORD_KIND:
@@ -86,33 +94,51 @@ def _kind_from_words(words, joined=""):
 
 def _first_heading(doc, element):
     for item in doc.descendants(element):
-        if item.tag in ("h1", "h2", "h3") and not item.component:
+        if item.tag in ("h2", "h3") and not item.component:
             return item
     return None
 
 
-def classify_block(doc, element):
-    """The kind of one top-level block of a page, or None if unknown."""
+def _named_kind(element):
+    """The kind its name gives a block: component name, id, classes or
+    ``aria-label``, first found."""
     if element.component:
         return _kind_from_words(_words(element.name), element.name.lower())
-    if element.tag in TAG_KINDS:
-        return TAG_KINDS[element.tag]
     element_id = element.attrs.get("id", "")
-    kind = _kind_from_words(_words(element_id), element_id.lower())
-    if kind is None:
-        classes = " ".join(c for c in element.classes if ":" not in c)
-        kind = _kind_from_words(_words(classes), classes.lower())
-    if kind is None:
-        label = element.attrs.get("aria-label", "")
-        kind = _kind_from_words(_words(label), label.lower())
-    if kind is None:
-        heading = _first_heading(doc, element)
-        if heading is not None:
-            text = doc.text_of(heading, 200).lower()
-            if _TESTIMONIAL.search(text):
-                return "testimonials"
-            kind = _kind_from_words(_words(text), text)
-    return kind
+    classes = " ".join(c for c in element.classes if ":" not in c)
+    label = element.attrs.get("aria-label", "")
+    for text in (element_id, classes, label):
+        kind = _kind_from_words(_words(text), text.lower())
+        if kind:
+            return kind
+    return None
+
+
+def classify_block(doc, element, hero_slot=False):
+    """The kind of one top-level block of a page, or None if unknown.
+
+    In order: a name saying ``hero`` (even on ``<header>``); the tag
+    (``header``, ``nav``, ``footer``, ``aside``, ``form``); another kind its
+    name gives; ``hero`` for the first content block holding an ``<h1>``
+    (``hero_slot``); the words of its first ``<h2>`` or ``<h3>``.
+    """
+    kind = _named_kind(element)
+    if kind == "hero":
+        return kind
+    if not element.component and element.tag in TAG_KINDS:
+        return TAG_KINDS[element.tag]
+    if kind or element.component:
+        return kind
+    if hero_slot and any(d.tag == "h1" and not d.component
+                         for d in doc.descendants(element)):
+        return "hero"
+    heading = _first_heading(doc, element)
+    if heading is not None:
+        text = doc.text_of(heading, 200).lower()
+        if _TESTIMONIAL.search(text):
+            return "testimonials"
+        return _kind_from_words(_words(text), text)
+    return None
 
 
 def _children(doc, element):
@@ -169,10 +195,7 @@ def sections(site):
         doc, found = max(candidates, key=lambda c: len(c[1]))
     kinds, seen_content = [], False
     for element in found[:MAX_SECTIONS]:
-        kind = classify_block(doc, element)
-        if kind is None and not seen_content and _first_heading(doc, element) and \
-                any(d.tag == "h1" for d in doc.descendants(element)):
-            kind = "hero"
+        kind = classify_block(doc, element, hero_slot=not seen_content)
         if kind not in ("header", "nav"):
             seen_content = True
         kinds.append(kind or "other")
@@ -193,27 +216,53 @@ def _holds_text(doc):
     return holds
 
 
+def _group_size(doc, element, holds):
+    """The size of the card group among ``element``'s children, or 0.
+
+    Cards are children holding a heading or paragraph. The group is the
+    largest set with the same tag and classes, plus one more of the same tag
+    with other classes (a highlighted card, such as the middle pricing tier),
+    when there is exactly one; it needs three cards in all.
+    """
+    signatures, tags = Counter(), Counter()
+    for index in element.children:
+        child = doc.elements[index]
+        if child.tag in NOT_CARDS or child.component or not holds[index]:
+            continue
+        signatures[_signature(child)] += 1
+        tags[child.tag] += 1
+    if not signatures:
+        return 0
+    best = max(signatures.values())
+    signature = min(s for s, n in signatures.items() if n == best)
+    others = tags[signature[0]] - best
+    size = best + (1 if others == 1 else 0)
+    return size if size >= MIN_CARDS else 0
+
+
 def card_groups(site):
-    """Sizes of groups of three or more sibling elements with the same tag and
-    classes, each holding a heading or paragraph."""
-    sizes = []
+    """``(sizes, mapped)``: sizes of groups of three or more sibling cards
+    (:func:`_group_size`), and the number of JSX cards written once inside
+    ``.map(...)``, which repeat for each item of data (their number is not
+    known)."""
+    sizes, mapped = [], 0
     for doc in site.docs:
         holds = None
         for element in doc.elements:
-            if element.hidden or len(element.children) < MIN_CARDS:
+            if element.hidden or not element.children:
+                continue
+            if len(element.children) < MIN_CARDS and not doc.jsx:
                 continue
             holds = holds or _holds_text(doc)
-            groups = Counter()
-            for index in element.children:
-                child = doc.elements[index]
-                if child.tag in NOT_CARDS or child.component:
-                    continue
-                if holds[index]:
-                    groups[_signature(child)] += 1
-            best = max(groups.values(), default=0)
-            if best >= MIN_CARDS:
-                sizes.append(best)
-    return sorted(sizes)
+            if doc.jsx and any(doc.elements[i].mapped and holds[i] and
+                               doc.elements[i].tag not in NOT_CARDS
+                               for i in element.children):
+                mapped += 1
+                continue
+            size = _group_size(doc, element, holds)
+            if size:
+                sizes.append(size)
+    return sorted(sizes), mapped
 
 
 def _track_count(declaration):
@@ -283,7 +332,7 @@ def extract(inputs):
             nav = "sticky" if utility.base == "sticky" else (nav or "fixed")
     has_nav = any(e.tag in ("header", "nav") for doc in site.page_docs()
                   for e in doc.elements if not e.component)
-    groups = card_groups(site)
+    groups, mapped = card_groups(site)
     return {
         "status": site.status(),
         "sections": kinds,
@@ -295,7 +344,8 @@ def extract(inputs):
         "grid_columns": sorted(columns, key=lambda c: (not c.isdigit(),
                                                        int(c) if c.isdigit() else 0,
                                                        c)),
-        "card_groups": len(groups),
+        "card_groups": len(groups) + mapped,
+        "mapped_card_groups": mapped,
         "card_group_sizes": groups,
         "nav_position": nav or ("static" if has_nav else "none"),
         "max_widths_px": sorted(w for w in widths if isinstance(w, int)),

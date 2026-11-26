@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbit — Ship Faster</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+  @theme {
+    --color-brand-500: oklch(0.65 0.24 290);
+    --color-brand-600: oklch(0.55 0.25 290);
+    --font-sans: "Manrope", sans-serif;
+  }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-neutral-950 text-neutral-100 font-sans">
+  <header class="sticky top-0"><nav class="flex justify-between p-4"><span>Orbit</span><a class="bg-brand-500 px-4 py-2 rounded-md" href="#">Sign up</a></nav></header>
+  <main>
+    <section class="py-32 text-center">
+      <h1 class="text-6xl font-bold bg-linear-to-r from-brand-500 to-pink-500 bg-clip-text text-transparent">Ship faster with Orbit</h1>
+      <p class="mt-6 text-neutral-400">The deployment platform that just works.</p>
+      <button class="mt-8 bg-brand-600 hover:bg-brand-500 px-6 py-3 rounded-md shadow-lg shadow-brand-500/30">Get started</button>
+    </section>
+  </main>
+</body>
+</html>

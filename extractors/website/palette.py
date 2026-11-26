@@ -4,27 +4,37 @@ from collections import Counter
 
 from extractors.base import Extractor
 from extractors.website import colors, tailwind
-from extractors.website.css import is_page_selector
+from extractors.website.css import is_dark_page_selector, is_page_selector
 from extractors.website.site import get_site
 from extractors.website.values import (
     Resolver, color_nodes, most_common, parse_color_text, visible,
 )
 
-NAME, VERSION = "website.palette", "1"
+NAME, VERSION = "website.palette", "2"
 COLOR_ATTRIBUTES = ("fill", "stroke", "stop-color", "color", "bgcolor")
 BACKGROUND_PROPERTIES = ("background", "background-color")
 FULL_HEIGHT = frozenset({"min-h-screen", "h-screen", "min-h-full", "min-h-dvh",
                          "h-dvh", "min-h-svh"})
+MAX_UNKNOWN = 50
 
 
-def _tailwind_background(utilities):
-    """The last plain ``bg-*`` colour among ``utilities`` (no variants)."""
-    found = None
-    for utility in utilities:
-        hit = tailwind.color(utility)
-        if hit and hit[0] == "bg" and not utility.variants:
-            found = hit[2]
-    return found
+def _tailwind_background(site, element, dark):
+    """The ``bg-*`` colour of ``element``: the last plain one, or with
+    ``dark`` the last ``dark:bg-*`` when there is one. ``(hex, found)``,
+    where hex is None for a theme colour that is not a plain colour."""
+    plain = forced = None
+    found_plain = found_forced = False
+    for utility in filter(None, map(tailwind.split, element.classes)):
+        hit = site.color(utility)
+        if not hit or hit[0] != "bg":
+            continue
+        if not utility.variants:
+            plain, found_plain = hit[2], True
+        elif dark and utility.variants == ("dark",):
+            forced, found_forced = hit[2], True
+    if dark and found_forced:
+        return forced, True
+    return plain, found_plain
 
 
 def page_background(site, resolver=None):
@@ -38,22 +48,29 @@ def page_background(site, resolver=None):
     ``<html>``; the last ``background`` or ``background-color`` outside
     ``@media`` on ``html``, ``body`` or ``:root`` (or in their ``style``);
     a ``bg-*`` class on the first full-height wrapper (``min-h-screen``) of
-    the page or its components.
+    the page or its components. When the page starts in its dark theme
+    (:meth:`Site.forced_dark`), ``dark:bg-*`` classes and rules on
+    ``.dark`` or ``[data-theme="dark"]`` page selectors win.
     """
-    resolver = resolver or Resolver(site.declarations())
+    dark = site.forced_dark()
+    resolver = resolver or Resolver(site.declarations(), dark=dark)
     entry_tags = []
     if site.entry is not None:
         entry_tags = [e for e in site.entry.elements if e.tag in ("html", "body")]
     if site.tailwind != "none":
-        for element in entry_tags:
-            found = _tailwind_background(
-                u for u in map(tailwind.split, element.classes) if u)
+        for element in reversed(entry_tags):  # body before html
+            hex_color, found = _tailwind_background(site, element, dark)
             if found:
-                return found, "declared"
+                return (hex_color, "declared") if hex_color else (None, "unknown")
     candidates = [d for d in site.declarations()
                   if d.prop in BACKGROUND_PROPERTIES and not d.media
-                  and (is_page_selector(d.selector) if d.element is None
+                  and (is_page_selector(d.selector)
+                       or dark and is_dark_page_selector(d.selector)
+                       if d.element is None
                        else any(d.element is e for e in entry_tags))]
+    if dark:
+        candidates.sort(key=lambda d: d.element is None and is_dark_page_selector(
+            d.selector))  # stable: dark rules last, so they win
     if candidates:
         last = candidates[-1]
         found, unread = color_nodes(last.value, last.prop, resolver)
@@ -67,12 +84,11 @@ def page_background(site, resolver=None):
             for element in doc.elements:
                 if element.hidden or element.tag in ("html", "body", "head"):
                     continue
-                classes = set(element.classes)
-                if classes & FULL_HEIGHT:
-                    found = _tailwind_background(
-                        u for u in map(tailwind.split, element.classes) if u)
+                if set(element.classes) & FULL_HEIGHT:
+                    hex_color, found = _tailwind_background(site, element, dark)
                     if found:
-                        return found, "declared"
+                        return (hex_color, "declared") if hex_color else (
+                            None, "unknown")
                     break
     return None, "default"
 
@@ -96,20 +112,28 @@ def extract(inputs):
         hex_color = parse_color_text(content)
         if hex_color:
             uses[hex_color] += 1
-    tailwind_names = set()
+    tailwind_names, unknown = set(), set()
     for utility, _, _ in site.utilities():
-        hit = tailwind.color(utility)
+        hit = site.color(utility)
         if hit:
-            uses[hit[2]] += 1
             tailwind_names.add(hit[1])
-    classes = Counter()
+            if hit[2]:
+                uses[hit[2]] += 1
+            else:
+                unread += 1
+            continue
+        name = tailwind.unknown_color(utility, site.theme.colors)
+        if name:
+            unknown.add(name)
+    classes, hues, accents = Counter(), Counter(), Counter()
     for hex_color, count in uses.items():
-        classes[colors.classify(hex_color)] += count
-    hues = Counter()
-    for name, count in classes.items():
+        name = colors.classify(hex_color)
+        classes[name] += count
         if colors.is_chromatic(name):
             hues[colors.hue_of(name)] += count
-    background, how = page_background(site, resolver)
+            if colors.chroma_of(hex_color) >= colors.ACCENT_CHROMA:
+                accents[colors.hue_of(name)] += count
+    background, how = page_background(site)
     if background is not None:
         scheme = "dark" if colors.lightness_of(background) < 50 else "light"
         background_class = colors.classify(background)
@@ -123,8 +147,10 @@ def extract(inputs):
         "color_count": len(uses),
         "color_classes": sorted(classes),
         "hues": sorted(hues),
-        "dominant_hue": most_common(hues) or "none",
+        "dominant_hue": most_common(accents) or "none",
         "tailwind_colors": sorted(tailwind_names),
+        "unknown_color_utilities": len(unknown),
+        "unknown_color_names": sorted(unknown)[:MAX_UNKNOWN],
         "background": background_class,
         "background_hex": background,
         "base_scheme": scheme,

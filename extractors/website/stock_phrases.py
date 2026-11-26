@@ -6,12 +6,14 @@ import re
 from collections import Counter
 from functools import lru_cache
 from pathlib import Path
+from typing import NamedTuple
 
 from extractors.base import Extractor
 from extractors.website.site import get_site
 
 RULES_FILE = Path(__file__).with_name("stock_phrases.json")
-CODE_VERSION = "1"
+CODE_VERSION = "2"
+SCOPES = ("copy", "alt")
 MAX_REPEAT = 100
 MAX_TEXT = 2_000_000
 HEADINGS = ("h1", "h2", "h3")
@@ -22,6 +24,14 @@ _WORDS = re.compile(r"[^\W\d_]+(?:['’-][^\W\d_]+)*")
 _REPEAT = re.compile(r"\{(\d{1,3}),?(\d{0,3})\}")
 _SMALL_WORDS = frozenset({"a", "an", "and", "as", "at", "but", "by", "for", "in",
                           "of", "on", "or", "the", "to", "with", "from", "into"})
+
+
+class Rule(NamedTuple):
+    id: str
+    category: str
+    regex: re.Pattern
+    scope: str  # "copy" or "alt"
+    phrases: bool  # a phrase list (True) or a pattern
 
 
 class RuleError(ValueError):
@@ -68,7 +78,7 @@ def check_pattern(pattern):
 
 @lru_cache(maxsize=None)
 def load_rules(path=RULES_FILE):
-    """``(version, [(id, category, compiled regex)])`` from the rules file."""
+    """``(version, [Rule])`` from the rules file."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     version = data.get("version")
     if not isinstance(version, int) or version < 1:
@@ -96,7 +106,11 @@ def load_rules(path=RULES_FILE):
             regex = re.compile(check_pattern(rule["pattern"]))
         else:
             raise RuleError(f"rule {rule_id}: needs phrases or a pattern")
-        rules.append((rule_id, rule.get("category", "other"), regex))
+        scope = rule.get("scope", "copy")
+        if scope not in SCOPES:
+            raise RuleError(f"rule {rule_id}: scope {scope!r} is not one of {SCOPES}")
+        rules.append(Rule(rule_id, rule.get("category", "other"), regex, scope,
+                          "phrases" in rule))
     return version, rules
 
 
@@ -121,14 +135,26 @@ def extract(inputs):
         return {"status": "no-input"}
     _, rules = load_rules()
     copy = site.copy_texts()
-    # One piece per line, so no phrase is matched across two elements.
-    text = "\n".join(normalise(p) for p in copy + site.attribute_texts())[:MAX_TEXT]
-    counts, categories = Counter(), set()
-    for rule_id, category, regex in rules:
-        hits = sum(1 for _ in regex.finditer(text))
-        if hits:
-            counts[rule_id] = hits
-            categories.add(category)
+    # One block element's text per line: a phrase split by <span>s matches,
+    # one running across two blocks does not.
+    attributes = [element.attrs[name] for _, element in site.elements()
+                  for name in ("placeholder", "title", "aria-label")
+                  if element.attrs.get(name)]
+    alts = [element.attrs["alt"] for _, element in site.elements()
+            if element.attrs.get("alt")]
+    texts = {
+        "copy": "\n".join(normalise(p) for p in site.copy_units() + attributes),
+        "alt": "\n".join(normalise(p) for p in alts),
+    }
+    counts, matches, categories = Counter(), Counter(), set()
+    for rule in rules:
+        found = [m.group(0) for m in
+                 rule.regex.finditer(texts[rule.scope][:MAX_TEXT])]
+        if found:
+            counts[rule.id] = len(found)
+            categories.add(rule.category)
+            if rule.phrases:
+                matches.update(found)
     words = sum(len(_WORDS.findall(piece)) for piece in copy)
     joined = "".join(copy)
     headings = title_case = 0
@@ -143,6 +169,7 @@ def extract(inputs):
         "stock_phrases": sorted(counts),
         "stock_phrase_counts": {key: counts[key] for key in sorted(counts)},
         "stock_phrase_hits": sum(counts.values()),
+        "stock_phrase_matches": {key: matches[key] for key in sorted(matches)},
         "stock_phrase_categories": sorted(categories),
         "copy_word_count": words,
         "em_dash_count": joined.count("—"),

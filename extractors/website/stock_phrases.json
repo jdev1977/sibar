@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "about": "Stock phrases and copy patterns counted by the website.stock-phrases extractor (T1.4). Each rule paraphrases or names a pattern from a public list of 'AI slop' tells; lists were not copied whole. A hit means the page uses the phrase, not that a model wrote it. Phrases are matched case-insensitively on whole words; 'pattern' rules are regular expressions limited to bounded repeats (no * or +). Bump 'version' whenever a rule changes.",
+  "version": 2,
+  "about": "Stock phrases and copy patterns counted by the website.stock-phrases extractor (T1.4). Each rule paraphrases or names a pattern from a public list of 'AI slop' tells; lists were not copied whole. A hit means the page uses the phrase, not that a model wrote it. Phrases are matched case-insensitively on whole words; 'pattern' rules are regular expressions limited to bounded repeats (no * or +). 'scope' is 'copy' (the default: visible text per block element, plus placeholder, title and aria-label) or 'alt' (image alt text only). Bump 'version' whenever a rule changes.",
   "sources": {
     "wikipedia-signs": {
       "url": "https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing",
@@ -31,7 +31,7 @@
     {"id": "placeholder-lorem-ipsum", "category": "placeholder", "source": "pixelslop", "phrases": ["lorem ipsum", "dolor sit amet"]},
     {"id": "placeholder-coming-soon", "category": "placeholder", "source": "pixelslop", "phrases": ["coming soon"]},
     {"id": "placeholder-bracketed", "category": "placeholder", "source": "pixelslop", "pattern": "\\[(?:insert|your|add|enter) [^\\]\\n]{0,40}\\]"},
-    {"id": "placeholder-stock-alt", "category": "placeholder", "source": "pixelslop", "phrases": ["diverse team", "happy customer", "happy customers", "business meeting", "team collaboration", "working on laptop", "smiling person"]},
+    {"id": "placeholder-stock-alt", "category": "placeholder", "source": "pixelslop", "scope": "alt", "phrases": ["diverse team", "happy customer", "happy customers", "business meeting", "team collaboration", "working on laptop", "smiling person"]},
     {"id": "placeholder-doe-names", "category": "placeholder", "source": "ux-skill-ban-list", "phrases": ["john doe", "jane doe", "john smith", "jane smith"]},
     {"id": "placeholder-fake-company", "category": "placeholder", "source": "ux-skill-ban-list", "phrases": ["acme", "acme inc", "acme corp", "techcorp"]},
     {"id": "stat-round-plus", "category": "marketing", "source": "ux-skill-ban-list", "pattern": "\\b\\d{1,3}(?:,000|k)\\+"},

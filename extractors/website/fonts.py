@@ -8,8 +8,9 @@ from extractors.base import Extractor
 from extractors.website import catalog, tailwind
 from extractors.website.css import selector_parts, significant
 from extractors.website.site import get_site
+from extractors.website.values import Resolver, substitute_vars
 
-NAME, VERSION = "website.fonts", "1"
+NAME, VERSION = "website.fonts", "2"
 GENERIC = frozenset({"serif", "sans-serif", "monospace", "cursive", "fantasy",
                      "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace",
                      "ui-rounded", "math", "emoji", "fangsong"})
@@ -21,8 +22,6 @@ _SIZE_WORDS = frozenset({"xx-small", "x-small", "small", "medium", "large", "x-l
                          "xx-large", "xxx-large", "smaller", "larger"})
 _ICON_FONT = re.compile(r"icon|awesome|symbols|glyph")
 _HEADING = re.compile(r"(?:^|[\s>+~,(])h[1-3](?![\w-])")
-_CONFIG = re.compile(r"fontFamily\s*:\s*\{")
-_CONFIG_ENTRY = re.compile(r'(?:"§(\d+)"|([A-Za-z_][\w-]{0,40}))\s*:\s*\[\s*"§(\d+)"')
 _FONTSHARE = re.compile(r"f\[\]=([a-z0-9-]{1,60})")
 
 CATEGORY_NAMES = {
@@ -130,29 +129,6 @@ def _service_families(url):
     return [f for f in found if f]
 
 
-def _tailwind_config(site):
-    """``{key: first family}`` from an inline ``tailwind.config``'s
-    ``fontFamily``."""
-    found = {}
-    for script in site.scripts:
-        if "tailwind" not in script.code:
-            continue
-        for match in _CONFIG.finditer(script.code):
-            block = script.code[match.end():match.end() + 2000]
-            depth, end = 1, len(block)
-            for index, char in enumerate(block):
-                depth += {"{": 1, "}": -1}.get(char, 0)
-                if depth == 0:
-                    end = index
-                    break
-            for entry in _CONFIG_ENTRY.finditer(block[:end]):
-                key = (script.strings[int(entry.group(1))] if entry.group(1)
-                       else entry.group(2))
-                family = normalise(script.strings[int(entry.group(3))])
-                found.setdefault(key, family)
-    return found
-
-
 def _tailwind_family(utility, config):
     base = utility.base
     if base.startswith("font-") and base[5:] in config:
@@ -182,10 +158,12 @@ def extract(inputs):
         return {"status": "no-input"}
     declared, loaded, sources = set(), set(), set()
     primary = heading = None
+    resolver = Resolver(site.declarations())
     for declaration in site.declarations():
         if declaration.prop not in ("font-family", "font"):
             continue
-        names = families_of(declaration.value, declaration.prop == "font")
+        names = families_of(substitute_vars(declaration.value, resolver),
+                            declaration.prop == "font")
         if declaration.selector == "@font-face":
             loaded.update(names)
             continue
@@ -225,7 +203,7 @@ def extract(inputs):
             if service:
                 sources.add(service)
                 loaded.update(_service_families(target))
-    config = _tailwind_config(site) if site.tailwind != "none" else {}
+    config = dict(site.theme.fonts) if site.tailwind != "none" else {}
     if site.tailwind != "none":
         for utility, _, _ in site.utilities():
             family = _tailwind_family(utility, config)

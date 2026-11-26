@@ -4,9 +4,10 @@ A colour is kept as ``#rrggbb`` (lower case, alpha dropped; fully
 transparent colours are not colours here) and named by a **class**:
 
 - ``black``, ``white``, or ``gray-<lightness>`` for near-neutral colours:
-  CIELAB chroma below 12, or below 6 for light colours (L* 85 or more), so
-  Tailwind's ``gray`` family stays neutral while creams such as ``#fdf6e3``
-  read as ``yellow-light`` (``slate`` 400 to 900 read as blue);
+  CIELAB chroma below 16, or below 6 for light colours (L* 85 or more), so
+  Tailwind's grey families (``slate`` and ``gray`` included, chroma up to
+  14.5) stay neutral while creams such as ``#fdf6e3`` read as
+  ``yellow-light`` and navies such as ``#1e3a8a`` (chroma about 50) as blue;
 - otherwise ``<hue>-<lightness>``, with hue one of :data:`HUES` (from the HSL
   hue angle; ``brown`` is a dark orange or yellow).
 
@@ -27,7 +28,8 @@ import math
 
 from extractors.website.tailwind_palette import PALETTE
 
-NEUTRAL_CHROMA = 12.0
+NEUTRAL_CHROMA = 16.0
+ACCENT_CHROMA = 20.0  # strong enough to count as the page's hue
 NEUTRAL_CHROMA_LIGHT = 6.0  # from L* 85
 HUES = ("red", "orange", "brown", "yellow", "green", "teal", "blue", "indigo",
         "violet", "purple", "pink")
@@ -230,6 +232,12 @@ def _lab(rgb):
         return t ** (1 / 3) if t > 0.008856 else 7.787 * t + 16 / 116
     fx, fy, fz = f(x), f(y), f(z)
     return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
+
+
+def chroma_of(hex_color):
+    """CIELAB chroma C* (0 for greys; about 130 at most in sRGB)."""
+    _, a, b = _lab(rgb_of(hex_color))
+    return math.hypot(a, b)
 
 
 def lightness_of(hex_color):

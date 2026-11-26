@@ -230,7 +230,8 @@ def resolve(target, kind):
     if kind in ("module", "package", "importmap") and not lowered.startswith(
             (".", "/")):
         name = package_name(target)
-        if name in _BUILTIN or name.startswith(("node:", "~", "$", "@/", "#"))                 or not name:
+        if not name or name in _BUILTIN or name.startswith(
+                ("node:", "~", "$", "@/", "#")):
             return None, "package", None
         slug = library_of_package(name)
         return slug, "package", (None if slug else name)

@@ -114,7 +114,7 @@ def test_palette_plain_css(plain_css):
         "color_classes": ["black", "blue-mid", "brown-dark", "gray-dark", "gray-light",
                           "orange-mid", "violet-mid", "white", "yellow-light"],
         "hues": ["blue", "brown", "orange", "violet", "yellow"],
-        "dominant_hue": "brown",  # brown and yellow both 3; ties go alphabetically
+        "dominant_hue": "brown",  # the cream (yellow) is too pale to count
         "background": "yellow-light", "background_hex": "#fdf6e3",
         "base_scheme": "light", "tailwind_colors": [], "unparsed_colors": 0,
     })
@@ -125,7 +125,7 @@ def test_palette_react_wrapper_background(react_spa):
         "tailwind_colors": ["cyan-400", "slate-100", "slate-400", "slate-500",
                             "slate-900", "slate-950", "violet-400", "violet-500"],
         "background": "black", "background_hex": "#020617", "base_scheme": "dark",
-        "dominant_hue": "blue",  # Tailwind's slate reads as a dark blue-grey
+        "dominant_hue": "violet",  # slate is neutral; violet-400/500 are the accent
     })
 
 
@@ -429,9 +429,9 @@ def test_every_rule_has_a_source_url_and_matches_an_example():
         "marketing-faster-smarter": "build faster",
         "construction-no-no-just": "no fuss, no waiting, just bread",
     }
-    for rule_id, _, regex in rules:
-        if rule_id in examples:
-            assert regex.search(examples[rule_id]), rule_id
+    for rule in rules:
+        if rule.id in examples:
+            assert rule.regex.search(examples[rule.id]), rule.id
 
 
 @pytest.mark.parametrize("pattern", ["a*", "(?:ab)+", "x{1,500}", "(ab){2,3}",
@@ -580,6 +580,9 @@ HOSTILE = {
     "binary.html": bytes(range(256)) * 4000,
     "emoji.html": "\U0001F35E‍".encode() * 100_000,
     "classes.html": b'<div class="' + b"bg-red-500 rounded-xl " * 50_000 + b'">',
+    "config.html": b"<script>tailwind.config=" + b"{colors:{a:" * 100_000
+    + b"</script>",
+    "theme.css": b"@theme{" + b"--color-a: var(--color-a);" * 50_000 + b"}",
 }
 
 
@@ -621,3 +624,201 @@ def test_fontsource_imports():
                             inputs)["website.fonts"][1]
     assert values["font_sources"] == ["fontsource"]
     assert values["loaded_families"] == ["dm sans", "inter"]
+
+
+
+# --- Fix round 1: pages from the review --------------------------------------------
+# tw-dark-slate, css-variables, react-components, tw-light-config, forced-dark and
+# tailwind-v4 are the reviewer's hand-made pages, kept as fixtures.
+
+
+@pytest.fixture(scope="module")
+def slate():
+    return run("tw-dark-slate")
+
+
+@pytest.fixture(scope="module")
+def variables():
+    return run("css-variables")
+
+
+@pytest.fixture(scope="module")
+def components():
+    return run("react-components")
+
+
+@pytest.fixture(scope="module")
+def light_config():
+    return run("tw-light-config")
+
+
+@pytest.fixture(scope="module")
+def forced():
+    return run("forced-dark")
+
+
+@pytest.fixture(scope="module")
+def tailwind4():
+    return run("tailwind-v4")
+
+
+def only(name, page, files=()):
+    """Values of one extractor on a page given as text."""
+    inputs = Inputs([InputFile("index.html", page.encode())]
+                    + [InputFile(path, text.encode()) for path, text in files])
+    return run_extractors([e for e in WEBSITE if e.name == f"website.{name}"],
+                          inputs)[f"website.{name}"][1]
+
+
+def test_slate_is_neutral_so_indigo_dominates(slate):
+    # C1: slate-400..900 (chroma 13 to 15) were blue and outvoted indigo.
+    check(slate["palette"], {"dominant_hue": "indigo", "background": "black",
+                             "base_scheme": "dark"})
+    assert "blue-dark" not in slate["palette"]["color_classes"]
+
+
+def test_dominant_hue_ignores_pale_tints():
+    page = ('<style>body{background:#fdf6e3;color:#fef9ef}h1{color:#fdf6e3}'
+            '.a{color:#fdf6e3}.b{color:#2563eb}</style><h1>x</h1>')
+    values = only("palette", page)
+    assert values["hues"] == ["blue", "yellow"]
+    assert values["dominant_hue"] == "blue"
+
+
+def test_theme_colours_from_inline_config(light_config, slate):
+    # Important 1: colors in an inline tailwind.config.
+    values = light_config["palette"]
+    assert "accent" in values["tailwind_colors"] and "#8b5cf6" in values["colors"]
+    assert values["unknown_color_utilities"] == 0
+
+
+def test_theme_colours_from_config_file(components):
+    # Important 1: tailwind.config.js; hsl(var(--x)) values are known names
+    # whose colour cannot be read.
+    values = components["palette"]
+    assert {"brand-500", "brand-600", "primary", "border"} <= set(
+        values["tailwind_colors"])
+    assert {"#10b981", "#059669"} <= set(values["colors"])
+    assert values["dominant_hue"] == "green"
+    assert values["unparsed_colors"] == 5  # primary, primary-foreground, border,
+    # and bg-background / text-foreground from @apply
+    assert values["unknown_color_utilities"] == 0
+
+
+def test_theme_colours_from_v4_theme(tailwind4):
+    # Important 1 and the v4 font: @theme --color-* and --font-sans.
+    check(tailwind4["palette"], {
+        "tailwind_colors": ["brand-500", "brand-600", "neutral-100", "neutral-400",
+                            "neutral-950", "pink-500"],
+        "dominant_hue": "violet", "unknown_color_utilities": 0})
+    check(tailwind4["gradients"], {"gradient_pairs": ["violet>pink"],
+                                   "gradient_text": True})
+    check(tailwind4["corners-shadows"], {"shadow_kinds": ["colored", "soft"]})
+    check(tailwind4["fonts"], {"primary_font": "manrope", "families": ["manrope"]})
+
+
+def test_unknown_colour_utilities_are_counted():
+    page = ('<script src="https://cdn.tailwindcss.com"></script>'
+            '<div class="bg-brand-500 text-xl border-2 text-ink border-ink">x</div>')
+    values = only("palette", page)
+    assert values["unknown_color_utilities"] == 2
+    assert values["unknown_color_names"] == ["brand-500", "ink"]
+
+
+def test_fonts_from_config_file(components):
+    # Important 2: tailwind.config.js was skipped (its "tailwind" was in a comment).
+    check(components["fonts"], {"primary_font": "geist", "heading_font": "cal sans",
+                                "families": ["cal sans", "geist", "inter"]})
+
+
+def test_fonts_through_variables(variables):
+    # Important 3.
+    check(variables["fonts"], {"primary_font": "dm sans",
+                               "heading_font": "playfair display",
+                               "generic_families": ["sans-serif", "serif"]})
+
+
+def test_shadows_through_variables(variables):
+    # Important 4: --shadow-sm (subtle), --shadow-lg (soft), --shadow-glow.
+    check(variables["corners-shadows"], {
+        "shadow_count": 3, "shadow_kinds": ["colored", "glow", "soft", "subtle"],
+        "radii": ["8px", "16px"]})
+
+
+def test_gradients_counted_where_variables_use_them(variables):
+    # Important 5: --gradient-primary is defined once and used twice.
+    check(variables["gradients"], {
+        "gradient_count": 3, "gradient_types": ["linear", "radial"],
+        "gradient_pairs": ["orange>orange"], "gradient_text": True,
+        "gradient_targets": ["button", "hero", "text"]})
+
+
+def test_single_stops_and_variant_stops_make_no_pair(slate, components):
+    # A from-colour fading to transparent is one stop: no indigo>indigo.
+    check(slate["gradients"], {"gradient_pairs": ["indigo>pink", "indigo>purple"]})
+    # dark:from-slate-900 is not a stop of the light gradient.
+    check(components["gradients"], {"gradient_pairs": ["green>white"]})
+
+
+def test_forced_dark_page(forced, variables):
+    # Important 6: <html class="dark"> with no way back is dark only, and its
+    # background is the dark: one.
+    check(forced["palette"], {"background": "black", "background_hex": "#09090b",
+                              "base_scheme": "dark"})
+    check(forced["dark-mode"], {"dark_mode": "dark-only", "forced_dark": True,
+                                "theme_toggle": False})
+    # data-theme="dark" with a toggle stays a toggle.
+    check(variables["dark-mode"], {"dark_mode": "toggle", "forced_dark": True,
+                                   "theme_toggle": True})
+    check(variables["palette"], {"base_scheme": "dark", "background_hex": "#1c1917"})
+
+
+def test_forced_dark_through_css_variables():
+    page = ('<html data-theme="dark"><style>:root{--bg:#ffffff}'
+            '[data-theme="dark"]{--bg:#111827}body{background:var(--bg)}</style>'
+            '<body><h1>x</h1></body></html>')
+    assert only("palette", page)["base_scheme"] == "dark"
+    assert only("dark-mode", page)["dark_mode"] == "dark-only"
+
+
+def test_hero_rules(light_config, slate):
+    # Important 7: the first block with an h1 is the hero even when its words
+    # name something else ("products" used to make it a menu).
+    check(light_config["layout"], {
+        "sections": ["header", "hero", "other", "contact", "footer"], "hero": True})
+    # The CTA band's "Ready to Get Started?" (Important 8).
+    check(slate["layout"], {
+        "sections": ["nav", "hero", "other", "features", "pricing", "testimonials",
+                     "faq", "cta", "footer"]})
+
+
+def test_hero_name_beats_header_tag_and_h1_words_do_not_name_kinds():
+    page = ('<body><header class="hero"><h1>Pricing for everyone</h1></header>'
+            '<section><h1>Our team</h1></section></body>')
+    assert only("layout", page)["sections"] == ["hero", "other"]
+
+
+def test_card_groups_with_a_highlighted_card_and_mapped_cards(slate, components):
+    check(slate["layout"], {"card_group_sizes": [3, 3, 3], "card_groups": 3})
+    check(components["layout"], {"card_groups": 2, "mapped_card_groups": 2,
+                                 "card_group_sizes": []})
+
+
+def test_phrases_split_by_inline_elements_match():
+    page = "<h2>Ready to <span>get</span> <em>started</em>?</h2><p>Learn</p><p>more</p>"
+    values = only("stock-phrases", page)
+    assert values["stock_phrase_counts"] == {"cta-get-started": 1}
+
+
+def test_stock_alt_rule_reads_alt_text_only(variables):
+    # Important 9: "Happy Customers" as a stat label is not stock alt text.
+    assert "placeholder-stock-alt" not in variables["stock-phrases"]["stock_phrases"]
+    values = only("stock-phrases", '<img src="a.jpg" alt="Happy customer smiling">'
+                                   "<p>Happy customer</p>")
+    assert values["stock_phrase_counts"] == {"placeholder-stock-alt": 1}
+
+
+def test_per_phrase_matches(slate):
+    check(slate["stock-phrases"], {
+        "stock_phrase_matches": {"acme": 1, "empowers": 1, "game-changer": 1,
+                                 "get started": 2, "robust": 1, "unlock": 1}})

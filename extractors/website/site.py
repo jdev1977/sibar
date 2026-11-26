@@ -34,6 +34,7 @@ TEMPLATE_TYPES = frozenset({"text/template", "text/x-template", "text/html",
 MAX_FRAGMENTS = 500
 MAX_NESTED = 2
 ATTRIBUTE_TEXT = ("alt", "placeholder", "title", "aria-label")
+DARK_ATTRIBUTES = ("data-theme", "data-mode", "data-bs-theme", "data-color-scheme")
 _TAILWIND_REFERENCE = re.compile(
     r"(?:^|[/@.])tailwindcss(?:$|[/@.])|cdn\.tailwindcss\.com|@tailwindcss/")
 _TAILWIND_CONFIG = re.compile(r"(?:^|/)tailwind\.config\.(?:js|cjs|mjs|ts)$")
@@ -146,6 +147,36 @@ class Site:
         return [element.attrs.get("content", "") for doc in self.docs
                 if not doc.fragment for element in doc.find("meta")
                 if element.attrs.get("name", "").strip().lower() == name]
+
+    def copy_units(self):
+        """As :meth:`copy_texts`, but markup text joined per block element."""
+        texts = [t for doc in self.docs for t in doc.copy_units()]
+        for script in self.scripts:
+            texts += script.prose_strings()
+        return texts
+
+    @property
+    def theme(self):
+        """The project's own Tailwind theme (colours and fonts)."""
+        from extractors.website.tailwind_config import get_theme
+        return get_theme(self)
+
+    def color(self, utility):
+        """:func:`tailwind.color` with the project's theme colours."""
+        return tailwind.color(utility, self.theme.colors)
+
+    def forced_dark(self):
+        """True when the entry page starts in its dark theme: ``class="dark"``
+        or ``data-theme="dark"`` (and similar) on ``<html>`` or ``<body>``."""
+        if self.entry is None:
+            return False
+        for element in self.entry.find("html", "body"):
+            if "dark" in element.classes:
+                return True
+            if any(element.attrs.get(name, "").strip().lower() == "dark"
+                   for name in DARK_ATTRIBUTES):
+                return True
+        return False
 
     def attribute_texts(self):
         """Text in ``alt``, ``placeholder``, ``title`` and ``aria-label``."""

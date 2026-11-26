@@ -48,6 +48,21 @@ _COLOR = re.compile(
     r"outline|decoration|divide|accent|caret|shadow|placeholder)-"
     r"((?:" + _FAMILIES + r")-\d{2,3}|white|black|\[#[0-9a-fA-F]{3,8}\])"
     r"(?:/(\d{1,3}|\[[\d.%]{1,8}\]))?")
+_ANY_COLOR = re.compile(
+    r"(bg|text|border(?:-[xytrblse])?|from|via|to|ring-offset|ring|fill|stroke|"
+    r"outline|decoration|divide|accent|caret|shadow|placeholder)-"
+    r"([a-z][a-z0-9-]{0,40}?)(?:/(\d{1,3}|\[[\d.%]{1,8}\]))?")
+# Values of those prefixes that are not colours.
+_NOT_COLOR = re.compile(
+    r"[xytrblse](?:-.{0,40})?|\d.{0,40}|\[.{0,60}|(?:xs|sm|base|lg|md|\d?xl|left|"
+    r"center|right|justify|start|end|wrap|nowrap|balance|pretty|ellipsis|clip|"
+    r"solid|dashed|dotted|double|wavy|none|hidden|collapse|separate|cover|contain|"
+    r"auto|top|bottom|fixed|local|scroll|inset|inner|reverse|from-font|slice|"
+    r"clone|no-repeat|shown|underline|overline|line-through|opacity|spacing|"
+    r"size|position|blend|origin|repeat|gradient|linear|radial|conic|offset|"
+    r"opacity-\d{1,3}|(?:clip|origin|repeat|gradient|linear|radial|conic|"
+    r"blend|offset|spacing|size|position|left|right|center|top|bottom)-.{1,40})")
+COLOR_KEYWORDS = frozenset({"current", "inherit", "transparent", "currentcolor"})
 _RADIUS = re.compile(
     r"rounded(?:-(?:t|r|b|l|tl|tr|br|bl|s|e|ss|se|es|ee))?"
     r"(?:-(none|xs|sm|md|lg|xl|2xl|3xl|full|\[[^\]]{1,30}\]))?")
@@ -95,15 +110,42 @@ def split(token):
     return Utility(token, tuple(parts), base.lstrip("-"), negative)
 
 
-def color(utility):
-    """``(property, colour name, hex)`` for a colour utility, else None."""
+def color(utility, theme=None):
+    """``(property, colour name, hex)`` for a colour utility, else None.
+
+    ``theme`` maps the project's own colour names (``primary-500``) to hex or
+    None; a theme name whose value is not a plain colour gives hex None.
+    """
     match = _COLOR.fullmatch(utility.base)
-    if not match:
+    if match:
+        hex_color = tailwind_color(match.group(2))
+        if hex_color is None or match.group(3) in ("0", "[0]", "[0%]"):
+            return None
+        return match.group(1), match.group(2), hex_color
+    if not theme:
         return None
-    hex_color = tailwind_color(match.group(2))
-    if hex_color is None or match.group(3) in ("0", "[0]", "[0%]"):
+    match = _ANY_COLOR.fullmatch(utility.base)
+    if not match or match.group(2) not in theme or match.group(3) in ("0", "[0]"):
         return None
-    return match.group(1), match.group(2), hex_color
+    return match.group(1), match.group(2), theme[match.group(2)]
+
+
+def unknown_color(utility, theme=None):
+    """The name in a colour utility whose name is neither a palette colour,
+    a theme colour nor a non-colour value (``text-xl``, ``border-2``,
+    ``bg-cover``), else None: a colour the page uses but this reader cannot
+    see, such as one from a theme file that was not read."""
+    match = _ANY_COLOR.fullmatch(utility.base)
+    if not match or _COLOR.fullmatch(utility.base):
+        return None
+    name = match.group(2)
+    if theme and name in theme:
+        return None
+    if _NOT_COLOR.fullmatch(name) or name in COLOR_KEYWORDS:
+        return None
+    if match.group(1) == "shadow" and name in SHADOW_KIND:
+        return None
+    return name
 
 
 def radius(utility):

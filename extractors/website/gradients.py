@@ -7,9 +7,11 @@ from extractors.base import Extractor
 from extractors.website import colors, tailwind
 from extractors.website.css import is_page_selector, significant, walk
 from extractors.website.site import get_site
-from extractors.website.values import Resolver, color_nodes, visible
+from extractors.website.values import (
+    Resolver, color_nodes, substitute_vars, visible,
+)
 
-NAME, VERSION = "website.gradients", "1"
+NAME, VERSION = "website.gradients", "2"
 GRADIENTS = {"linear-gradient": "linear", "radial-gradient": "radial",
              "conic-gradient": "conic", "repeating-linear-gradient": "linear",
              "repeating-radial-gradient": "radial",
@@ -58,7 +60,8 @@ def _target(selector, element):
 
 
 def _pair(hexes):
-    if not hexes:
+    """``first>last`` hue of a gradient with two or more visible stops."""
+    if len(hexes) < 2:
         return None
     first, last = (colors.hue_of(colors.classify(h)) for h in (hexes[0], hexes[-1]))
     return f"{first}>{last}"
@@ -78,7 +81,9 @@ def extract(inputs):
             clip_rules.add((declaration.selector, id(declaration.element)))
     gradient_rules = set()
     for declaration in site.declarations():
-        for node in walk(declaration.value):
+        if declaration.prop.startswith("--"):
+            continue  # a definition; it counts where var() uses it
+        for node in walk(substitute_vars(declaration.value, resolver)):
             if node.type != "function" or node.lower_name not in GRADIENTS:
                 continue
             count += 1
@@ -93,7 +98,9 @@ def extract(inputs):
             pair = _pair(hexes)
             if pair:
                 pairs.add(pair)
-            targets.add(_target(declaration.selector, declaration.element))
+            rule = (declaration.selector, id(declaration.element))
+            targets.add("text" if rule in clip_rules else
+                        _target(declaration.selector, declaration.element))
             gradient_rules.add((declaration.selector, id(declaration.element)))
     if clip_rules & gradient_rules:
         text = True
@@ -111,8 +118,9 @@ def extract(inputs):
             found = tailwind.gradient(utility)
             if found:
                 gradient = found
-            hit = tailwind.color(utility)
-            if hit and hit[0] in ("from", "via", "to"):
+            hit = site.color(utility)
+            if (hit and hit[0] in ("from", "via", "to") and hit[2]
+                    and not utility.variants):
                 stops.setdefault(hit[0], hit[2])
         if gradient is None:
             continue
