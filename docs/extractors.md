@@ -234,27 +234,31 @@ proportion to its size:
 
 - each custom property is expanded once (its own top-level `var()`s
   substituted) and its colours read once, then reused;
-- a value that expands past 400 component values is unreadable. Values inside
-  functions and blocks count too, so a huge gradient behind a variable is not
-  one value (a six-layer mesh gradient is about 140, a five-layer shadow
-  about 90);
+- a value whose size expands past 2,000 is unreadable. Size is the number of
+  component values plus the characters of their text. Values inside
+  functions and blocks count, so a huge gradient behind a variable is not
+  one value; every character counts, so neither is one huge string or word
+  (a six-layer mesh gradient is about 510, a five-layer shadow about 250);
 - as text inside a colour function (`hsl(var(--primary))`) the limit is 300
   characters; at most 50 colours are taken from one property;
-- every use is charged to a budget of 300,000 per page and extractor: one for
-  each component value spliced in and each character substituted. A page that
+- every use is charged to a budget of 1,000,000 per page and extractor: the
+  size of each value spliced in and each character substituted. A page that
   spends it gets its remaining `var()`s left unresolved (they count as
-  unreadable, as above). The hand-made fixtures spend under 200.
+  unreadable, as above). The hand-made fixtures spend about 600 at most.
 
 What a property resolves to depends on the stylesheet only, not on which rule
 uses it first: a property that reaches a cycle of `var()`s is unreadable, and
-so is every property that reaches it. Only a page that spends the budget is
+so is every property that reaches it. Plain colour words in a variable
+are read by the property that uses it (all of them in a colour property;
+in another custom property only when the word is the whole value), also
+whichever comes first. Only a page that spends the budget is
 cut off at a point that depends on its rule order (the same page still gives
 the same features every time).
 
 ## The website extractors
 
 Versions: palette, fonts, layout, corners-shadows, gradients and dark-mode
-`5`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
+`6`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
 extractor returns `status: no-input`.
 
 ### website.palette

@@ -2,7 +2,6 @@
 shared by the website extractors."""
 
 import re
-from itertools import islice
 
 import tinycss2
 
@@ -28,19 +27,22 @@ MAX_VAR_DEPTH = 4  # rounds of var() substitution in colour-function text
 # Bounds on following var(), so that a hostile stylesheet costs time in
 # proportion to its size and no more:
 # - a custom property whose value, with its top-level var()s substituted,
-#   holds more than MAX_EXPANDED component values is unreadable. Every value
-#   counts, also those inside functions and blocks, so nesting hides nothing;
+#   is larger than MAX_EXPANDED is unreadable. Size is the number of
+#   component values plus the characters of their text (names, strings,
+#   numbers, white space). Values inside functions and blocks count, so
+#   nesting hides nothing, and so does every character, so one huge token
+#   (a 900 KB string) is not one small value;
 # - as text inside a colour function the limit is MAX_TEXT characters;
 # - at most MAX_VAR_COLORS colours are taken from one property;
 # - each property is expanded once and its colours read once (memoised);
 # - every use of a property is charged against one budget per page,
-#   MAX_PAGE_WORK: a component value spliced in or a character substituted
-#   costs one unit. When the budget is spent, the var()s that follow are left
-#   unresolved. Ordinary pages use a small part of it.
-MAX_EXPANDED = 400
+#   MAX_PAGE_WORK: the size of each value spliced in, and each character
+#   substituted as text. When the budget is spent, the var()s that follow
+#   are left unresolved. Ordinary pages use a small part of it.
+MAX_EXPANDED = 2000
 MAX_TEXT = 300
 MAX_VAR_COLORS = 50
-MAX_PAGE_WORK = 300_000
+MAX_PAGE_WORK = 1_000_000
 FONT_SIZE_PX = 16  # rem and em are read as 16px
 
 _MISSING, _PENDING, _CYCLE = object(), object(), object()
@@ -57,9 +59,31 @@ def _var_target(node):
     return None
 
 
+_TEXT_FIELDS = ("value", "name", "representation", "unit")
+
+
 def _size(node, limit):
-    """Component values in ``node``, itself included, counted to ``limit``."""
-    return sum(1 for _ in islice(walk((node,)), max(limit, 1)))
+    """The size of ``node``: one for it and for each component value inside
+    it, plus the characters of their text. Counting stops at ``limit``."""
+    total = 0
+    for item in walk((node,)):
+        total += 1
+        for field in _TEXT_FIELDS:
+            text = getattr(item, field, None)
+            if isinstance(text, str):
+                total += len(text)
+        if total >= limit:
+            break
+    return total
+
+
+def _word_mode(prop):
+    """How plain words read in a property: ``all`` are colours (a colour
+    property), ``one`` is when it is the whole value (a custom property),
+    or ``none``."""
+    if prop in COLOR_PROPERTIES:
+        return "all"
+    return "one" if prop.startswith("--") else "none"
 
 
 def _scan(nodes):
@@ -136,7 +160,7 @@ class Resolver:
         """The value of ``name`` with its top-level ``var()``s substituted
         (a ``var()`` naming an unreadable property is kept as it is). None if
         the property is unknown, reaches a cycle of top-level ``var()``s, or
-        holds more than :data:`MAX_EXPANDED` component values."""
+        is larger than :data:`MAX_EXPANDED` (values plus characters)."""
         key = name.lower()
         if key not in self._expanded:
             self._expand(key)
@@ -144,7 +168,8 @@ class Resolver:
         return None if state is _CYCLE else state
 
     def size(self, name):
-        """Component values in :meth:`expanded`, nested ones included."""
+        """The size of :meth:`expanded`: component values, nested ones
+        included, plus the characters of their text."""
         return self._sizes.get(name.lower(), 0)
 
     def _expand(self, start):
@@ -207,22 +232,22 @@ class Resolver:
             self._text[key] = text if text and len(text) <= MAX_TEXT else None
         return self._text[key]
 
-    def colors_of(self, name, prop):
-        """``color_nodes`` of a property's value, read once per property;
-        None if the property is unreadable or reaches a cycle through the
-        ``var()``s inside its value."""
-        words = prop in COLOR_PROPERTIES or prop.startswith("--")
-        start = (name.lower(), words)
+    def colors_of(self, name, mode):
+        """The colours of a property's value, read once per property and
+        word mode (see ``_word_mode``); None if the property is unreadable
+        or reaches a cycle through the ``var()``s inside its value."""
+        start = (name.lower(), mode)
         if start not in self._colors:
-            self._read_colors(start, prop)
+            self._read_colors(start)
         state = self._colors[start]
         if state is None or state is _CYCLE or not self.spend(1 + len(state[0])):
             return None
         return state
 
-    def _read_colors(self, start, prop):
+    def _read_colors(self, start):
         # As _expand: the properties named inside a value are read first, so
-        # color_nodes below finds them memoised and never recurses deeper.
+        # _colors below finds them memoised and never recurses deeper. The
+        # word mode is that of the memo key, never that of the first caller.
         memo, words, stack = self._colors, start[1], [start[0]]
         while stack:
             name = stack[-1]
@@ -253,7 +278,7 @@ class Resolver:
                    or memo.get((target, words)) is _CYCLE for target in inside):
                 memo[key] = _CYCLE
             else:
-                found, unread = color_nodes(nodes, prop, self)
+                found, unread = _colors(nodes, words, self)
                 memo[key] = (found[:MAX_VAR_COLORS], unread)
 
 
@@ -261,9 +286,13 @@ def color_nodes(nodes, prop, resolver=None):
     """``(hex, alpha)`` of each colour in ``nodes``, in order; and the count
     of colour values that could not be read (``var()`` that does not
     resolve, ``lab()``, ``color()``...)."""
+    return _colors(nodes, _word_mode(prop), resolver)
+
+
+def _colors(nodes, mode, resolver):
     found, unread = [], 0
-    words_are_colors = prop in COLOR_PROPERTIES or (
-        prop.startswith("--") and len(significant(nodes)) == 1)
+    words_are_colors = mode == "all" or (
+        mode == "one" and len(significant(nodes)) == 1)
     skip = set()
     for node in _scan(nodes):
         if id(node) in skip:
@@ -295,7 +324,7 @@ def color_nodes(nodes, prop, resolver=None):
                 unread += 1
             elif name == "var":
                 target = _var_target(node)
-                read = (resolver.colors_of(target, prop)
+                read = (resolver.colors_of(target, mode)
                         if resolver and target else None)
                 if read is not None:
                     found += read[0]
@@ -310,7 +339,7 @@ def color_nodes(nodes, prop, resolver=None):
 def serialize_within(node, limit):
     """The text of ``node`` if it is at most ``limit`` characters, else ""
     (decided from its size first: a huge function is not serialised)."""
-    if _size(node, limit + 1) > limit:
+    if _size(node, 4 * limit) >= 4 * limit:
         return ""
     text = node.serialize()
     return text if len(text) <= limit else ""

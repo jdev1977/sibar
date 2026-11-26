@@ -965,6 +965,20 @@ SPLICE_BOMBS = {
     # Many different colour-function texts, each resolved as text.
     "text-uses": ":root{--h:%s}" % ("1 " * 140) + "".join(
         ".a%d{color:hsl(var(--h) var(--h) %d)}" % (i, i) for i in range(20000)),
+    # One huge token behind a variable: a single component value, but each
+    # use would cost its length. As a font name, an ident in a shadow, and
+    # a string inside a colour function inside a gradient.
+    "huge-font-string": ':root{--f:"%s"}' % ("A" * 900_000) + "".join(
+        ".a%d{font-family:var(--f)}" % i for i in range(30000)),
+    "huge-shadow-ident": ":root{--c:0 0 4px %s}" % ("a" * 900_000) + "".join(
+        ".a%d{box-shadow:var(--c)}" % i for i in range(30000)),
+    "huge-string-in-gradient": ':root{--g:linear-gradient(hsl("%s" var(--q)),red);'
+    '--s:0 0 4px hsl("%s" var(--q))}' % ("A" * 400_000, "A" * 400_000) + "".join(
+        ".a%d{background:var(--g);box-shadow:var(--s)}" % i for i in range(20000)),
+    # Tokens just under the size cap: the page budget has to stop them.
+    "large-tokens": ':root{--f:"%s";--c:0 0 4px %s}' % ("A" * 900, "a" * 1800)
+    + "".join(".a%d{font-family:var(--f);box-shadow:var(--c)}" % i
+              for i in range(20000)),
 }
 
 
@@ -1029,6 +1043,25 @@ def test_colours_through_nested_vars_do_not_depend_on_the_order_of_use():
         assert read[".a"] == read[".b"] == ([("#ff0000", 1.0)], 0)
         assert read[".c"] == read[".d"] == read[".e"] == ([], 1)
     assert len(seen) == 1
+
+
+def test_words_in_a_variable_read_the_same_whatever_the_rule_order():
+    # --x holds two colour words. Through a colour property both are colours;
+    # through another custom property (words count only as a whole value)
+    # neither is. The first use must not decide for the second.
+    from extractors.website.css import parse_css
+    from extractors.website.values import color_nodes
+    css = ":root{--x:red blue}.z{--z:var(--x)}.b{color:var(--x)}"
+    uses = [d for d in parse_css(css, "x.css").declarations if d.prop != "--x"]
+    for order in (uses, uses[::-1]):
+        resolver = _resolver(css)
+        read = {d.prop: color_nodes(d.value, d.prop, resolver) for d in order}
+        assert read == {"--z": ([], 0),
+                        "color": ([("#ff0000", 1.0), ("#0000ff", 1.0)], 0)}
+    pages = ["<style>:root{--x:red blue}%s</style><p>x</p>" % rules for rules in (
+        ".z{--z:var(--x)}.b{color:var(--x)}", ".b{color:var(--x)}.z{--z:var(--x)}")]
+    first, second = (only("palette", page) for page in pages)
+    assert first == second and first["colors"] == ["#0000ff", "#ff0000"]
 
 
 def test_palette_is_the_same_whatever_the_rule_order():

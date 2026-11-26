@@ -10,7 +10,7 @@ from extractors.website.values import (
     Resolver, color_nodes, most_common, parse_color_text, visible,
 )
 
-NAME, VERSION = "website.palette", "5"
+NAME, VERSION = "website.palette", "6"
 COLOR_ATTRIBUTES = ("fill", "stroke", "stop-color", "color", "bgcolor")
 BACKGROUND_PROPERTIES = ("background", "background-color")
 FULL_HEIGHT = frozenset({"min-h-screen", "h-screen", "min-h-full", "min-h-dvh",
