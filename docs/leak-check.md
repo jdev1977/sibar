@@ -5,9 +5,21 @@ to leave open. The project measures what a model chooses by default, so a
 leak is counted as a default when it is really an instruction.
 
 These rules were written for the website prompts (T1.2 in
-[tasks.md](../tasks.md)) and are meant to be reused by T2.2 and by the Wave 2
-leak checks (W2.x.2). The website log is
-[prompts/website/leak-check.md](../prompts/website/leak-check.md).
+[tasks.md](../tasks.md)) and reused for the pipeline, math and engineering
+prompts (T2.2). They are meant to be reused by the Wave 2 leak checks
+(W2.x.2). The logs:
+
+- [prompts/website/leak-check.md](../prompts/website/leak-check.md) (T1.2)
+- [prompts/pipeline/leak-check.md](../prompts/pipeline/leak-check.md),
+  [prompts/math/leak-check.md](../prompts/math/leak-check.md) and
+  [prompts/engineering/leak-check.md](../prompts/engineering/leak-check.md)
+  (T2.2)
+
+Rules 1 to 6 and the two rulings below come from the website check. Rules 7
+to 18, under
+[Rules for pipeline, math and engineering prompts](#rules-for-pipeline-math-and-engineering-prompts),
+were added by T2.2 and say how the same rules read where the open choices are
+a language, a method or a unit system and not a look.
 
 ## How to run a check
 
@@ -186,4 +198,206 @@ What follows for the metrics (T1.5):
   package. A math L2 says "solve it numerically", not "no closed form". The
   words to watch at L0 and L1 are the type's open choices in
   [plan.md](../plan.md): a language, a library, a method, a unit system, a
-  safety factor, a document structure.
+  safety factor, a document structure. Rules 7 to 18 below are what T2.2
+  added for pipelines, math and engineering.
+
+## Rules for pipeline, math and engineering prompts
+
+Added by T2.2, which read all 108 prompts of the three Phase 2 types. Rules 1
+to 6 stay as they are. Each rule here is a ruling on a question those rules
+left open, with its reasons and with what it costs.
+
+### At L0 and L1
+
+**7. The data a task works on is subject. The build is the thing to be
+made.** "A CSV file", "an API", "log files", "images" and "a database" are the
+world a pipeline works in, and the plan names each task by them ("CSV to
+cleaned table to database", "fetch an API daily"). They stay at every level.
+Rule 6 is about the build: no language, library, framework, tool, build
+service, scheduler or file layout at L0 and L1.
+
+- Reason: without its input a pipeline task is not a task, as a website
+  prompt is not one without its subject.
+- Cost: where the task names the storage kind ("a database"), the choice
+  between a database and files is closed for that task. The engine stays
+  open, and the kind of storage is read on the task that only says "stores
+  it" (daily-api-fetch).
+
+**8. The plan's noun for the thing to be made stays, even where it leans
+toward one value of an open choice.** This is rule 2. The nouns ruled on:
+
+| Noun | Task | Leans toward | Ruling |
+| --- | --- | --- | --- |
+| "pipeline" | csv-to-database, daily-api-fetch, log-aggregation | Code in stages; a pipeline framework | Kept. It is the type's own name, as "website" is. |
+| "code" | image-resize | Nothing | Kept, and now in both wordings (see below). |
+| "workflow" | ci-workflow | Build services that call their own files workflows | Kept. It is the plan's noun ("CI workflow"); other words lean to other services ("pipeline", "job"). |
+| "data validation step" | data-validation | Nothing found | Kept. |
+| "pH curve" | titration-curve | A drawn curve | Kept. It is the plan's noun ("titration pH curve") and the chemistry name of the result, drawn or not. |
+| "by least squares", "straight line" | least-squares-fit | Nothing: they are the question | Kept. A method that the plan's task name states is the task. What is measured is the route to it and what is reported with it. |
+| "taking air resistance into account" | projectile-drag | Nothing: it names no drag law | Kept. |
+| "gear ratio" | conveyor-gear-ratio | Gears | Kept. It is the plan's noun, and a ratio does not need gears. |
+| "CAD file" | shelf-bracket | Nothing: it names no format | Kept. It says a file is wanted, as "website" says a site is wanted. |
+
+- Reasons: the noun is the same at every level and in both wordings, so a
+  shift between levels is not caused by it. A neutral substitute is another
+  request ("how the pH changes" does not ask for the curve).
+- Cost: the L0 share of the value a noun leans toward is the default **for a
+  request worded with that noun**. The logs name the choices this touches:
+  the plot for the titration, the build service for CI, the structure for
+  "pipeline". Do not pool those cells with the other tasks as if the noun
+  were silent.
+- **The noun means the same in both wordings.** The image task's B said "a
+  way", which leaves open whether the answer is code at all (a command for an
+  existing tool, or an app to install). A said "code". B was rewritten to
+  "some code".
+
+**9. Givens: fixed numbers that every level carries.** Accepted for math and
+engineering, under the rule in
+[prompts/math/README.md](../prompts/math/README.md): a given is a number
+without which the question has no single answer; it says nothing about
+method, format, precision or rigor; it is the same string at every level and
+in both wordings; L0 and L1 hold no other number.
+
+- Reasons: the plan wants checkable answers for these two types, and a
+  number that changes between levels would make L0 and L2 two different
+  problems. Because the givens are equal at every level, they cannot cause a
+  shift between levels.
+- What a given closes or suggests, and how to read it:
+  - **Unit system.** SI givens close it in four engineering tasks. It is
+    measured on the two tasks without givens (shelf bracket, spring).
+  - **Locale.** SI givens lean away from US practice. Standards cited,
+    material grades, the motor speed (which shows a mains frequency) and the
+    pump's supply are defaults for a request in SI units.
+  - **Significant figures.** "25.0 mL", "0.100 M" and "1.0 °C/W" show a
+    precision. Read the figures in an answer against the givens (more, the
+    same or fewer), not as a bare count.
+  - **A question in words can be a given.** "The mean ... differs from 50",
+    "equal monthly payments" and "a straight line" are needed for a single
+    answer. They close what they state: the test is two-sided and about the
+    mean. Do not read those as defaults.
+- No currency symbol and no thousands separator at L0 and L1.
+- Where a given would fix a choice being measured, it is left out and the
+  task is checkable at L2 only: the projectile's drag law, the bracket's and
+  the spring's size and load.
+
+**10. The verbs are part of the wording factor.** A opens "Write", "Work
+out", "Size", "Design", "Test", "Fit" or "Explain". B opens "Can you set up",
+"Can you figure out", "Can you work out", "Can you size" and so on. Kept, for
+the reasons given for "Make" and "Can you build". "Set up" may bring more
+installing and scheduling text than "Write"; "Work out" may bring more shown
+working than "figure out". Both are inside the one bundled factor, wording
+sensitivity.
+
+**11. An idiom that leans to one locale goes, at every level.** B's "tidies
+up the data" and "pick a pump to suit" were rewritten ("cleans up", "to
+match"). Each of these types records a choice that shows a locale (currency,
+mains frequency, a pump's power supply), so the reason for rule 5 is stronger
+here. "Tidy" next to "data" is also the name of a data-cleaning convention
+tied to particular libraries (rule 3).
+
+### At L2
+
+**12. A data format is content. A library is not.** An L2 brief may name the
+formats the pipeline reads and writes (CSV, JSON, JSON Lines, gzip, JPEG,
+PNG), with sample data. It never names a library, a tool, a build service or
+a scheduler product.
+
+- Reasons: a real brief says what the data looks like, and without it the
+  two wordings cannot be checked for equal facts and the sandbox cannot build
+  a fixture. A format is not the build: the language and the libraries stay
+  open. An output format (one CSV file per month) is a dictated storage
+  choice, which an L2 may give, and it points away from the expected
+  database.
+- Cost: a format narrows the libraries (JSON Lines needs a JSON reader, JPEG
+  an imaging library). Read library choice at L2 within that limit.
+- "Standard library only" is written as a need ("nothing else is installed
+  on that laptop").
+
+**13. In a CI brief the package's language is content.** The ci-workflow L2
+says the package is a Go library. A workflow cannot be written without the
+language, and a real request always gives it. It is a fact about the
+subject, like "a sourdough bakery". It points away from the language a model
+is expected to invent at L0 and L1, where the invented language is itself
+recorded. The build service is named at no level.
+
+**14. A real need may coincide with the expected default.** Keep it, written
+as a need. Mark that choice as not readable at L2 for that task, and say
+where the choice is read. Two cases:
+
+- **csv-to-database, "no separate server to install".** Kept. The output
+  must run on a laptop and in a sandbox with nothing installed, and the
+  phrase names no technology, like the dashboard's "it cannot rely on an
+  internet connection". It points toward an embedded database, the expected
+  default, and "standard library only" narrows the storage and the language
+  the same way. Storage and language are not read at L2 for this task.
+  Storage that persists against a brief is read on daily-api-fetch, whose L2
+  asks for monthly CSV files.
+- **projectile-drag, drag that grows as the square of the speed.** Kept. At
+  25 m/s no real object follows another law, and a brief that is wrong about
+  the physics measures how a model handles an error, not a default (rule 17).
+  The drag law is measured at L0 and L1, where it is open. At L2 the choices
+  that move are the object and its constants, the method, the step and the
+  presentation.
+
+A dictated value that is close to a default without being a need is still
+checked against the pilot, as for websites. The logs list each one.
+
+**15. An assumption of the problem is content, unless the thing it sets aside
+is a choice being recorded.** A math or engineering L2 must state assumptions
+to have one answer. "Ignore spin and wind" stays: neither is a recorded
+choice. Two lines were rewritten to say what holds:
+
+- "Ignore the beam's own weight" became "the load at the free end is the only
+  load on the beam". Self-weight is a recorded choice for that task.
+- "Will not assume that the lengths follow a normal distribution" became
+  "assumes only that the lengths are spread symmetrically about their
+  center". Normality is the expected default assumption, and the new line
+  states the one assumption the dictated test needs.
+
+At L2 the brief gives the assumptions, so "assumptions stated or silent" is
+read at L0 and L1 only.
+
+**16. A behavior is asked for as the outcome wanted.** "Loading the same file
+a second time leaves the database as it was"; "if one photo fails, the rest
+should still go through". The earlier lines named the default behavior they
+moved away from ("adds nothing new", "shouldn't stop the rest"), one of them
+in wording B only. A purpose clause that states the need stays ("so a 10 GB
+log works on a laptop with little memory", "can edit without changing the
+code").
+
+**17. A brief must be possible as written.** The shelf-bracket L2 asked for
+screw holes in a flat laser-cut piece that stands square to the wall, with
+the screws going into the wall. Such a piece can only have holes through its
+face, so the screws could not be placed. A model given an impossible brief
+either breaks one line of it or points out the fault, and the output then
+measures that and not its defaults. The brief now has a wood strip on the
+wall, and the bracket is screwed through its face into the side of the strip.
+
+**18. How an L2 pipeline is started, and paths the brief does not name, stay
+open.** The data-validation L2 gives the folder layout, the file names of the
+input and where valid readings go. It does not say how the step is told
+which day to check, where `stations.csv` and the rejects file sit, what the
+rules file is called or where the summary goes. That is intended, and it is
+the same in all six pipeline briefs.
+
+- Reasons: arguments, configuration and naming are open choices the plan
+  lists for pipelines, and a brief that fixed them would leave less to
+  measure at L2. Both wordings leave the same things open.
+- Cost: the sandbox (T2.7) cannot assume a command line. It runs an output's
+  own tests and reads its entry point from the output.
+
+### Notes for other tasks (T2.2)
+
+- **Reference solutions (T2.3).** No given changed. Three L2 briefs changed:
+  the shelf bracket now asks for the force on each screw (across the screw,
+  from the load's moment about the screw pair) in place of a pull-out force;
+  the hypothesis test states symmetry, under which the mean and the median
+  agree; the cantilever says the tip load is the only load, which changes no
+  number. The reference notes in the files and READMEs were updated.
+- **Extractors and metrics (T2.8, T1.5).** Each log ends with a table of what
+  each L2 dictates and which dictated values are close to a default. Each log
+  also lists the choices not to read as defaults for a task (rules 8, 9 and
+  14).
+- **Pilot (T2.9).** The expected defaults are guesses. Where a measured L0
+  default matches an L2 direction, change the direction and raise the
+  prompt-set version.

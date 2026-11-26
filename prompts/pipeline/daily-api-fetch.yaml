@@ -31,6 +31,10 @@ prompts:
   # progress shown with print statements.
   # The brief says where the key goes (a header) and not where it comes
   # from, so key handling stays open at L2.
+  # Close to the expected default (T2.2): a job in the machine's own
+  # scheduler may itself be the default way to run something daily, and 3
+  # is a common number of retries. Check both against the pilot before
+  # reading scheduling or the retry count as a default that persists.
   L2:
     A: |
       Write a pipeline that fetches the day's air quality readings from the Quellmouth city open data API every day and stores them, so the Quellmouth Clean Air Group can follow pollution levels over time.

@@ -4,6 +4,10 @@ The rules are in docs/leak-check.md and each type's README. The checks are
 mechanical: the word lists catch known hints, and only reading catches new
 ones. Shared matching lives in tests/prompt_checks.py.
 
+The leak check (T2.2) read all 108 prompts; its log is leak-check.md in each
+type's folder. Every word that caused a rewrite is in a list below, so a
+later edit cannot undo a ruling without failing a test.
+
 Math and engineering tasks carry "givens": the numbers a checkable question
 cannot be asked without. Every prompt of a task contains its givens word for
 word, and L0 and L1 contain no other number.
@@ -60,7 +64,7 @@ PIPELINE_HINTS = """
     logging logger retry retries backoff test testing unittest pytest
     docstring comment readme robust production production-ready scalable
     efficient modular simple async parallel concurrent multiprocessing
-    exception
+    exception tidy tidies tidied tidying
 """.split() + ["error handling", "single file", "one file", "environment variable"]
 
 PIPELINE_DEFAULTS = """
@@ -89,7 +93,7 @@ MATH_HINTS = """
 
 MATH_DEFAULTS = """
     python matplotlib numpy scipy latex disorder messy untidy tidy heading
-    bullet t-test plot code
+    bullet t-test plot code normal normally normality gaussian
 """.split() + ["t test"]
 
 # Engineering open choices: unit system, material, safety factor, loads,
@@ -114,8 +118,9 @@ ENGINEERING_HINTS = """
 
 ENGINEERING_DEFAULTS = """
     fin finned fan extruded extrusion gusset i-beam wide-flange worm darcy
-    colebrook moody openscad stl pla disclaimer consult
-""".split() + ["music wire", "professional engineer", "structural steel"]
+    colebrook moody openscad stl pla disclaimer consult self-weight
+""".split() + ["music wire", "professional engineer", "structural steel",
+               "own weight", "self weight"]
 
 # Engineering outputs are study data, not designs: no prompt at any level
 # frames a task as something people's safety depends on.
@@ -148,10 +153,10 @@ SETS = {
     "pipeline": PromptSet(
         expected={
             "ci-workflow": ("1", "ad444850e7410e84"),
-            "csv-to-database": ("1", "e1ba3b00bd820744"),
+            "csv-to-database": ("1", "9f23efa4c8a8b96b"),
             "daily-api-fetch": ("1", "37ab96b8d765524b"),
             "data-validation": ("1", "aab195ed3afb1785"),
-            "image-resize": ("1", "d74c5bfc385ffd6b"),
+            "image-resize": ("1", "991cfc683daeb667"),
             "log-aggregation": ("1", "4e0866ef57fc5434"),
         },
         subject={
@@ -180,9 +185,9 @@ SETS = {
     "math": PromptSet(
         expected={
             "entropy-explanation": ("1", "f574ef4ed6e5ea31"),
-            "hypothesis-test": ("1", "ca599b9fe506f1e4"),
+            "hypothesis-test": ("1", "9f32fdf792cf3014"),
             "least-squares-fit": ("1", "a0fcfb2f0ccfc30d"),
-            "loan-amortization": ("1", "311262c3458aee00"),
+            "loan-amortization": ("1", "22d79a2563427051"),
             "projectile-drag": ("1", "3907055e1d938492"),
             "titration-curve": ("1", "68bf8c981ab55e90"),
         },
@@ -219,12 +224,12 @@ SETS = {
     ),
     "engineering": PromptSet(
         expected={
-            "cantilever-beam": ("1", "b1796a32db300772"),
+            "cantilever-beam": ("1", "3d9d8ffad807fcda"),
             "compression-spring": ("1", "74f2b7e59378129b"),
             "conveyor-gear-ratio": ("1", "9c64524567a4382b"),
             "heat-sink": ("1", "19c4af351a5aff5b"),
-            "pipe-and-pump": ("1", "788c9e51d7e7cdc5"),
-            "shelf-bracket": ("1", "1ec967816e681654"),
+            "pipe-and-pump": ("1", "48df2b98a72b661d"),
+            "shelf-bracket": ("1", "b9ed37cc2f7f7626"),
         },
         subject={
             "cantilever-beam": "beam",
@@ -256,6 +261,43 @@ SETS = {
 }
 
 SAFETY = word_pattern(SAFETY_WORDS)
+
+# --- rulings of the leak check (T2.2) -----------------------------------------
+
+# Idioms that lean toward one locale, at any level of any type. L0 and L1
+# carry no locale hint, and each type records a choice that shows a locale
+# (currency, mains frequency, a pump's power supply).
+IDIOMS = word_pattern("""
+    tidy tidies tidied tidying
+""".split() + ["to suit", "weigh up"])
+
+# The noun for the thing to be made, in the first sentence of every pipeline
+# prompt and the same in both wordings. "A way" was ruled out for the image
+# task: it leaves open whether the answer is code at all.
+PIPELINE_NOUNS = {
+    "ci-workflow": "workflow",
+    "csv-to-database": "pipeline",
+    "daily-api-fetch": "pipeline",
+    "data-validation": "step",
+    "image-resize": "code",
+    "log-aggregation": "pipeline",
+}
+VAGUE_NOUNS = word_pattern(["a way", "something", "a solution", "a tool",
+                            "a script"])
+
+# A pipeline L2 asks for a behavior as the outcome wanted ("leaves the
+# database as it was", "the rest should still go through") and does not name
+# the default behavior it moves away from (adding rows again, stopping).
+NAMED_BEHAVIORS = word_pattern([
+    "adds nothing new", "add anything new", "shouldn't stop",
+    "should not stop", "must not stop", "without stopping", "duplicate",
+])
+
+# The hypothesis is a given in words and is two-sided at every level. No
+# phrase beside it may read as one-sided ("meets its target" did).
+ONE_SIDED = word_pattern("""
+    meet meets exceed exceeds above below greater less higher lower
+""".split() + ["at least", "at most", "more than"])
 # Engineering tasks whose L0 and L1 give no numbers, so the unit system is
 # a choice being measured. Their L2 gives US customary units, pointing away
 # from the expected metric default.
@@ -445,6 +487,48 @@ def test_each_level_is_longer_than_the_last(type_name, task_id, wording):
     assert lengths == sorted(lengths) and len(set(lengths)) == 3
 
 
+# --- rulings of the leak check (T2.2) -----------------------------------------
+
+
+@pytest.mark.parametrize("item", texts(), ids=text_id)
+def test_no_prompt_uses_an_idiom_that_leans_to_one_locale(item):
+    assert IDIOMS.findall(item[4]) == []
+
+
+@pytest.mark.parametrize("item", texts(types=("pipeline",)), ids=text_id)
+def test_both_wordings_name_the_same_thing_to_be_made(item):
+    _, task_id, _, _, text = item
+    opening = text.splitlines()[0]
+    noun = PIPELINE_NOUNS[task_id]
+    assert re.search(rf"\b{noun}\b", opening), noun
+    assert VAGUE_NOUNS.findall(opening) == []
+
+
+@pytest.mark.parametrize("item", texts(("L2",), types=("pipeline",)),
+                         ids=text_id)
+def test_a_pipeline_l2_asks_for_the_outcome_wanted(item):
+    assert NAMED_BEHAVIORS.findall(item[4]) == []
+
+
+@pytest.mark.parametrize("level", ("L0", "L1"))
+@pytest.mark.parametrize("wording", WORDINGS)
+def test_the_hypothesis_reads_as_two_sided(level, wording):
+    text = tasks("math")["hypothesis-test"].text(level, wording)
+    assert "differs from 50" in text
+    assert ONE_SIDED.findall(text) == []
+
+
+@pytest.mark.parametrize("wording", WORDINGS)
+def test_the_bracket_brief_can_be_built_as_written(wording):
+    """A flat laser-cut piece has holes through its face only. The L2 screws
+    go through the plywood into a wood strip on the wall, and the brief asks
+    for no pull-out force."""
+    text = tasks("engineering")["shelf-bracket"].text("L2", wording)
+    assert "flat outlines" in text and "screw holes" in text
+    assert "wood strip" in text and "screws through the plywood" in text
+    assert "pull-out" not in text and "pull out" not in text
+
+
 # --- the two wordings of a cell -----------------------------------------------
 
 
@@ -541,9 +625,41 @@ def test_the_ban_check_catches_a_ban(text):
     ("math", "Explain it without the messy-room picture."),
     ("engineering", "A flat plate with no fins."),
     ("engineering", "Use carbon steel, not music wire."),
+    ("math", "The lengths are not normally distributed."),
+    ("math", "Make no assumption of normality."),
+    ("engineering", "Ignore the beam's own weight."),
+    ("engineering", "Leave the bar's self-weight out."),
 ])
 def test_the_named_default_check_catches_a_named_default(type_name, text):
     assert SETS[type_name].named_defaults.findall(text)
+
+
+@pytest.mark.parametrize("pattern,text", [
+    (IDIOMS, "Can you set up a pipeline that tidies up the data?"),
+    (IDIOMS, "The values need tidying in a few ways."),
+    (IDIOMS, "Work out the pressure drop and pick a pump to suit."),
+    (IDIOMS, "It should help them weigh up the plans."),
+    (VAGUE_NOUNS, "Can you set up a way to resize a batch of images?"),
+    (NAMED_BEHAVIORS, "Loading the same file a second time adds nothing new."),
+    (NAMED_BEHAVIORS, "One photo failing shouldn't stop the rest."),
+    (ONE_SIDED, "to judge whether that batch meets its target."),
+])
+def test_the_ruling_checks_catch_the_phrases_that_were_rewritten(pattern,
+                                                                 text):
+    assert pattern.findall(text)
+
+
+@pytest.mark.parametrize("pattern,text", [
+    (IDIOMS, "Can you set up a pipeline that cleans up the data?"),
+    (IDIOMS, "Work out the pressure drop and pick a pump to match."),
+    (VAGUE_NOUNS, "Can you set up some code to resize a batch of images?"),
+    (NAMED_BEHAVIORS,
+     "Loading the same file a second time leaves the database as it was."),
+    (NAMED_BEHAVIORS, "If one photo fails, the rest should still go through."),
+    (ONE_SIDED, "to judge whether that batch is on target."),
+])
+def test_the_ruling_checks_pass_the_new_wording(pattern, text):
+    assert pattern.findall(text) == []
 
 
 def test_the_safety_check_catches_a_safety_critical_use():

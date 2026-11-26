@@ -4,8 +4,9 @@ Six pipeline tasks, each at three levels of direction (L0, L1, L2) and in two
 wordings (A, B): 36 prompts. One YAML file per task, in the format described
 in [../README.md](../README.md). Written for task T2.1 in
 [tasks.md](../../tasks.md), under the leak-check rules in
-[docs/leak-check.md](../../docs/leak-check.md). The leak check itself is
-T2.2.
+[docs/leak-check.md](../../docs/leak-check.md). The leak check (T2.2) read
+every prompt; its verdicts, reasons and rewrites are in
+[leak-check.md](leak-check.md).
 
 ## The tasks
 
@@ -39,10 +40,12 @@ The task nouns are part of the task and stay the same at every level:
 "pipeline", "continuous integration workflow", "data validation step". The
 input formats the plan names are part of the task too ("a CSV file", "log
 files", "an API", "images"); the output storage is left open ("a database").
-For the image task the noun is "code" (A) or "a way" (B), so that neither
-"script" nor "tool" suggests a structure. Two words to watch in T2.2:
-"pipeline" may suggest staged code or a pipeline framework, and B's "set up"
-may suggest configuration. Both are the same in every task.
+For the image task the noun is "code" in both wordings, so that neither
+"script" nor "tool" suggests a structure. (B first said "a way"; T2.2 ruled
+that this left open whether the answer is code at all.) T2.2 looked at two
+more words and kept both: "pipeline" may suggest staged code or a pipeline
+framework, and B's "set up" may suggest configuration. Both are the same in
+every task; [leak-check.md](leak-check.md) says how to read them.
 
 ## L2 directions
 
@@ -54,17 +57,25 @@ defaults are guesses until the pilot measures them.
 | Task | Dictated at L2 | Close to the expected default |
 | --- | --- | --- |
 | csv-to-database | Standard library only, a test per cleaning rule, rejects file with reasons, safe re-run, printed summary | "No separate server to install" points to an embedded database |
-| daily-api-fetch | Run once under the system scheduler, catch-up of missed days, fixed retry rule, monthly CSV files, safe re-run, one log line per run | None found |
+| daily-api-fetch | Run once under the system scheduler, catch-up of missed days, fixed retry rule, monthly CSV files, safe re-run, one log line per run | The system scheduler may be the default itself; 3 retries is a common count |
 | log-aggregation | Invented line format, gzip and plain files, line-by-line reading, a small package with a command-line entry point, parser tests | None found |
-| image-resize | All processor cores, skip done photos, dry-run option, upright photos, metadata removed, failures isolated, summary | None found |
-| ci-workflow | Go library, three operating systems, two Go releases, format and vet checks, coverage gate, changelog check on tags, time limit, cancel superseded runs | None found |
+| image-resize | All processor cores, skip done photos, dry-run option, upright photos, metadata removed, failures isolated, summary | JPEG quality 85 |
+| ci-workflow | Go library, three operating systems, two Go releases, format and vet checks, coverage gate, changelog check on tags, time limit, cancel superseded runs | Triggers on proposed changes and on pushes to main |
 | data-validation | Rules in a separate editable file, every rule checked on every reading, warnings, per-station summary, exit code with a threshold | None found |
 
 Left open at L2 as well: the language (except in ci-workflow), the libraries
 (except "standard library only" in csv-to-database), and in most tasks the
-configuration and logging style.
+configuration and logging style. How a program is started, and any path a
+brief does not name, are open in all six briefs; T2.2 ruled that this is
+intended (rule 18 in [docs/leak-check.md](../../docs/leak-check.md)), so the
+sandbox cannot assume a command line.
 
-Two type-specific rulings, for T2.2 to confirm or overturn:
+In csv-to-database, "standard library only" narrows the language as well as
+the storage, because few languages ship a database in their standard library.
+Neither is read as a default at L2 for that task.
+
+Two type-specific rulings, confirmed by T2.2 (rules 12 and 13 in
+[docs/leak-check.md](../../docs/leak-check.md)):
 
 - **A format at L2 describes data, not the build.** L2 briefs may name input
   and output formats (CSV, JSON, JSON Lines, gzip, JPEG), because a real
@@ -157,6 +168,10 @@ three Phase 2 sets together. For this set it checks:
 - no L2 writes a ban ("do not", "avoid", "instead of", "rather than",
   "never") or names a listed default (such as a data-frame library or a
   scheduler);
+- the rulings of the leak check: every prompt names the same thing to be
+  made in both wordings ("pipeline", "code", "workflow", "step"), no prompt
+  uses an idiom that leans to one locale, and no L2 names the behavior it
+  moves away from (such as "shouldn't stop");
 - US spelling; reserved emails, hosts and addresses only;
 - A opens "Write" and B "Can you", with "please" once in each L2 B only;
 - each level is longer than the one before;
