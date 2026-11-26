@@ -29,6 +29,7 @@ _LIMIT_KILL_ON_JOB_CLOSE = 0x2000
 _BELOW_NORMAL_PRIORITY_CLASS = 0x4000
 # JOBOBJECTINFOCLASS
 _BASIC_ACCOUNTING = 1
+_PROCESS_ID_LIST = 3
 _UI_RESTRICTIONS = 4
 _PORT = 7
 _BASIC_AND_IO_ACCOUNTING = 8
@@ -243,6 +244,20 @@ class JobObject:
             return Accounting(0, 0, 0, 0, 0.0)
         return Accounting(accounts.active, accounts.total, extended.peak_job,
                           accounts.io[4], accounts.user_time / 10_000_000)
+
+    def process_ids(self, most=1024):
+        """The ids of the processes in the job now (at most ``most``)."""
+        class IdList(ctypes.Structure):
+            _fields_ = [("assigned", self._wintypes.DWORD),
+                        ("listed", self._wintypes.DWORD),
+                        ("ids", ctypes.c_size_t * most)]
+
+        found = IdList()
+        if not (self._job and self._kernel.QueryInformationJobObject(
+                self._job, _PROCESS_ID_LIST, ctypes.byref(found),
+                ctypes.sizeof(found), None)):
+            return []
+        return list(found.ids[:found.listed])
 
     def terminate(self, exit_code=1):
         """Kill every process in the job; the job stays open."""

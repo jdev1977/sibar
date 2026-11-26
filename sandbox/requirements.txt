@@ -1,0 +1,75 @@
+# Packages of the sandbox's private Python runtime (T2.7), not of the
+# project's own environment: `python -m sandbox setup` installs exactly these
+# files, checked against their hashes, into .sandbox/runtime. The sandbox has
+# no network, so code that imports anything else fails with
+# ModuleNotFoundError and its run is recorded as `not-runnable`, naming the
+# missing modules. Adding a package changes outcomes: raise TOOL_VERSION in
+# sandbox/__init__.py in the same change. Binary wheels are for 64-bit
+# Windows and CPython 3.13, the target machine.
+#
+# Chosen from the prompt sets (prompts/pipeline, prompts/math,
+# prompts/engineering) and what code for them most often imports:
+# - numpy, scipy, sympy, matplotlib (drawn with the Agg backend, to files):
+#   the math and engineering tasks (drag, amortization, titration, fits,
+#   beams, springs, heat sinks) and their plots.
+# - pandas: CSV work in csv-to-database, data-validation, log-aggregation.
+# - SQLAlchemy: the usual database layer for csv-to-database besides the
+#   standard library's sqlite3.
+# - requests: the usual HTTP client for daily-api-fetch (served by the stub,
+#   see docs/sandbox.md).
+# - Pillow: image-resize; nothing in the standard library reads JPEG or PNG.
+# - PyYAML: rules and settings files (data-validation), workflow files
+#   (ci-workflow).
+# - pydantic, jsonschema: the common validation libraries for data-validation.
+# - python-dateutil: date parsing in the CSV cleaning rules.
+# - click, tqdm: command-line entry points (log-aggregation asks for one) and
+#   progress bars (image-resize).
+# - tzdata: time zone data for zoneinfo, which Windows does not provide.
+# - pytest: runs the tests an output brings (unittest tests too).
+# Left out: HTTP clients that need asyncio (httpx, aiohttp: the sandbox
+# cannot make sockets, and asyncio needs them), schedulers that keep a
+# program running (schedule, APScheduler), heavy statistics and learning
+# libraries (statsmodels, scikit-learn), OpenCV, seaborn and plotly. Their
+# absence is recorded per run, so it can be counted.
+#
+# Generated from the wheels pip chose on 2026-11-26; the transitive
+# dependencies are pinned too, so pip installs nothing it was not told to.
+annotated-types==0.8.0 --hash=sha256:f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0
+attrs==26.1.0 --hash=sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309
+certifi==2026.11.20 --hash=sha256:7422df25243767b9877031a2248cb14d09ddac9beee846f4cef3d5c9191d488f
+charset-normalizer==3.5.3 --hash=sha256:cb18428af7399e0a6f7e3b45f110d57a1a47cf07fd4b3ce50e2366d99a38959a
+click==8.5.1 --hash=sha256:8bb5376d2006950386f8c6427613334a2acadc5f559cb80e638d00b4df957e37
+colorama==0.4.6 --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
+contourpy==1.4.0 --hash=sha256:6507a016976a75a15aee47809a34605de6244ccc056e6164bf9fb14b27eecad4
+cycler==0.12.1 --hash=sha256:85cef7cff222d8644161529808465972e51340599459b8ac3ccbac5a854e0d30
+fonttools==4.69.1 --hash=sha256:a1dedfe496cf57d0ff5f3874aaa87f618a61062e39d9cb6a8b809b87a8fe2ee9
+idna==3.20 --hash=sha256:ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c
+iniconfig==2.3.1 --hash=sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7
+jsonschema==4.26.0 --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
+jsonschema-specifications==2025.9.1 --hash=sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe
+kiwisolver==1.5.1 --hash=sha256:dc23390afe9f4ef9ac3bcc72a03a56eebbde03f4c571a32cb38f859cff9a6524
+matplotlib==3.11.2 --hash=sha256:bc067c462a86f0e57bf52fc6e058d90171a5420007dac00c46e90153050c69a7
+mpmath==1.3.0 --hash=sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c
+numpy==2.5.5 --hash=sha256:e0608d1585557b68dcb6a70a41654f7536567960afad79d91752d2863b242b68
+packaging==26.4 --hash=sha256:81383611a09c1bc0b08b76e0fd5829d7c6824c65b27a6aee339da133f4233ea2
+pandas==3.1.1 --hash=sha256:6d84760cc1bd799440a66b4df2ceb7a508870f3b8b4d8dda21befd62779cd3b4
+pillow==13.0.0 --hash=sha256:9dda0788a9932776a75d8bcc020076edc308ce2508b51f6739a45e3158b3fc42
+pluggy==1.7.0 --hash=sha256:7dd7b0d8832ba3cb632c306926ded123429211b83641b35dc5c41ad2d34f9bec
+pydantic==2.14.4 --hash=sha256:653a2ad9f6d8858529c77c72717d0ea991d6c6837fe683246b2f4b2bbfc3fadc
+pydantic-core==2.50.5 --hash=sha256:d34c0d4dd4a318f2be788a60a972c3a1ed5da0155a7c06d6dd810dc5d60ad704
+pygments==2.21.0 --hash=sha256:2363c69b61c4a97c838da3b130dcd6468f4848992b21a82f2a63ec34377137d9
+pyparsing==3.3.3 --hash=sha256:ece8c00a69cf01b45d0b1dedabb469c90d8caf996d4fda40f147627a122849a4
+pytest==9.2.0 --hash=sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588
+python-dateutil==4.0.0 --hash=sha256:a5e246f79eb80475e691bf93862cead98decd8a498cf53ba0516fcdc0f50dc1c
+pyyaml==6.0.4 --hash=sha256:0a3a351f04dc124f9357512bdb80ac37cd1750cf1371da33e7cbb96d80ac865f
+referencing==0.37.0 --hash=sha256:381329a9f99628c9069361716891d34ad94af76e461dcb0335825aecc7692231
+requests==2.34.2 --hash=sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0
+rpds-py==2026.9.1 --hash=sha256:3e93b2cd69a9830be33e03945cd7cda940a0a8bfcfbff41d6144f0cb0d3d8bd9
+scipy==1.18.1 --hash=sha256:559ed65f60c1af5a03f3912605a1b5114f522c7c32fb23c3376ae8f03219fe28
+sqlalchemy==2.1.9 --hash=sha256:7fa9e073eaabcd9286fd60ec587a9e0d7a2ff10136056df954c50639815785c6
+sympy==1.14.0 --hash=sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5
+tqdm==4.70.1 --hash=sha256:c293e525e6fef9c20e8728fd4612df02a0aa31bb5fe91ecd93e123b1b7bffa73
+typing-extensions==4.16.0 --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8
+typing-inspection==0.4.5 --hash=sha256:bc210535442b39e1bf2805e0c7a17dfd6a4ace760c84c7f7d16245d23a6b1c39
+tzdata==2026.6 --hash=sha256:0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec
+urllib3==2.8.0 --hash=sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3

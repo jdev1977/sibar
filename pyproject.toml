@@ -3,4 +3,5 @@ testpaths = ["tests"]
 pythonpath = ["."]
 markers = [
     "browser: needs Playwright's Chromium; skipped with a message if it cannot start",
+    "sandbox: runs code in the sandbox (Windows); skipped with a message if its runtime is not set up",
 ]
