@@ -199,7 +199,7 @@ def test_extract_file_runs_website_records_and_is_deterministic(tmp_path):
     path = tmp_path / "records.jsonl"
     add(path)
     add(path, status="failed", raw_response=None, error="no", text=None)
-    add(path, project_type="pipeline", task_id="csv-clean")
+    add(path, project_type="legal", task_id="no-extractors")
     said = []
     counts = extract_file(path, say=said.append)
     assert counts["records"] == 1 and counts["error"] == 0
