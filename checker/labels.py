@@ -8,14 +8,13 @@ asked for and a rate obtained), the pattern needs the qualifying word. A
 quantity with no pattern is not extracted.
 """
 
-import re
-
 _EQUIVALENT_PH = {f"ph_{v}_ml": rf"pH (?:at|after|for) (?:V ?= ?)?{v}(?:\.0{{1,2}})? ?mL"
                   r"(?: of (?:NaOH|base)(?: added)?)?"
                   for v in (5, 10, 20, 24, 26, 30, 40, 50)}
 _DRAG = r"(?: with (?:air )?(?:drag|resistance))?"
 _NO_AIR = r"(?:with no|without|ignoring|with zero|neglecting) (?:air(?: resistance)?|drag)"
 _ALLOWED = r"(?:max(?:imum|\.)?(?: allowable| allowed| permissible)?|allowable|allowed|required)"
+_TO_AIR = r"(?:,? \(?junction[- ]to[- ](?:air|ambient)\)?)?"
 _RATIO = (r"(?:required|exact|theoretical|ideal|needed|target) (?:overall |total )?"
           r"(?:gear |reduction |speed |transmission )?(?:ratio|reduction)(?: ratio)?"
           r"|(?:overall|total) (?:required|exact) (?:gear |reduction )?(?:ratio|reduction)")
@@ -24,7 +23,7 @@ _P_VALUE = (r"(?:(?:two[- ](?:sided|tailed)|exact)(?: exact| two[- ](?:sided|tai
             r"p(?:[- ]value)?(?: \(two[- ](?:sided|tailed)\))?")
 _INTEREST = (r"total (?:amount of )?interest(?: paid| cost| charged)?"
              r"(?: over (?:the )?(?:life of the )?(?:loan|term|5 years|five years))?")
-_PAID = (r"total (?:amount )?(?:paid|repaid|repayment|payments|of (?:all )?payments)"
+_PAID = (r"total (?:amount (?:paid|repaid)|paid|repaid|repayment|of (?:all )?payments)"
          r"(?: over (?:the )?(?:loan|term|5 years|five years))?")
 
 QUANTITIES = {
@@ -77,9 +76,10 @@ QUANTITIES = {
         "pka": r"pK_?\{?a\}?",
         "ph_0_ml": r"initial pH|pH (?:before any (?:base|NaOH)(?: is added)?|at 0(?:\.0{1,2})? "
                    r"?mL|at the start)",
-        "ph_12_5_ml": r"pH at (?:the )?half[- ]equivalence(?: point)?|pH (?:at|after) "
-                      r"12\.50? ?mL",
-        "ph_25_ml": r"pH at (?:the )?equivalence(?: point)?|pH (?:at|after) 25(?:\.0{1,2})? ?mL",
+        "ph_12_5_ml": r"pH at (?:the )?half[- ]equivalence(?: point)?(?: 12\.50? ?mL)?|"
+                      r"pH (?:at|after) 12\.50? ?mL",
+        "ph_25_ml": r"pH at (?:the )?equivalence(?: point)?(?: 25(?:\.0{1,2})? ?mL)?|"
+                    r"pH (?:at|after) 25(?:\.0{1,2})? ?mL",
         **_EQUIVALENT_PH,
     },
     "entropy-explanation": {},
@@ -102,21 +102,21 @@ QUANTITIES = {
                           r"deflection",
     },
     "conveyor-gear-ratio": {
-        "drum_speed": r"(?:required )?(?:(?:drive )?drum (?:rotational |rotation |shaft )?"
-                      r"(?:speed|rpm)|output (?:shaft )?speed)",
+        "drum_speed": r"(?:required )?(?:drive )?drum (?:rotational |rotation |shaft )?"
+                      r"(?:speed|rpm)",
         "drum_angular_speed": r"drum angular (?:speed|velocity)",
         "overall_ratio": _RATIO,
         "exact_ratio": _RATIO,
     },
     "heat-sink": {
-        "total_resistance": rf"{_ALLOWED} total (?:thermal )?resistance|total {_ALLOWED} "
-                            r"(?:thermal )?resistance",
+        "total_resistance": rf"(?:{_ALLOWED} total (?:thermal )?resistance|total {_ALLOWED} "
+                            r"(?:thermal )?resistance)" + _TO_AIR,
         "case_to_air_resistance": rf"(?:{_ALLOWED}|available) case[- ]to[- ](?:air|ambient) "
                                   r"(?:thermal )?resistance",
         "plate_resistance_limit": rf"{_ALLOWED} (?:plate|heat ?sink)(?:[- ]to[- ](?:air|"
                                   r"ambient))? (?:thermal )?resistance",
         "plate_area": r"(?:required|minimum|needed)(?: total)?(?: plate| cooled| cooling| "
-                      r"surface)? area",
+                      r"surface)? area(?: \(both faces\))?",
         "square_side": rf"(?:{_FINAL}|rounded(?:[- ]up)?) (?:square )?(?:plate )?side"
                        r"(?: length)?",
         "junction_temperature": r"(?:resulting|actual|predicted|estimated|calculated|"
@@ -173,7 +173,7 @@ LABELLED_INPUTS = {
 # 51), so a second such speed leaves the motor speed undecided.
 SEARCHED_INPUTS = {
     "conveyor-gear-ratio": {"motor_rpm": (
-        r"(?<![\d.,])([5-9]\d\d|\d{4}) ?(?:rpm|r/min)",
+        r"(?<![\d.,])(\d,\d{3}|[5-9]\d\d|\d{4}) ?(?:rpm|r/min)",
     )},
 }
 
@@ -209,7 +209,3 @@ DOUBTS = {
                    "plate_resistance_limit"),
                   "the answer may size for a lower junction temperature"),
 }
-
-
-def compiled(pattern):
-    return re.compile(pattern, re.IGNORECASE)

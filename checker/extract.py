@@ -93,6 +93,11 @@ def _date(text):
         return None
 
 
+def _numbers(pattern, text):
+    return {float(v.replace(",", ""))
+            for v in re.findall(pattern, text, re.IGNORECASE)[:5]}
+
+
 def _tidy(tail):
     """The unit text after a number, with brackets and filler words gone."""
     tail = re.sub(r"^/ ?mo(?:nth)?(?![\w])", "", tail.strip()).strip()
@@ -511,14 +516,15 @@ class _Reader:
             text = sentence.text
             if "reject" not in text.lower() or unsure.search(text):
                 continue
+            hedged = self.hedged(name, sentence.heading)
             for _ in kept.findall(text)[:3]:
-                self.add(name, "do_not_reject", "1", False)
+                self.add(name, "do_not_reject", "1", hedged)
             rest = kept.sub(" ", text)
             for found in list(rejected.finditer(rest))[:3]:
                 if negation.search(rest[max(found.start() - 60, 0):found.start()]):
                     self.unreadable.add(name)
                 else:
-                    self.add(name, "reject", "1", False)
+                    self.add(name, "reject", "1", hedged)
 
     # --- facts and inputs ---------------------------------------------------
 
@@ -571,12 +577,10 @@ class _Reader:
             values = set()
             for pattern in patterns:
                 for sentence in self.sentences:
-                    values |= {float(v) for v in
-                               re.findall(pattern, sentence.text, re.IGNORECASE)[:5]}
+                    values |= _numbers(pattern, sentence.text)
                 for table in self.tables:
                     for row in table.rows[:200]:
-                        values |= {float(v) for v in re.findall(
-                            pattern, " ".join(row), re.IGNORECASE)[:5]}
+                        values |= _numbers(pattern, " ".join(row))
             self.inputs[name] = values
 
     def conditions(self):

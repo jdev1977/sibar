@@ -35,7 +35,7 @@ and the viewer are not built yet, and no results exist.
 | [analysis/](analysis/README.md) | Python package: the metrics and the stability check, with the data files they read (how each feature is counted, what each prompt dictates) |
 | [rubrics/](rubrics/README.md) | Versioned tagging rubrics, by project type |
 | [tagger/](tagger/README.md) | Python package: loads and checks the rubrics, tags outputs through the providers' batch APIs, and measures agreement between taggings |
-| [checker/](checker/references/README.md) | Reference answers for the math and engineering tasks, with tolerances; the answer checker itself is not written yet |
+| [checker/](checker/README.md) | Python package: grades the final answers of math and engineering outputs against reference answers with tolerances |
 | [viewer/](viewer/README.md) | Local page for comparing outputs |
 | [docs/](docs/README.md) | Project documents |
 | `data/` | Local only, gitignored: run records, raw responses, extracted files and dataset releases. Not part of a clone |

@@ -471,3 +471,29 @@ def test_a_no_air_figure_named_in_its_sentence():
 ])
 def test_spellings_of_a_payment(text):
     assert one("loan-amortization", "L0", text, "monthly_payment") == "correct"
+
+
+def test_labels_with_what_they_cover_in_brackets():
+    text = ("| Quantity | Value |\n|---|---|\n"
+            "| Required total resistance (junction to air) | 4.25 °C/W |\n"
+            "| Required plate area (both faces) | 0.0339 m² |")
+    result = check("heat-sink", "L2", text)
+    assert statuses(result, "total_resistance", "plate_area") == {
+        "total_resistance": "correct", "plate_area": "correct"}
+    ph = "pH at half-equivalence (12.5 mL) = pKa = 4.74"
+    assert one("titration-curve", "L0", ph, "ph_12_5_ml") == "correct"
+
+
+def test_a_motor_speed_with_a_thousands_comma():
+    text = "A motor at 1,450 rpm.\nRequired gear ratio: i = 1450/50.93 = 28.5:1"
+    assert one("conveyor-gear-ratio", "L0", text, "overall_ratio") == "correct"
+
+
+def test_a_count_of_payments_is_not_the_total_paid():
+    assert one("loan-amortization", "L0", "Total payments: 60",
+               "total_paid") == "could_not_determine"
+
+
+def test_a_decision_under_another_case_is_not_graded():
+    text = "## If the level were 5%\nWe reject H0."
+    assert one("hypothesis-test", "L2", text, "decision_l2") == "could_not_determine"
