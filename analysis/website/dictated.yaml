@@ -1,0 +1,478 @@
+# Which choices each website prompt takes out of the model's hands (T1.5).
+# The rules are in docs/metrics.md, "Open choices"; T1.6 reads this file.
+#
+# A variable is OPEN in a cell unless an entry here closes it for that task
+# and level. The two wordings of a cell give the same facts
+# (docs/leak-check.md), so entries are per task and level, never per wording.
+# Only open variables count toward a default; closed ones are reported apart.
+#
+# Per task:
+#   prompt_set_version   the prompt texts these entries were read from. A
+#                        record with another version is refused, not guessed.
+#   L0, L1, L2           a list of entries; a level left out closes nothing.
+#     closed     variables, as <extractor>.<feature>; <extractor>.* is every
+#                feature and derived variable of that extractor
+#     reason     direction   the brief names the look, tone or wording
+#                content     the brief supplies or requires the content that
+#                            decides the value
+#                constraint  the brief states a technical need
+#     quote      words of wording A at that level that close them (one text
+#                or a list); a check that the entry still matches the prompt
+#     expect     optional, per variable: what a run that followed the brief
+#                shows. {in: [...]} for a variable with one value per run;
+#                {absent: [...]} and/or {present: [...]} for a set. Left out
+#                where the feature vocabulary cannot say it.
+#     note       why, and what to be careful about
+#   associations   not closed: content at a level that may pull an open
+#                  choice (prompts/website/leak-check.md). Printed beside the
+#                  shift into that level, so the shift is read as the effect
+#                  of that content.
+#
+# `expect` speaks the extractors' vocabulary, which is coarse: "cyan" lies on
+# the border of teal and blue, "cream" spreads over four background classes.
+# A value listed here is one a compliant page can show; a value not listed is
+# counted as not following the brief.
+#
+# Changing an entry changes results: raise `metrics_version` in features.yaml.
+schema_version: 1
+project_type: website
+
+tasks:
+  bakery-landing:
+    prompt_set_version: "1"
+    L2:
+      - closed: [website.palette.*]
+        reason: direction
+        quote: "Black text on an off-white background, with cyan as the only accent"
+        expect:
+          website.palette.base_scheme: {in: [light]}
+          website.palette.background: {in: [white, gray-light, yellow-light]}
+          website.palette.dominant_hue: {in: [teal, blue]}
+        note: >-
+          Off-white is close to the expected cream default, which reads as
+          yellow-light: a cream L0 default is therefore not counted as
+          persisting. Cyan lies across the teal/blue border of the colour
+          vocabulary: #00ffff reads as teal, #00aeef as blue.
+      - closed:
+          - website.fonts.heading_font
+          - website.fonts.heading_category
+          - website.fonts.families
+          - website.fonts.family_count
+          - website.fonts.font_categories
+          - website.fonts.generic_families
+          - website.fonts.loaded_families
+        reason: direction
+        quote: "Condensed sans-serif headings, and a monospace face for prices and hours"
+        expect:
+          website.fonts.heading_category: {in: [sans, display]}
+        note: The body face is not named, so primary_font stays open.
+      - closed:
+          - website.corners-shadows.corner_style
+          - website.corners-shadows.common_radius
+          - website.corners-shadows.radii
+          - website.corners-shadows.pill_shapes
+        reason: direction
+        quote: "Square corners"
+        expect:
+          website.corners-shadows.corner_style: {in: [square]}
+          website.corners-shadows.pill_shapes: {in: ["false"]}
+      - closed:
+          - website.gradients.*
+          - website.corners-shadows.shadow_count
+          - website.corners-shadows.shadow_kinds
+          - website.corners-shadows.text_shadow
+          - website.corners-shadows.backdrop_blur
+        reason: direction
+        quote: "flat, solid color throughout"
+        expect:
+          website.gradients.gradient_count: {in: ["0"]}
+        note: >-
+          The brief names color, not shadows. Shadows are closed because a
+          flat look speaks against them, with no expected value.
+      - closed: [website.stock-phrases.*]
+        reason: direction
+        quote: "Tone: plain and matter-of-fact. Short, literal sentences that end in a period."
+        expect:
+          website.stock-phrases.exclamation_count: {in: ["0"]}
+      - closed:
+          - website.layout.sections
+          - website.layout.section_kinds
+          - website.layout.section_count
+          - website.layout.hero
+          - website.accessibility.form_controls
+        reason: content
+        quote: "Required sections:"
+    associations:
+      L1:
+        - variables: [website.palette.*, website.fonts.*]
+          quote: "sourdough"
+          note: Suggests a warm, handmade look.
+        - variables:
+            - website.layout.sections
+            - website.layout.section_kinds
+            - website.accessibility.form_controls
+          quote: "takes weekend pre-orders"
+          note: Implies some way to order, often a form.
+
+  pricing-page:
+    prompt_set_version: "1"
+    L2:
+      - closed: [website.palette.*]
+        reason: direction
+        quote: "A warm paper-cream background with dark green ink"
+        expect:
+          website.palette.base_scheme: {in: [light]}
+          website.palette.background: {in: [yellow-light, orange-light, gray-light, white]}
+          website.palette.dominant_hue: {in: [green, teal]}
+        note: >-
+          Cream spreads over four background classes, so background shows
+          little more than "light" here.
+      - closed: [website.fonts.*]
+        reason: direction
+        quote: "one book-style serif for all text"
+        expect:
+          website.fonts.primary_category: {in: [serif]}
+          website.fonts.heading_category: {in: [serif, same]}
+      - closed:
+          - website.layout.card_groups
+          - website.layout.card_group_sizes
+          - website.layout.mapped_card_groups
+          - website.layout.grid_columns
+        reason: direction
+        quote: "Show the plans in a single comparison table with ruled lines"
+        note: >-
+          No expected value: the three FAQ items can still form a card group
+          on a page that puts the plans in a table.
+      - closed:
+          - website.corners-shadows.corner_style
+          - website.corners-shadows.common_radius
+          - website.corners-shadows.radii
+          - website.corners-shadows.pill_shapes
+        reason: direction
+        quote: "square corners throughout"
+        expect:
+          website.corners-shadows.corner_style: {in: [square]}
+          website.corners-shadows.pill_shapes: {in: ["false"]}
+      - closed:
+          - website.gradients.*
+          - website.corners-shadows.shadow_count
+          - website.corners-shadows.shadow_kinds
+          - website.corners-shadows.text_shadow
+          - website.corners-shadows.backdrop_blur
+        reason: direction
+        quote: "Flat, solid color"
+        expect:
+          website.gradients.gradient_count: {in: ["0"]}
+        note: Shadows closed with no expected value, as for bakery-landing.
+      - closed: [website.stock-phrases.*]
+        reason: direction
+        quote: "Tone: plain and honest."
+        note: >-
+          The brief also dictates the button labels ("Start free"), which the
+          call-to-action rules can match.
+      - closed:
+          - website.layout.sections
+          - website.layout.section_kinds
+          - website.layout.section_count
+          - website.layout.hero
+        reason: content
+        quote: "Required sections:"
+
+  portfolio:
+    prompt_set_version: "1"
+    L2:
+      - closed: [website.palette.*]
+        reason: direction
+        quote: "A pale gray-blue background, charcoal text and one hot-pink accent"
+        expect:
+          website.palette.base_scheme: {in: [light]}
+          website.palette.background: {in: [blue-light, gray-light, white]}
+          website.palette.dominant_hue: {in: [pink, red]}
+        note: >-
+          A pale gray-blue page is close to a common light default (white or
+          gray-light), so a light L0 default is not counted as persisting.
+          Hot pink lies across the pink/red border: #ff69b4 reads as pink,
+          #ff3366 as red.
+      - closed: [website.fonts.*]
+        reason: direction
+        quote: "Headings in a high-contrast didone serif, body text in a humanist sans-serif"
+        expect:
+          website.fonts.primary_category: {in: [sans]}
+          website.fonts.heading_category: {in: [serif, display]}
+      - closed:
+          - website.layout.grid_columns
+          - website.layout.card_groups
+          - website.layout.card_group_sizes
+          - website.layout.mapped_card_groups
+          - website.layout.max_widths_px
+          - website.layout.container_class
+        reason: direction
+        quote: "An asymmetric, left-aligned layout with plenty of empty space"
+      - closed:
+          - website.corners-shadows.corner_style
+          - website.corners-shadows.common_radius
+          - website.corners-shadows.radii
+          - website.corners-shadows.pill_shapes
+        reason: direction
+        quote: "Images run full width with square corners"
+        note: >-
+          Only image corners are named, so there is no expected value for the
+          page's corner style.
+      - closed:
+          - website.icons-emoji.icon_kinds
+          - website.icons-emoji.icon_libraries
+          - website.icons-emoji.emoji_count
+          - website.icons-emoji.emoji
+          - website.icons-emoji.emoji_led_headings
+          - website.icons-emoji.inline_svg_count
+          - website.icons-emoji.svg_image_count
+          - website.icons-emoji.text_symbols
+        reason: direction
+        quote: "Links and labels are words only"
+        expect:
+          website.icons-emoji.emoji_count: {in: ["0"]}
+        note: >-
+          "Words only" covers links and labels; whether it rules out every
+          icon on the page is open to reading, so only emoji have an expected
+          value. The favicon stays open.
+      - closed: [website.stock-phrases.*]
+        reason: direction
+        quote: "Tone: quiet and precise, written in the first person as Joss."
+      - closed:
+          - website.layout.sections
+          - website.layout.section_kinds
+          - website.layout.section_count
+          - website.layout.hero
+          - website.accessibility.form_controls
+          - website.accessibility.images
+        reason: content
+        quote:
+          - "Required sections:"
+          - "each with a placeholder image"
+    associations:
+      L1:
+        - variables: [website.palette.*, website.fonts.*]
+          quote: "furniture maker"
+          note: Suggests wood tones and a craft look.
+
+  event-page:
+    prompt_set_version: "1"
+    L2:
+      - closed: [website.palette.*]
+        reason: direction
+        quote: "Two inks, fluorescent pink and teal, on pale yellow paper"
+        expect:
+          website.palette.base_scheme: {in: [light]}
+          website.palette.background: {in: [yellow-light]}
+          website.palette.dominant_hue: {in: [pink, teal]}
+        note: >-
+          Teal is next to the expected green default. A yellow so pale that
+          it reads as white is counted as not following the brief.
+      - closed: [website.fonts.*]
+        reason: direction
+        quote: "Headings in a heavy slab serif, body text in a typewriter-style face"
+        expect:
+          website.fonts.heading_category: {in: [serif, display]}
+        note: >-
+          A typewriter-style face can be listed as mono, serif or display, so
+          the body face has no expected value.
+      - closed:
+          - website.corners-shadows.shadow_count
+          - website.corners-shadows.shadow_kinds
+          - website.corners-shadows.text_shadow
+        reason: direction
+        quote: "with slightly misaligned overprinting"
+        note: Offset shadows are the usual way to draw a misaligned overprint.
+      - closed:
+          - website.icons-emoji.icon_kinds
+          - website.icons-emoji.icon_libraries
+          - website.icons-emoji.emoji_count
+          - website.icons-emoji.emoji
+          - website.icons-emoji.emoji_led_headings
+          - website.icons-emoji.inline_svg_count
+          - website.icons-emoji.svg_image_count
+          - website.icons-emoji.text_symbols
+        reason: direction
+        quote: "Headings and labels are words only"
+        expect:
+          website.icons-emoji.emoji_count: {in: ["0"]}
+      - closed: [website.stock-phrases.*]
+        reason: direction
+        quote: "Tone: welcoming and practical."
+      - closed:
+          - website.layout.sections
+          - website.layout.section_kinds
+          - website.layout.section_count
+          - website.layout.hero
+          - website.accessibility.form_controls
+        reason: content
+        quote: "Required sections:"
+    associations:
+      L1:
+        - variables: [website.palette.*]
+          quote: "repair event"
+          note: Suggests green, community looks.
+
+  todo-app:
+    prompt_set_version: "1"
+    L2:
+      - closed: [website.palette.*]
+        reason: direction
+        quote: "An off-white background with blocks of primary red, yellow and blue, and thick black outlines"
+        expect:
+          website.palette.base_scheme: {in: [light]}
+          website.palette.background: {in: [white, gray-light, yellow-light]}
+        note: >-
+          Three hues are dictated with equal weight, so the dominant hue has
+          no expected value. Blue is one of them and near a common default.
+      - closed:
+          - website.fonts.heading_font
+          - website.fonts.heading_category
+          - website.fonts.families
+          - website.fonts.family_count
+          - website.fonts.font_categories
+          - website.fonts.generic_families
+          - website.fonts.loaded_families
+        reason: direction
+        quote: "Headings in a heavy geometric sans-serif"
+        expect:
+          website.fonts.heading_category: {in: [sans, display]}
+        note: >-
+          A geometric sans is near a common default: expect little movement.
+          The body face is not named, so primary_font stays open.
+      - closed:
+          - website.corners-shadows.corner_style
+          - website.corners-shadows.common_radius
+          - website.corners-shadows.radii
+          - website.corners-shadows.pill_shapes
+        reason: direction
+        quote: "square corners on every shape"
+        expect:
+          website.corners-shadows.corner_style: {in: [square]}
+          website.corners-shadows.pill_shapes: {in: ["false"]}
+      - closed:
+          - website.gradients.*
+          - website.corners-shadows.shadow_count
+          - website.corners-shadows.shadow_kinds
+          - website.corners-shadows.text_shadow
+          - website.corners-shadows.backdrop_blur
+        reason: direction
+        quote: "flat, solid color throughout"
+        expect:
+          website.gradients.gradient_count: {in: ["0"]}
+        note: Shadows closed with no expected value, as for bakery-landing.
+      - closed: [website.stock-phrases.*]
+        reason: direction
+        quote: "Interface text: short and direct."
+      - closed:
+          - website.layout.sections
+          - website.layout.section_kinds
+          - website.layout.section_count
+          - website.layout.hero
+          - website.accessibility.form_controls
+        reason: content
+        quote: "Features:"
+    associations:
+      L1:
+        - variables:
+            - website.layout.sections
+            - website.layout.section_kinds
+            - website.accessibility.form_controls
+          quote: "deadlines"
+          note: Implies a due date for each task.
+      L2:
+        - variables: [website.libraries.*, website.file-structure.*]
+          quote: "Keep tasks on this device after the page is reloaded"
+          note: >-
+            A need, not a technology: it can move the library and file
+            choices without fixing any of them.
+
+  dashboard:
+    prompt_set_version: "1"
+    L2:
+      - closed: [website.palette.*]
+        reason: direction
+        quote:
+          - "A warm white background with dark gray text"
+          - "Charts in a single oxblood red with grays"
+        expect:
+          website.palette.base_scheme: {in: [light]}
+          website.palette.background: {in: [white, gray-light, yellow-light, orange-light]}
+          website.palette.dominant_hue: {in: [red]}
+      - closed:
+          - website.fonts.families
+          - website.fonts.family_count
+          - website.fonts.font_categories
+          - website.fonts.generic_families
+        reason: direction
+        quote: "Numbers set in a serif with old-style figures"
+        note: >-
+          Only the face of the numbers is named; primary_font and
+          heading_font stay open.
+      - closed:
+          - website.layout.card_groups
+          - website.layout.card_group_sizes
+          - website.layout.mapped_card_groups
+          - website.corners-shadows.shadow_count
+          - website.corners-shadows.shadow_kinds
+        reason: direction
+        quote: "Separate the areas with thin hairline rules alone"
+        note: >-
+          Rules alone leave no boxed cards and so no card shadows. No
+          expected value: card groups are read by a heuristic.
+      - closed:
+          - website.corners-shadows.corner_style
+          - website.corners-shadows.common_radius
+          - website.corners-shadows.radii
+          - website.corners-shadows.pill_shapes
+        reason: direction
+        quote: "keep every corner square"
+        expect:
+          website.corners-shadows.corner_style: {in: [square]}
+          website.corners-shadows.pill_shapes: {in: ["false"]}
+      - closed:
+          - website.icons-emoji.icon_kinds
+          - website.icons-emoji.icon_libraries
+          - website.icons-emoji.emoji_count
+          - website.icons-emoji.emoji
+          - website.icons-emoji.emoji_led_headings
+          - website.icons-emoji.inline_svg_count
+          - website.icons-emoji.svg_image_count
+          - website.icons-emoji.text_symbols
+        reason: direction
+        quote: "Labels are words only"
+        expect:
+          website.icons-emoji.emoji_count: {in: ["0"]}
+        note: >-
+          The bars of the chart may be drawn as inline SVG, so only emoji
+          have an expected value.
+      - closed: [website.stock-phrases.*]
+        reason: direction
+        quote: "Tone: plain labels in everyday words."
+      - closed:
+          - website.layout.sections
+          - website.layout.section_kinds
+          - website.layout.section_count
+          - website.layout.hero
+        reason: content
+        quote: "Required sections:"
+      - closed:
+          - website.libraries.*
+          - website.fonts.font_sources
+          - website.fonts.loaded_families
+          - website.icons-emoji.icon_libraries
+          - website.file-structure.external_scripts
+          - website.file-structure.external_stylesheets
+        reason: constraint
+        quote: "it cannot rely on an internet connection"
+        expect:
+          website.libraries.delivery: {absent: [cdn]}
+          website.fonts.font_sources: {absent: [google-fonts, bunny-fonts, adobe-fonts, fontshare, rsms-inter]}
+        note: >-
+          delivery is not applicable on a page with no library, so its
+          compliance is among pages that use one.
+    associations:
+      L1:
+        - variables: [website.palette.*]
+          quote: "food bank"
+          note: Suggests a charity look.
