@@ -751,3 +751,51 @@ def test_reopen_returns_the_open_reservation_made_by_the_same_ledger(tmp_path):
     with open_ledger(tmp_path) as ledger:
         reservation = reserve(ledger)
         assert ledger.reopen(reservation.call_id) is reservation
+
+
+def test_reopen_says_which_refusal_it_is(tmp_path):
+    # A caller may pass over "already settled" and "never reserved" and
+    # must stop on anything else.
+    with open_ledger(tmp_path) as first:
+        settled = reserve(first)
+        first.settle(settled, Usage(input=1, output=1))
+    with open_ledger(tmp_path, batch="b2") as other:
+        foreign = reserve(other)
+    with open_ledger(tmp_path) as ledger:
+        with pytest.raises(ledger_module.AlreadySettled):
+            ledger.reopen(settled.call_id)
+        with pytest.raises(ledger_module.NotReserved):
+            ledger.reopen(str(uuid.uuid4()))
+        with pytest.raises(LedgerError) as caught:
+            ledger.reopen(foreign.call_id)
+        assert not isinstance(caught.value, (ledger_module.AlreadySettled,
+                                             ledger_module.NotReserved))
+
+
+def test_a_caller_may_choose_the_call_id(tmp_path):
+    # So the id can be written down before the reservation is made.
+    call_id = str(uuid.uuid4())
+    with open_ledger(tmp_path) as ledger:
+        reservation = ledger.reserve(model_id="m", record_id=str(uuid.uuid4()),
+                                     prompt_tokens=1000, max_output_tokens=1000,
+                                     call_id=call_id)
+        assert reservation.call_id == call_id
+        with pytest.raises(LedgerError, match="already"):
+            ledger.reserve(model_id="m", record_id=str(uuid.uuid4()),
+                           prompt_tokens=1000, max_output_tokens=1000,
+                           call_id=call_id)
+        with pytest.raises(LedgerError, match="call_id"):
+            ledger.reserve(model_id="m", record_id=str(uuid.uuid4()),
+                           prompt_tokens=1000, max_output_tokens=1000,
+                           call_id="NOT-A-UUID")
+    assert [line["call_id"] for line in lines(tmp_path)] == [call_id]
+
+
+def test_the_lock_and_money_helpers_are_public(tmp_path):
+    handle = ledger_module.lock_file(tmp_path / "x.lock")
+    try:
+        with pytest.raises(LedgerError):
+            ledger_module.lock_file(tmp_path / "x.lock")
+    finally:
+        ledger_module.unlock_file(handle)
+    assert ledger_module.usd_text(Decimal("1.2500")) == "1.25"

@@ -31,8 +31,11 @@ A call whose result arrives after its run has ended, such as a request in a
 provider's batch job, is settled by a later run of the same `batch_id`:
 `ledger.reopen(call_id)` rebuilds the open reservation from its `reserve`
 line, and `settle` is then called as usual. Until then it counts at its
-worst case. `reopen` refuses a call that is unknown, already settled or of
-another batch.
+worst case. `reopen` refuses a call that is unknown (`NotReserved`), already
+settled (`AlreadySettled`) or of another batch (`LedgerError`), so a caller
+can pass over the first two and stop on the rest. Such a caller may choose
+the id itself, `reserve(..., call_id=...)` with a new lower-case UUID, so the
+id can be written down before the reservation is made.
 
 ## The cap
 
