@@ -508,14 +508,17 @@ class Box:
                 problems.append(f"AppContainer profile {self.name}: {error}")
         _OPEN.discard(self.name)
         if self.folder is not None and self.folder.exists() and not keep_folder:
-            for attempt in range(5):  # a virus scanner may hold a file a moment
+            # A virus scanner may hold new files for a while (seconds, on a
+            # busy machine): try for up to about ten seconds.
+            for pause in (0.2, 0.4, 0.8, 1.6, 3.2, 4.0, None):
                 try:
                     remove_tree(self.folder)
                     break
                 except OSError as error:
-                    if attempt == 4:
+                    if pause is None:
                         problems.append(str(error))
-                    time.sleep(0.2 * (attempt + 1))
+                    else:
+                        time.sleep(pause)
         if self._lock is not None:
             unlock_file(self._lock)
             self._lock = None
