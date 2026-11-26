@@ -801,3 +801,28 @@ def test_stored_credentials_cannot_be_listed():
 def test_control_unsandboxed_the_credential_manager_answers():
     answer, _ = probe(CREDENTIALS, isolation=OFF)
     assert "listed" in answer or answer["error"] == 1168, answer
+
+
+MORE_RIGHTS = (ROOT / "tests" / "fixtures" / "sandbox" / "more_rights.py").read_text()
+
+
+def test_no_child_with_more_rights(listener):
+    answer, _ = probe(MORE_RIGHTS, {"tcp": listener.tcp_port})
+    assert all(result[0] == "create failed" for result in answer.values()), answer
+    assert listener.heard == []
+
+
+def test_control_outside_the_sandbox_such_a_child_can_be_started(listener, tmp_path):
+    # The same calls, made from outside with the box's package SID, start
+    # the child: the refusal above is the sandbox's, not a bad probe.
+    from sandbox.box import Box
+
+    script = tmp_path / "more_rights.py"
+    script.write_text(MORE_RIGHTS)
+    with Box(limits=SMALL) as box:
+        out = subprocess.run(
+            [getattr(sys, "_base_executable", sys.executable), "-I", str(script),
+             json.dumps({"tcp": listener.tcp_port, "package": box.package.string})],
+            capture_output=True, text=True, timeout=60, cwd=tmp_path)
+    answer = json.loads(out.stdout.strip().splitlines()[-1])
+    assert answer["not less privileged"][0] == "started", answer

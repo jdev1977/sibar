@@ -486,7 +486,7 @@ def create_profile(name):
 
     Windows will not start a process in an AppContainer it has no profile for.
     The profile comes with a folder and a registry key the container could
-    write to; :func:`strip_profile` removes both."""
+    write to; the box deletes both (``Box._strip_profile``)."""
     pointer = PSID()
     result = api().CreateAppContainerProfile(name, name, name, None, 0,
                                              ctypes.byref(pointer))
@@ -757,12 +757,14 @@ def start(argv, cwd, environment, *, token=None, package=None, capabilities=(),
                  | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_PROCESS_GROUP)
         command = ctypes.create_unicode_buffer(subprocess.list2cmdline(argv))
         block = _environment_block(environment)
+        # A full path is used as is; otherwise Windows looks the program up.
+        program = argv[0] if os.path.isabs(argv[0]) else None
         if token is not None:
-            ok = a.CreateProcessAsUserW(token, argv[0], command, None, None, True, flags,
+            ok = a.CreateProcessAsUserW(token, program, command, None, None, True, flags,
                                         block, str(cwd), ctypes.byref(info),
                                         ctypes.byref(result))
         else:
-            ok = a.CreateProcessW(argv[0], command, None, None, True, flags, block,
+            ok = a.CreateProcessW(program, command, None, None, True, flags, block,
                                   str(cwd), ctypes.byref(info), ctypes.byref(result))
         if not ok:
             raise WinError("CreateProcess")
