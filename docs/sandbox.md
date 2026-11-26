@@ -310,12 +310,12 @@ data and are given at every level.
 
 | Task | Inputs and settings | Arguments tried | Measured |
 |---|---|---|---|
-| data-validation | `incoming/2026-03-02/OV-014.jsonl` (the two readings), `stations.csv`; the clock fixed at 2026-03-03 06:00 UTC | the day's folder; then it and `stations.csv` | rejects files; which of the second reading's three broken rules its rejection lists (`all_problems_listed`), with the text read; whether `passed/2026-03-02/OV-014.jsonl` holds the first reading |
+| data-validation | `incoming/2026-03-02/OV-014.jsonl` (the two readings), `stations.csv`; the clock fixed at 2026-03-03 06:00 UTC | the day's folder; then it and `stations.csv` | rejects files; which of the second reading's three broken rules its rejection lists (`all_problems_listed`), with the text read; whether `passed/2026-03-02/OV-014.jsonl` holds the first reading; the exit code beside the brief's (2: half the readings rejected) |
 | log-aggregation | `logs/access-2027-03-01.log.gz` (two sample lines) and `logs/access.log` (three); with `--scale-mb N`, a gzip file of N MB of generated lines | `logs`; then with a time range | files written; peak memory against the memory limit |
 | csv-to-database | `orders-2027-03.csv` (the six sample rows) | the CSV | files written |
-| daily-api-fetch | the stub for `api.example.com`; the clock at 2027-03-03 06:00 UTC; a stand-in key under common variable names | | every request (path, date, whether `X-Api-Key` was sent); files written |
+| daily-api-fetch | the stub for `api.example.com`; the clock at 2027-03-03 06:00 UTC; a stand-in key under common variable names | | every request (path, date, whether `X-Api-Key` was sent); files written; whether it exited by itself ("runs once and then exits") or kept running until the clock limit |
 | image-resize | photos made in the sandbox: a 6400 by 4000 photo stored sideways with an orientation flag, camera and location details; an upright phone photo; one smaller than the target; a PNG with a transparent background; a broken file | `photos resized`; then `photos` | each image written (size, orientation flag, camera and location details, whether the scene's top is at the top), read by Pillow in the sandbox; `sideways_photo_upright`, `camera_and_location_removed` |
-| ci-workflow | | | YAML, TOML and JSON files parse-checked in the sandbox, with the commands a workflow would run; an output with no Python is `not-runnable` |
+| ci-workflow | | | YAML, TOML and JSON files parse-checked in the sandbox, with the commands a workflow would run. The commands are listed, not run: the L2 package is Go (no Go in the sandbox), and a workflow's own steps (checkout, setup actions) need the build service. An output with no Python is `not-runnable`; Python package code in it runs as usual |
 
 **Clock** (`clock` shim): `time.time`, the `time` functions without a time,
 `datetime.now`/`utcnow`/`today` and `date.today` start at the given moment

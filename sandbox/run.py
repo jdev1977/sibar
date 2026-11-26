@@ -270,8 +270,11 @@ def run_folder(source, paths=None, settings=Settings(), root=None):
 
     source = Path(source)
     if paths is None:
+        # Links are left out: they could bring in files from elsewhere.
+        top = source.resolve()
         paths = sorted(p.relative_to(source).as_posix() for p in source.rglob("*")
-                       if p.is_file())
+                       if p.is_file() and not p.is_symlink() and not p.is_junction()
+                       and p.resolve().is_relative_to(top))
     detail = {"result": None, "reason": None, "files": len(paths),
               "settings": {"limits": asdict(settings.limits),
                            "command": list(settings.command) if settings.command else None,

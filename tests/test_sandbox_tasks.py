@@ -75,6 +75,7 @@ def test_data_validation_runs_on_the_briefs_readings_with_a_fixed_clock(run):
     assert task["rejects_files"] == ["rejects-2026-03-02.jsonl"]
     assert task["second_reading_problems_listed"] == ["humidity_pct", "rain_mm", "temp_c"]
     assert task["all_problems_listed"] is True
+    assert task["exit_code"] == task["expected_exit_code"] == 2
 
 
 def test_data_validation_that_stops_at_the_first_problem_is_seen(run):
@@ -126,6 +127,14 @@ def test_the_api_stub_serves_requests_and_logs_them(run):
     assert task["requests"][0] == {"path": "/v2/air/readings", "date": "2027-03-02",
                                    "api_key_header": True}
     assert "readings-2027-03.csv" in task["written"]
+    assert task["exited_by_itself"] is True
+
+
+def test_a_fetcher_that_keeps_running_is_seen(run):
+    code = "import time\nwhile True:\n    time.sleep(1)  # its own daily schedule\n"
+    detail = run("daily-api-fetch", {"fetch.py": code}, limits=replace(SMALL, seconds=3))
+    assert detail["result"] == "timeout"
+    assert detail["task"]["exited_by_itself"] is False
 
 
 def test_the_api_stub_serves_urllib_too(run):

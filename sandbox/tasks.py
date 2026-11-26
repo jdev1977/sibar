@@ -159,6 +159,10 @@ class DataValidation(Hook):
         found["evidence"] = evidence[:5]
         passed = self.read_text(box, "passed/2026-03-02/OV-014.jsonl")
         found["passed_file"] = None if passed is None else passed.strip() == READINGS.splitlines()[0]
+        # One of the two readings rejected is 5% or more: the brief's step
+        # exits with 2 so the next step stops.
+        found["exit_code"] = (detail.get("entry") or {}).get("exit_code")
+        found["expected_exit_code"] = 2
         return found
 
 
@@ -287,6 +291,10 @@ class DailyApiFetch(Hook):
                                  "api_key_header": "x-api-key" in (item.get("headers") or [])})
         found["requests"] = requests[:50]
         found["request_count"] = len(requests)
+        # "It runs once and then exits": a program that keeps running (its
+        # own scheduler loop) is ended by the wall-clock limit instead.
+        entry = detail.get("entry") or {}
+        found["exited_by_itself"] = entry.get("ended_by") is None if entry else None
         return found
 
 
