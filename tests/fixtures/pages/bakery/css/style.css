@@ -1,0 +1,9 @@
+:root { --paper: #fbf6ee; --ink: #2b2118; --card: #ffffff; }
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #17120d; --ink: #f2e8da; --card: #241c14; }
+}
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: serif; }
+header { text-align: center; padding: 48px 16px; }
+main { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 16px; }
+section { background: var(--card); padding: 24px; }
+@media (max-width: 700px) { main { grid-template-columns: 1fr; } }
