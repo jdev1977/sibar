@@ -3,19 +3,19 @@
 The checks are mechanical and cannot prove that a prompt carries no hint: the
 rules are in docs/leak-check.md, and the T1.2 leak check read each prompt (its
 log is prompts/website/leak-check.md). The word lists here pin what that check
-decided, so a later edit cannot quietly undo it.
+decided, so a later edit cannot quietly undo it. The matching and comparing
+is shared with the other prompt sets (tests/prompt_checks.py).
 """
 
-import hashlib
-import json
-import re
-from difflib import SequenceMatcher
 from functools import cache
 from itertools import combinations
 from pathlib import Path
 
 import pytest
 
+from prompt_checks import (BRITISH, EMAIL, NUMBER, PHONE, QUOTED,
+                           fact_problems, fingerprint, mid_sentence_names,
+                           please_count, similarity, word_pattern, words)
 from runner.prompts import load_prompts
 from runner.record import LEVELS, WORDINGS
 
@@ -99,14 +99,6 @@ LOOK_WORDS = """
 """.split()
 
 
-def word_pattern(words):
-    """Match a listed word on its own or as part of a hyphenated compound
-    ("dark-mode", "React-based"), but not inside a longer word."""
-    alternatives = "|".join(re.escape(w) for w in words)
-    return re.compile(rf"(?<![a-z0-9])(?:{alternatives})(?:e?s)?(?![a-z0-9])",
-                      re.IGNORECASE)
-
-
 # An L2 brief says what it wants and never names the common default it moves
 # away from, not even to forbid it (T1.2; docs/leak-check.md). A named default
 # that then shows up in an output could have come from the prompt.
@@ -119,32 +111,16 @@ NAMED_DEFAULT_PHRASES = ("most popular", "dark mode", "dark theme",
 # Page content that holds a listed word without naming a component.
 ALLOWED_CONTENT = ("credit card",)
 
-# The set uses US spelling throughout, so no prompt hints at another locale.
-BRITISH_WORDS = """
-    grey colour colourful centre centred neighbourhood organise organised
-    favourite enquiry catalogue programme whilst labelled cancelled
-    cancelling
-""".split()
+# The set uses US spelling throughout (BRITISH, in tests/prompt_checks.py).
 
 STYLE = word_pattern(STYLE_WORDS)
 TECH = word_pattern(TECH_WORDS)
 NAMED_DEFAULT = word_pattern(NAMED_DEFAULT_WORDS)
-BRITISH = word_pattern(BRITISH_WORDS)
-NUMBER = re.compile(r"\d+(?:[.,:]\d+)*")
-EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-PHONE = re.compile(r"\d{3}-\d{4}")
-QUOTED = re.compile(r"[\"“]([^\"”\n]+)[\"”]")
-CAPITALIZED = re.compile(r"\b[A-Z][A-Za-z]+\b")
 
 
 @cache
 def tasks():
     return {task.task_id: task for task in load_prompts([FOLDER])}
-
-
-def fingerprint(task):
-    sent = json.dumps(task.variants(), ensure_ascii=False)
-    return hashlib.sha256(sent.encode("utf-8")).hexdigest()[:16]
 
 
 def cells():
@@ -161,10 +137,6 @@ def text_id(item):
     return "-".join(item[:3])
 
 
-def words(text):
-    return re.findall(r"[a-z0-9']+", text.lower())
-
-
 def look_words(text):
     found = set(words(text.replace("-", " ")))
     return {w for w in LOOK_WORDS if w in found or w + "s" in found}
@@ -177,18 +149,6 @@ def named_defaults(text):
         lowered = lowered.replace(content, " ")
     return NAMED_DEFAULT.findall(lowered) + [
         phrase for phrase in NAMED_DEFAULT_PHRASES if phrase in lowered]
-
-
-def mid_sentence_names(text):
-    """Capitalised words that are not the first word of a sentence or line."""
-    names = set()
-    for match in CAPITALIZED.finditer(text):
-        before = text[:match.start()].rstrip(" \"“(")
-        line = before.rsplit("\n", 1)[-1].strip()
-        if before and not before.endswith(("\n", ".", "!", "?", ":")) \
-                and line not in ("-", "*"):
-            names.add(match.group())
-    return names
 
 
 # --- the set as a whole ------------------------------------------------------
@@ -276,8 +236,7 @@ def test_each_wording_keeps_its_voice_at_every_level(item):
     opening = {"A": "Make ", "B": "Can you build "}[wording]
     assert text.startswith(opening)
     assert ("?" in text.splitlines()[0]) == (wording == "B")
-    pleases = len(re.findall(r"\bplease\b", text, re.IGNORECASE))
-    assert pleases == (1 if (level, wording) == ("L2", "B") else 0)
+    assert please_count(text) == (1 if (level, wording) == ("L2", "B") else 0)
 
 
 @pytest.mark.parametrize("task_id", sorted(EXPECTED))
@@ -298,36 +257,17 @@ MAX_SIMILARITY = {"L0": 0.7, "L1": 0.7, "L2": 0.75}
 @pytest.mark.parametrize("task_id,level", cells())
 def test_the_two_wordings_differ_in_phrasing(task_id, level):
     task = tasks()[task_id]
-    a, b = words(task.text(level, "A")), words(task.text(level, "B"))
-    assert a != b
-    ratio = SequenceMatcher(None, a, b, autojunk=False).ratio()
-    assert ratio < MAX_SIMILARITY[level]
+    a, b = task.text(level, "A"), task.text(level, "B")
+    assert words(a) != words(b)
+    assert similarity(a, b) < MAX_SIMILARITY[level]
 
 
 def l2_fact_problems(task_id, a, b):
-    """Differences in checkable facts between the two L2 wordings.
-
-    Numbers, emails and quoted text are compared in order, so two swapped
-    prices or percentages count as a difference. Each name in NAMES must
-    appear in both, wherever it stands in the sentence.
-    """
-    problems = []
-    for label, pattern in (("numbers", NUMBER), ("emails", EMAIL),
-                           ("quoted text", QUOTED)):
-        if pattern.findall(a) != pattern.findall(b):
-            problems.append(f"{label} differ or are in another order")
-    if look_words(a) != look_words(b):
-        problems.append("color and type words differ")
-    for name in NAMES[task_id]:
-        for wording, text in (("A", a), ("B", b)):
-            if name not in text:
-                problems.append(f"{wording} lacks {name!r}")
-    for wording, text, other in (("A", a, b), ("B", b, a)):
-        missing = sorted(name for name in mid_sentence_names(text)
-                         if not re.search(rf"\b{name}\b", other))
-        if missing:
-            problems.append(f"names only in {wording}: {missing}")
-    return problems
+    """Differences in checkable facts between the two L2 wordings: the
+    shared checks (prompt_checks.fact_problems), each name in NAMES, and the
+    same color and type words."""
+    return fact_problems(a, b, NAMES[task_id],
+                         [("color and type words", look_words)])
 
 
 def test_names_are_listed_for_every_task():
