@@ -412,7 +412,8 @@ def test_a_job_prepared_but_never_sent_is_released(tmp_path):
                                   record_id=setup.records[0]["record_id"],
                                   prompt_tokens=5000, max_output_tokens=16000)
     jobs = JobLog(tmp_path / "r1" / "jobs.jsonl")
-    jobs.add("prepared", "sdead", requests=[{
+    jobs.add("prepared", "sdead", ledger=str(setup.ledger.resolve()),
+             ledger_batch="tag-r1", requests=[{
         "custom_id": "sdead-0", "key": "k", "record_id": setup.records[0]["record_id"],
         "attempt": 1, "items": ["response_mode"], "call_id": reservation.call_id}])
     fake = FakeAnthropic()
@@ -502,3 +503,177 @@ def test_api_keys_never_reach_stored_files(tmp_path):
     setup.tag(fake)
     for path in tmp_path.rglob("*.jsonl"):
         assert key not in path.read_text(encoding="utf-8"), path
+
+
+# --- fix round 1 (review before the first paid run) ----------------------------------------
+
+def _charges(setup):
+    return [e for e in setup.ledger_lines() if e["type"] == "charge"]
+
+
+def test_a_new_run_name_does_not_resend_requests_in_flight_in_another_run(tmp_path):
+    setup = Setup(tmp_path)
+    fake = FakeAnthropic(ended=False)
+    code, _ = setup.tag(fake, wait=False)
+    assert code == run.EXIT_WAITING and fake.creates == 1
+    # Same records, same cache, another --run: nothing is sent again.
+    code, transport = setup.tag(fake, wait=False, run_name="r2")
+    assert code == run.EXIT_WAITING and fake.creates == 1
+    assert not [r for r in transport.requests if r.method == "POST"]
+    assert any("another run" in line and "r1" in line for line in setup.lines)
+    # Its dry run counts them as in a job, not to send.
+    setup.lines.clear()
+    setup.tag(fake, paid=False, run_name="r2")
+    assert any("3 in a job, 0 to send" in line for line in setup.lines)
+    # Once the first run collects them, the second finds them in the cache.
+    fake.ended = True
+    assert setup.tag(fake, wait=False)[0] == run.EXIT_OK
+    code, _ = setup.tag(fake, wait=False, run_name="r2")
+    assert code == run.EXIT_OK and fake.creates == 1
+
+
+def test_the_prepared_line_names_the_ledger_and_its_batch(tmp_path):
+    setup = Setup(tmp_path, n=1)
+    setup.tag(FakeAnthropic(ended=False), wait=False)
+    entry = json.loads((tmp_path / "r1" / "jobs.jsonl").read_text("ascii").splitlines()[0])
+    assert entry["event"] == "prepared"
+    assert entry["ledger"] == str(setup.ledger.resolve())
+    assert entry["ledger_batch"] == "tag-r1"
+
+
+@pytest.mark.parametrize("change", ["ledger", "run"])
+def test_a_job_is_collected_only_with_the_ledger_and_batch_it_was_reserved_in(
+        tmp_path, change):
+    setup = Setup(tmp_path)
+    fake = FakeAnthropic(ended=False)
+    setup.tag(fake, wait=False)
+    fake.ended = True
+    if change == "ledger":
+        extra, kwargs = ("--ledger", str(tmp_path / "other-ledger.jsonl")), {}
+    else:  # the same run folder under another --run: another ledger batch
+        extra, kwargs = ("--run-dir", str(tmp_path / "r1")), {"run_name": "r9"}
+    code, _ = setup.tag(fake, *extra, wait=False, **kwargs)
+    assert code == run.EXIT_REFUSED and "reserved in" in setup.lines[-1]
+    assert not _charges(setup) and not (tmp_path / "other-ledger.jsonl").exists()
+    assert not [j.results for j in JobLog(tmp_path / "r1" / "jobs.jsonl").jobs.values()
+                if j.results]
+    code, _ = setup.tag(fake, wait=False)  # with the right ledger and run
+    assert code == run.EXIT_OK and len(_charges(setup)) == 3
+
+
+def test_a_settlement_the_ledger_cannot_record_blocks_the_run(tmp_path, monkeypatch):
+    setup = Setup(tmp_path)
+    fake = FakeAnthropic(ended=False)
+    setup.tag(fake, wait=False)
+    fake.ended = True
+
+    def broken(self, reservation, usage, *, request_id=None):
+        raise run.LedgerError("the disk is full (fake)")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Ledger, "settle", broken)
+        code, _ = setup.tag(fake, wait=False)
+    assert code == run.EXIT_BLOCKED and "disk is full" in "\n".join(setup.lines)
+    assert not _charges(setup)
+    code, _ = setup.tag(fake, wait=False)  # the ledger works again
+    assert code == run.EXIT_OK and len(_charges(setup)) == 3 and fake.creates == 1
+
+
+def test_a_run_that_stopped_after_settling_is_collected_without_a_second_charge(
+        tmp_path, monkeypatch):
+    setup = Setup(tmp_path)
+    fake = FakeAnthropic(ended=False)
+    setup.tag(fake, wait=False)
+    fake.ended = True
+    original = JobLog.add
+
+    def stop_before_collected(self, event, submission, **fields):
+        if event == "collected":
+            raise KeyboardInterrupt
+        return original(self, event, submission, **fields)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(JobLog, "add", stop_before_collected)
+        assert setup.tag(fake, wait=False)[0] == run.EXIT_INTERRUPTED
+    assert len(_charges(setup)) == 3
+    code, _ = setup.tag(fake, wait=False)  # "already settled" is passed over
+    assert code == run.EXIT_OK and len(_charges(setup)) == 3
+
+
+def test_a_submitted_job_cannot_be_abandoned(tmp_path):
+    setup = Setup(tmp_path)
+    fake = FakeAnthropic(ended=False)
+    setup.tag(fake, wait=False)
+    submission = next(iter(JobLog(tmp_path / "r1" / "jobs.jsonl").jobs))
+    code, _ = setup.tag(fake, "--abandon", submission, wait=False)
+    assert code == run.EXIT_REFUSED and fake.creates == 1
+    assert "sending" in setup.lines[-1]
+
+
+def test_prepared_names_every_call_id_before_any_reservation(tmp_path, monkeypatch):
+    setup = Setup(tmp_path)
+    original = Ledger.reserve
+    seen = []
+
+    def reserve(self, **kwargs):
+        jobs = JobLog(tmp_path / "r1" / "jobs.jsonl", read_only=True)
+        listed = {r["call_id"] for job in jobs.jobs.values() for r in job.requests}
+        seen.append(kwargs["call_id"] in listed)
+        return original(self, **kwargs)
+
+    monkeypatch.setattr(Ledger, "reserve", reserve)
+    assert setup.tag(FakeAnthropic())[0] == run.EXIT_OK
+    assert seen == [True, True, True]
+
+
+def test_a_crash_while_reserving_leaves_no_reservation_unfound(tmp_path, monkeypatch):
+    setup = Setup(tmp_path)
+    original = Ledger.reserve
+    calls = []
+
+    def crash_on_second(self, **kwargs):
+        calls.append(1)
+        if len(calls) == 2:
+            raise KeyboardInterrupt
+        return original(self, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Ledger, "reserve", crash_on_second)
+        assert setup.tag(FakeAnthropic())[0] == run.EXIT_INTERRUPTED
+    assert [e["type"] for e in setup.ledger_lines()] == ["reserve"]
+    fake = FakeAnthropic()
+    assert setup.tag(fake)[0] == run.EXIT_OK and fake.creates == 1
+    # The orphan of the crashed job is settled at zero, not left at worst case.
+    entries = setup.ledger_lines()
+    first = entries[0]["call_id"]
+    charge = [e for e in entries if e["type"] == "charge" and e["call_id"] == first]
+    assert charge and Decimal(charge[0]["cost_usd"]) == 0
+    assert not {e["call_id"] for e in entries if e["type"] == "reserve"} - \
+        {e["call_id"] for e in entries if e["type"] == "charge"}
+
+
+def test_a_dry_run_leaves_a_cut_last_line_alone(tmp_path):
+    setup = Setup(tmp_path)
+    assert setup.tag(FakeAnthropic())[0] == run.EXIT_OK
+    paths = [setup.cache, tmp_path / "r1" / "jobs.jsonl"]
+    for path in paths:
+        with open(path, "ab") as handle:
+            handle.write(b'{"schema_version":1,"cut')
+    before = [path.read_bytes() for path in paths]
+    setup.lines.clear()
+    code, _ = setup.tag(FakeAnthropic(), paid=False)
+    assert code == run.EXIT_OK and [path.read_bytes() for path in paths] == before
+    assert any("3 answered" in line for line in setup.lines)
+
+
+def test_a_tagged_copy_never_mixes_two_taggers(tmp_path):
+    setup = Setup(tmp_path)
+    setup.tag(FakeAnthropic())
+    # The other tagger is given the first tagger's copy, and has no answer yet.
+    setup.records_path = tmp_path / "r1" / "records.claude-haiku-5-5.jsonl"
+    code, _ = setup.tag(FakeOpenAI(status="in_progress"), tagger="gpt-6-luna",
+                        run_name="luna", wait=False)
+    assert code == run.EXIT_WAITING
+    for rec in setup.output("gpt-6-luna", run_name="luna"):
+        assert not [e for e in rec["extractors"] if e["extractor"] == "rubric.pipeline"]
+        assert not [f for f in rec["features"] if f["extractor"] == "rubric.pipeline"]

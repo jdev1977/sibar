@@ -6,20 +6,26 @@
 
 Each invocation does what can be done now and stops; run it again to go on:
 
-1. **Recover.** A job written ``prepared`` but never ``sending`` was never
-   sent: its ledger reservations are settled at zero. A job ``sending`` with
+1. **Recover.** Every open job must be in this run's ledger file and ledger
+   batch (named in its ``prepared`` line), or the run is refused: settling
+   it elsewhere would lose the settlement. A job written ``prepared`` but
+   never ``sending`` was never sent: its ledger reservations (those made;
+   ``prepared`` names their ids before any is made) are settled at zero. A
+   job ``sending`` with
    no provider id may exist: the provider's job list is searched (an OpenAI
    job by its metadata; an Anthropic job, which holds no metadata, by its
    size and creation time). One match is adopted and its result ids are
    checked when they come; none or several blocks the run until a person
-   checks the provider's console and runs ``--abandon JOB``. So a job is never
-   created twice.
+   checks the provider's console and runs ``--abandon JOB`` (only a job in
+   the ``sending`` state can be abandoned). So a job is never created twice.
 2. **Collect.** Every open job is looked up; an ended one has its results
    read, each request settled in the ledger from the reported usage (errored,
    canceled and expired requests are not billed and settle at zero; a billed
    request without usage settles at its worst case), its reply checked, and
-   its final features cached, or a retry queued.
-3. **Submit.** Records with no cached answer and no request in flight are sent
+   its final features cached, or a retry queued. A ledger fault other than
+   "already settled" blocks the run (exit 4); the result stays in the job log.
+3. **Submit.** Records with no cached answer and no request in flight (in
+   this run, or in any other run on the same cache) are sent
    as one job (up to ``--max-requests``), after every request is reserved in
    the ledger at its worst case: the prompt estimate and the full output limit
    at the standard rate. Requests that do not fit under the caps are left for
@@ -36,6 +42,7 @@ the budget cap stops the next job; 4 blocked by a job that may exist; 130
 interrupted.
 """
 
+import copy
 import os
 import re
 import time
@@ -44,8 +51,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from runner.ledger import (
-    DEFAULT_PATH, BudgetExceeded, Ledger, LedgerError, Usage, _lock, _text,
-    _unlock, call_cost, read_ledger,
+    DEFAULT_PATH, AlreadySettled, BudgetExceeded, Ledger, LedgerError, NotReserved,
+    Usage, call_cost, lock_file, read_ledger, unlock_file, usd_text,
 )
 from runner.models import ModelsError, load_models
 from runner.record import RecordError, read_records, with_features, write_records
@@ -114,6 +121,10 @@ class Tagging:
                  effort=None, statuses=("ok",), retry_errors=False):
         self.rubric, self.tagger, self.out = rubric, tagger, out
         self.cache, self.jobs, self.retry_errors = cache, jobs, retry_errors
+        # Requests sent by other runs on this cache and not yet collected:
+        # never sent again here (only the run that sent them collects them).
+        # A paid run holds the cache lock, so this cannot change under it.
+        self.elsewhere = cache.in_flight_elsewhere(jobs.path)
         self.records = records
         self.requests, self.skipped = [], []
         for record in select_records(records, rubric, statuses):
@@ -151,9 +162,22 @@ class Tagging:
         return sum(1 for job in self.jobs.jobs.values() for r in job.results.values()
                    if r["key"] == key and (since is None or r["timestamp"] > since))
 
+    def in_flight(self):
+        """Cache keys in flight in this run or in another run on the cache."""
+        return self.jobs.in_flight() | set(self.elsewhere)
+
+    def waiting_elsewhere(self):
+        """``{job log: count}`` of this run's requests in flight in another run."""
+        own, out = self.jobs.in_flight(), {}
+        for key in {r.key for r in self.requests}:
+            path = self.elsewhere.get(key)
+            if path is not None and key not in own and not self.final(key):
+                out[path] = out.get(path, 0) + 1
+        return out
+
     def pending(self):
         """Requests to send now, each with its attempt number."""
-        in_flight = self.jobs.in_flight()
+        in_flight = self.in_flight()
         out, seen = [], set()
         for request in self.requests:
             if request.key in seen or self.final(request.key) or request.key in in_flight:
@@ -164,7 +188,7 @@ class Tagging:
 
     def counts(self):
         done = sum(1 for r in self.requests if self.final(r.key))
-        in_flight = self.jobs.in_flight()
+        in_flight = self.in_flight()
         flying = sum(1 for r in self.requests if not self.final(r.key)
                      and r.key in in_flight)
         return done, flying, len(self.requests) - done - flying
@@ -175,11 +199,18 @@ class Tagging:
     # --- results ----------------------------------------------------------------
 
     def _settle(self, ledger, call_id, line):
+        """Settle one request from its result. Only "already settled" (a run
+        that stopped after settling) is passed over: any other ledger fault
+        blocks the run, and the result stays in the job log for the next."""
         try:
             reservation = ledger.reopen(call_id)
-        except LedgerError:
-            return None  # settled already (a run that stopped after settling)
-        return ledger.settle(reservation, usage_of(line), request_id=None)
+            return ledger.settle(reservation, usage_of(line), request_id=None)
+        except AlreadySettled:
+            return None
+        except LedgerError as error:
+            raise Blocked(f"the ledger cannot settle call {call_id}: {error}. The "
+                          "result is kept in the job log; check the ledger, then run "
+                          "again with the same --run and --ledger.") from None
 
     def record_result(self, job, request, line, ledger, scrub):
         tokens = line.tokens
@@ -232,7 +263,10 @@ class Tagging:
     # --- output -----------------------------------------------------------------
 
     def tagged_records(self):
-        """Every input record, with its tags where an answer is final."""
+        """Every input record, with this tagger's tags where an answer is
+        final. Tags of the same extractor already in the input (another
+        tagger's, when its copy is tagged again) are removed from every other
+        record, so a copy never mixes two taggers."""
         by_record = {r.record_id: r for r in self.requests}
         out = []
         for record in self.records:
@@ -241,8 +275,23 @@ class Tagging:
             if entry is not None:
                 record = with_features(record, self.rubric.extractor, self.version,
                                        entry["features"])
+            else:
+                record = without_extractor(record, self.rubric.extractor)
             out.append(record)
         return out
+
+
+def without_extractor(record, extractor):
+    """``record``, or a copy of it with no entry or feature of ``extractor``."""
+    if not any(e.get("extractor") == extractor for e in record["extractors"]) and \
+            not any(f.get("extractor") == extractor for f in record["features"]):
+        return record
+    record = copy.deepcopy(record)
+    record["extractors"] = [e for e in record["extractors"]
+                            if e.get("extractor") != extractor]
+    record["features"] = [f for f in record["features"]
+                          if f.get("extractor") != extractor]
+    return record
 
 
 # --- the job cycle -------------------------------------------------------------------
@@ -256,20 +305,49 @@ class Cycle:
         self.t, self.ledger, self.backend, self.scrub = tagging, ledger, backend, scrub
         self.out, self.max_requests, self.abandon = out, max_requests, set(abandon)
 
+    def same_ledger(self, job):
+        """Refuse a job reserved in another ledger file or ledger batch: its
+        settlements would be lost there."""
+        if job.ledger is not None and Path(job.ledger) == self.ledger.path \
+                and job.ledger_batch == self.ledger.batch_id:
+            return
+        raise Refusal(
+            f"job {job.submission} is reserved in {job.ledger or 'an unnamed ledger'}, "
+            f"batch {job.ledger_batch}; this run uses {self.ledger.path}, batch "
+            f"{self.ledger.batch_id}. Nothing was collected or settled: run again "
+            f"with --ledger {job.ledger} and the --run of batch {job.ledger_batch}.")
+
+    def release(self, job):
+        """Settle at zero the reservations of a job that was never sent. A
+        call id with no reservation (a crash while reserving) is skipped."""
+        for request in job.requests:
+            try:
+                reservation = self.ledger.reopen(request["call_id"])
+                self.ledger.settle(reservation, Usage(input=0, output=0))
+            except (AlreadySettled, NotReserved):
+                continue
+            except LedgerError as error:
+                raise Blocked(f"job {job.submission}: the ledger cannot release call "
+                              f"{request['call_id']}: {error}") from None
+
     def recover(self):
         jobs = self.t.jobs
         for submission in sorted(self.abandon):
             job = jobs.jobs.get(submission)
-            if job is None or job.state not in ("sending", "submitted"):
-                raise Refusal(f"--abandon {submission}: no such open job in this run")
+            if job is None or job.state != "sending":
+                raise Refusal(
+                    f"--abandon {submission}: no job of this run is in the sending "
+                    "state (sent, with no answer). A submitted job has a provider "
+                    "id: wait for it to end, or cancel it at the provider; it is "
+                    "then collected and its unprocessed requests sent again.")
             jobs.add("abandoned", submission)
             self.out(f"Job {submission} abandoned: its requests may be sent again; "
                      "its reservations stay in the ledger at their worst case.")
         for job in list(jobs.jobs.values()):
+            if job.state in ("prepared", "sending", "submitted"):
+                self.same_ledger(job)
             if job.state == "prepared":
-                for request in job.requests:
-                    self.t._settle(self.ledger, request["call_id"],
-                                   Line(request["custom_id"], False, False, "not_run"))
+                self.release(job)
                 jobs.add("not_sent", job.submission,
                          error="the run stopped before the job was sent")
             elif job.state == "sending":
@@ -292,6 +370,7 @@ class Cycle:
         for job in list(self.t.jobs.jobs.values()):
             if job.state != "submitted":
                 continue
+            self.same_ledger(job)
             batch = self.backend.retrieve(job.batch_id)
             if not self.backend.ended(batch):
                 self.out(f"Job {job.submission} ({job.batch_id}): "
@@ -344,27 +423,31 @@ class Cycle:
         if not chosen:
             raise Refusal("one request is larger than the provider's job size limit")
         if not fitting:
-            raise NoRoom(f"${_text(room)} left under the caps; the next request "
-                         f"could cost ${_text(self.t.worst_case(chosen[0][0]))}")
+            raise NoRoom(f"${usd_text(room)} left under the caps; the next request "
+                         f"could cost ${usd_text(self.t.worst_case(chosen[0][0]))}")
         submission = "s" + uuid.uuid4().hex[:12]
-        entries, reservations = [], []
+        entries = [{"custom_id": f"{submission}-{index}", "key": request.key,
+                    "record_id": request.record_id, "attempt": attempt,
+                    "items": list(request.items), "call_id": str(uuid.uuid4())}
+                   for index, (request, attempt) in enumerate(fitting)]
+        jobs = self.t.jobs
+        # Written before any reservation and naming their ids, so a crash
+        # while reserving leaves reservations the next run finds and releases.
+        jobs.add("prepared", submission, ledger=str(self.ledger.path),
+                 ledger_batch=self.ledger.batch_id, requests=entries)
+        reservations = []
         try:
-            for index, (request, attempt) in enumerate(fitting):
-                reservation = self.ledger.reserve(
+            for entry, (request, _) in zip(entries, fitting):
+                reservations.append(self.ledger.reserve(
                     model_id=self.t.tagger.id, record_id=request.record_id,
                     prompt_tokens=request.prompt_tokens,
-                    max_output_tokens=self.t.tagger.max_tokens)
-                reservations.append(reservation)
-                entries.append({"custom_id": f"{submission}-{index}", "key": request.key,
-                                "record_id": request.record_id, "attempt": attempt,
-                                "items": list(request.items),
-                                "call_id": reservation.call_id})
+                    max_output_tokens=self.t.tagger.max_tokens,
+                    call_id=entry["call_id"]))
         except BudgetExceeded:
             for reservation in reservations:  # nothing was sent
                 self.ledger.settle(reservation, Usage(input=0, output=0))
+            jobs.add("not_sent", submission, error="the caps stopped the job")
             raise
-        jobs = self.t.jobs
-        jobs.add("prepared", submission, requests=entries)
         jobs.add("sending", submission)
         try:
             batch = self.backend.create(submission, [
@@ -382,7 +465,7 @@ class Cycle:
             raise Blocked(f"job {submission}: the provider's answer has no job id")
         jobs.add("submitted", submission, batch_id=batch["id"])
         self.out(f"Job {submission} sent as {batch['id']}: {len(fitting)} requests, "
-                 f"${_text(total)} reserved at standard rates.")
+                 f"${usd_text(total)} reserved at standard rates.")
         if len(fitting) < len(chosen):
             raise NoRoom(f"{len(chosen) - len(fitting)} requests did not fit under "
                          "the caps and wait for more room")
@@ -484,16 +567,17 @@ def _dry_run(tagging, args, taggers, environ, ledger_path, out):
     done, flying, todo = tagging.counts()
     out(f"{len(tagging.requests)} records to tag with {tagger.id}: {done} answered "
         f"(cache), {flying} in a job, {todo} to send.")
+    _report_elsewhere(tagging, out)
     pending = tagging.pending()
     worst = sum((tagging.worst_case(r) for r, _ in pending), Decimal(0))
-    out(f"Worst case for {len(pending)} requests: ${_text(worst)} at standard rates "
+    out(f"Worst case for {len(pending)} requests: ${usd_text(worst)} at standard rates "
         f"(each reserved in full: prompt estimate and {tagger.max_tokens} output "
         f"tokens). At the batch price (x{tagger.batch_discount}) at most "
-        f"${_text(worst * tagger.batch_discount)}. A faulty answer is asked once more, "
+        f"${usd_text(worst * tagger.batch_discount)}. A faulty answer is asked once more, "
         "which can add as much again for that request.")
     spent = _spent(ledger_path, ledger_batch_id(args.run))
     out(f"Ledger batch {ledger_batch_id(args.run)}: "
-        + (f"${_text(spent)} spent or reserved." if spent is not None else "new."))
+        + (f"${usd_text(spent)} spent or reserved." if spent is not None else "new."))
     if not (environ.get(tagger.model.api_key_env) or "").strip():
         out(f"No key in {tagger.model.api_key_env} (a paid run would refuse).")
     for note in tagging.skipped:
@@ -543,8 +627,11 @@ def _paid(tagging, args, taggers, model_list, environ, ledger_path, out, transpo
                 done, flying, todo = tagging.counts()
                 out(f"{done} of {len(tagging.requests)} records tagged; {flying} in a "
                     f"job; {todo} waiting. Ledger batch {ledger.batch_id}: "
-                    f"${_text(ledger.spent_usd)} spent or reserved.")
-                if not args.wait or status == EXIT_BUDGET or (not flying and not todo):
+                    f"${usd_text(ledger.spent_usd)} spent or reserved.")
+                _report_elsewhere(tagging, out)
+                # Requests in another run's job are collected only by that run.
+                own_flying = flying and tagging.jobs.in_flight()
+                if not args.wait or status == EXIT_BUDGET or (not own_flying and not todo):
                     break
                 sleep(args.poll_seconds)
         except Blocked as error:
@@ -561,6 +648,12 @@ def _paid(tagging, args, taggers, model_list, environ, ledger_path, out, transpo
     errors = sum(1 for r in tagging.requests if (tagging.final(r.key) or {}).get(
         "features", {}).get("status") == "error")
     return EXIT_OK if done == len(tagging.requests) and not errors else EXIT_WAITING
+
+
+def _report_elsewhere(tagging, out):
+    for path, count in sorted(tagging.waiting_elsewhere().items()):
+        out(f"{count} requests are in a job of another run ({path.parent}), so they "
+            "are not sent again: resume that run (its own --run) to collect them.")
 
 
 def _write(tagging, args, out):
@@ -593,8 +686,10 @@ def run_tag(args, *, environ=None, out=print, transport=None, sleep=time.sleep):
         out(f"Rubric {rubric.name}; tagger {tagger.id}; run folder {run_dir}; "
             f"cache {cache_path}; ledger {ledger_path}")
         if args.dry_run:
+            # Read only: a dry run writes nothing, not even a repaired tail.
             tagging = Tagging(rubric=rubric, tagger=tagger, records=records,
-                              cache=Cache(cache_path), jobs=JobLog(run_dir / "jobs.jsonl"),
+                              cache=Cache(cache_path, read_only=True),
+                              jobs=JobLog(run_dir / "jobs.jsonl", read_only=True),
                               out=out, effort=args.effort, statuses=statuses,
                               retry_errors=args.retry_errors)
             return _dry_run(tagging, args, taggers, environ, ledger_path, out)
@@ -605,11 +700,13 @@ def run_tag(args, *, environ=None, out=print, transport=None, sleep=time.sleep):
             for path in (run_dir / "jobs.jsonl.lock", cache_path.with_name(
                     cache_path.name + ".lock")):
                 try:
-                    locks.append(_lock(path))
+                    locks.append(lock_file(path))
                 except LedgerError:
                     raise Refusal(f"{path.name}: in use by another tagging run") from None
+            cache = Cache(cache_path)
+            cache.register(run_dir / "jobs.jsonl")  # under the cache lock
             tagging = Tagging(rubric=rubric, tagger=tagger, records=records,
-                              cache=Cache(cache_path), jobs=JobLog(run_dir / "jobs.jsonl"),
+                              cache=cache, jobs=JobLog(run_dir / "jobs.jsonl"),
                               out=out, effort=args.effort, statuses=statuses,
                               retry_errors=args.retry_errors)
             for note in tagging.skipped:
@@ -618,7 +715,7 @@ def run_tag(args, *, environ=None, out=print, transport=None, sleep=time.sleep):
                          transport, sleep)
         finally:
             for handle in locks:
-                _unlock(handle)
+                unlock_file(handle)
     except (Refusal, TaggersError, ModelsError, RubricError, RecordError, StoreError,
             LedgerError, OSError) as error:
         out(f"refused: {error}")
