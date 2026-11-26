@@ -511,8 +511,23 @@ with open("same.bin", "wb") as handle:
 """
 
 
+HIDDEN = """
+import time
+# An alternate data stream: its bytes do not show in the file's size.
+with open("plain.txt:hidden", "wb") as handle:
+    for _ in range(64):
+        handle.write(bytes(1 << 20))
+        handle.flush()
+        time.sleep(0.01)
+time.sleep(5)
+"""
+
+HIDDEN_EXTEND = EXTEND.replace('open("big.bin", "wb")', 'open("big.bin:hidden", "wb")')
+
+
 @pytest.mark.parametrize("code,write_mb,cause", [
-    (FILL, 256, "disk"), (EXTEND, 256, "disk"), (MANY, 256, "disk"), (REWRITE, 32, "writes")])
+    (FILL, 256, "disk"), (EXTEND, 256, "disk"), (MANY, 256, "disk"), (REWRITE, 32, "writes"),
+    (HIDDEN, 256, "disk"), (HIDDEN_EXTEND, 256, "disk")])
 def test_filling_the_disk_ends_the_run(code, write_mb, cause):
     limits = replace(SMALL, disk_mb=16, files=2000, write_mb=write_mb)
     _, result = probe(code, limits=limits)

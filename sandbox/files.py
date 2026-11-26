@@ -88,10 +88,51 @@ def remove_tree(path):
                       + (f" (and {len(failures) - 5} more)" if len(failures) > 5 else ""))
 
 
+class _Streams:
+    """Sizes of all the data streams of a file or folder (NTFS alternate data
+    streams, such as ``file.txt:hidden``, hold data its size does not show)."""
+
+    def __init__(self):
+        import ctypes
+        from ctypes import wintypes
+
+        class Data(ctypes.Structure):
+            _fields_ = [("size", ctypes.c_int64), ("name", ctypes.c_wchar * 296)]
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        self._first = kernel.FindFirstStreamW
+        self._first.restype = wintypes.HANDLE
+        self._first.argtypes = [wintypes.LPCWSTR, ctypes.c_int, ctypes.c_void_p,
+                                wintypes.DWORD]
+        self._next = kernel.FindNextStreamW
+        self._next.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+        self._close = kernel.FindClose
+        self._close.argtypes = [wintypes.HANDLE]
+        self._data, self._ctypes = Data(), ctypes
+        self._invalid = wintypes.HANDLE(-1).value
+
+    def size(self, path):
+        """The total size of the streams of ``path``, or None if Windows will
+        not list them."""
+        byref = self._ctypes.byref
+        handle = self._first(path, 0, byref(self._data), 0)
+        if handle in (None, self._invalid):
+            return None
+        try:
+            total = self._data.size
+            while self._next(handle, byref(self._data)):
+                total += self._data.size
+            return total
+        finally:
+            self._close(handle)
+
+
 def usage(path, max_entries):
     """``(bytes, entries, complete)`` for the files under ``path``: their
-    total size, how many files and folders there are, and False if counting
-    stopped at ``max_entries``. Links are counted, not followed."""
+    total size (every data stream counted, on Windows), how many files and
+    folders there are, and False if counting stopped at ``max_entries``.
+    Links are counted, not followed."""
+    streams = _Streams() if os.name == "nt" else None
     total = entries = 0
     stack = [_long(path)]
     while stack:
@@ -109,10 +150,13 @@ def usage(path, max_entries):
                     info = entry.stat(follow_symlinks=False)
                 except OSError:
                     continue
-                if stat.S_ISDIR(info.st_mode) and not _is_link(info):
+                directory = stat.S_ISDIR(info.st_mode) and not _is_link(info)
+                if directory:
                     stack.append(entry.path)
-                else:
-                    total += info.st_size
+                size = streams.size(entry.path) if streams else None
+                if size is None:
+                    size = 0 if directory else info.st_size
+                total += size
     return total, entries, True
 
 
