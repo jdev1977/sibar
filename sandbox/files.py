@@ -31,11 +31,26 @@ def _is_link(info):
         getattr(info, "st_file_attributes", 0) & _REPARSE)
 
 
+def _shown(path):
+    """A path for an error message: printable, and its end kept if long."""
+    text = ascii(str(path))[1:-1]
+    return text if len(text) <= 200 else "..." + text[-197:]
+
+
 def remove_tree(path):
     """Delete the folder ``path`` and everything in it, without following
-    links or junctions (a link is removed, not what it points to). Raises
-    OSError naming what could not be removed."""
+    links or junctions (a link is removed, not what it points to), however
+    deep the tree (no recursion: folders are emptied from a stack, deepest
+    first) and whatever its names (long-path form). Raises OSError naming
+    what could not be removed, after trying everything."""
     failures = []
+    failure_count = 0
+
+    def fail(target, error):
+        nonlocal failure_count
+        failure_count += 1
+        if len(failures) < 5:
+            failures.append(f"{_shown(target)}: {getattr(error, 'strerror', None) or error}")
 
     def unlink(target, is_dir):
         try:
@@ -47,32 +62,9 @@ def remove_tree(path):
                 os.chmod(target, stat.S_IWRITE, follow_symlinks=False)
                 (os.rmdir if is_dir else os.unlink)(target)
             except OSError as error:
-                failures.append(f"{target}: {error.strerror or error}")
+                fail(target, error)
         except OSError as error:
-            failures.append(f"{target}: {error.strerror or error}")
-
-    def clear(folder):
-        try:
-            entries = list(os.scandir(folder))
-        except FileNotFoundError:
-            return
-        except OSError as error:
-            failures.append(f"{folder}: {error.strerror or error}")
-            return
-        for entry in entries:
-            try:
-                info = entry.stat(follow_symlinks=False)
-            except OSError as error:
-                failures.append(f"{entry.path}: {error.strerror or error}")
-                continue
-            directory = stat.S_ISDIR(info.st_mode)
-            if _is_link(info):
-                unlink(entry.path, directory)
-            elif directory:
-                clear(entry.path)
-                unlink(entry.path, True)
-            else:
-                unlink(entry.path, False)
+            fail(target, error)
 
     top = _long(path)
     try:
@@ -80,12 +72,40 @@ def remove_tree(path):
     except FileNotFoundError:
         return
     if _is_link(info) or not stat.S_ISDIR(info.st_mode):
-        raise OSError(f"{path}: not a plain folder; not removing it")
-    clear(top)
-    unlink(top, True)
-    if failures:
-        raise OSError("could not remove: " + "; ".join(failures[:5])
-                      + (f" (and {len(failures) - 5} more)" if len(failures) > 5 else ""))
+        raise OSError(f"{_shown(path)}: not a plain folder; not removing it")
+    # (folder, emptied): a folder is removed when it comes back emptied.
+    stack = [(top, False)]
+    while stack:
+        folder, emptied = stack.pop()
+        if emptied:
+            unlink(folder, True)
+            continue
+        stack.append((folder, True))
+        try:
+            entries = os.scandir(folder)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            fail(folder, error)
+            continue
+        with entries:
+            for entry in entries:
+                try:
+                    info = entry.stat(follow_symlinks=False)
+                except OSError as error:
+                    fail(entry.path, error)
+                    continue
+                directory = stat.S_ISDIR(info.st_mode)
+                if _is_link(info):
+                    unlink(entry.path, directory)
+                elif directory:
+                    stack.append((entry.path, False))
+                else:
+                    unlink(entry.path, False)
+    if failure_count:
+        more = failure_count - len(failures)
+        raise OSError("could not remove: " + "; ".join(failures)
+                      + (f" (and {more} more)" if more else ""))
 
 
 class _Streams:

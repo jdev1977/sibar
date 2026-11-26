@@ -118,11 +118,13 @@ def _clean():
         print(f"refused: a sandbox run is using {root}")
         return EXIT_REFUSED
     try:
-        removed = sweep(root)
+        removed, problems = sweep(root)
     finally:
         unlock_file(lock)
     print("removed: " + (", ".join(removed) or "nothing"))
-    return EXIT_OK
+    for problem in problems:
+        print(f"could not remove {problem}")
+    return EXIT_FAILED if problems else EXIT_OK
 
 
 def main(argv=None):
@@ -161,6 +163,8 @@ def main(argv=None):
             check = run_directory(args.dir, out, settings)
             detail = check["detail"]
             print(f"{detail['result']}: {detail.get('reason') or 'see ' + str(out)}")
+            if detail.get("cleanup_error"):
+                print(f"cleanup failed: {detail['cleanup_error']}")
             bad = check["outcome"] != "ok"
     except (RunRefused, SandboxError, runtime.RuntimeMissing, OSError) as error:
         print(f"refused: {error}")
@@ -168,6 +172,9 @@ def main(argv=None):
     except KeyboardInterrupt:
         print("interrupted; finished runs are saved")
         return 130
+    except Exception as error:  # never a traceback for what a run left behind
+        print(f"error: {type(error).__name__}: {error}"[:1000])
+        return EXIT_REFUSED
     return EXIT_FAILED if bad else EXIT_OK
 
 

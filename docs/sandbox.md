@@ -85,6 +85,12 @@ the check's `detail`; `sandbox.box.Box` runs any command in a sandbox.
 One sandbox runs at a time per sandbox root (a lock file); runs are
 sequential, which also suits a machine with little free memory.
 
+Sandboxed processes run at below-normal priority. On a machine busy with
+other work they can be starved until the wall-clock limit ends them: the
+run then ends in `timeout` or, if it was the survey, in `error` with
+"ended by timeout" in the reason. `error` results are run again on the
+next `--records` run.
+
 ## What happens to an output
 
 1. The output's files (for a record: those it lists, under `extracted/`) are
@@ -148,6 +154,7 @@ One entry in the record's `checks`, replacing an earlier one:
 | `detail.candidates`, `detail.missing_modules`, `detail.syntax_errors`, `detail.languages` | what the survey found |
 | `detail.task` | the task's measurements (below) |
 | `detail.settings`, `detail.runtime`, `detail.environment` | limits, command, task, clock and scale; the Python version and the hash of the package list; the names of the task's extra variables |
+| `detail.cleanup_error`, `detail.leftovers` | what could not be removed after this run, and what an earlier run left that this box could not remove either. A check with a `cleanup_error` is never `ok`. What is left stays contained (only its own run's package SID, whose profile is gone, and the sandbox's SID may use it) and every later box tries again; `python -m sandbox clean` too |
 
 **Test results are self-reported.** The output's tests run in the same
 process as the counting, so code that wants to can forge them. Nothing in a
@@ -182,7 +189,8 @@ off gets through, so the test would fail if the boundary went.
 | Programs started through the shell | Whatever the process starts is in its job, with its token, on its desktop; Windows does not start a browser or a packaged app for it | opening a URL (to 127.0.0.1) and the calculator through the shell starts nothing outside |
 | Crashes | The job ends a crashing process at once, without Windows Error Reporting or a dialog | a thread started at address 0 ends the run with an access violation |
 | The sandbox's helpers | The helper scripts' folder is read and execute only for the sandboxed process | it cannot change or add to them |
-| Cleanup | Profile, desktop, token and folder are removed on close; a crashed run's profile and folder by the next box | nothing is left after a run; leftovers of a dead process are swept |
+| Cleanup | Profile, desktop, token and folder are removed on close; a crashed run's profile and folder by the next box. Removal works from a stack (no recursion) in long-path form, never follows links, and a failure is reported, not raised past the run | nothing is left after a run, also after a 2000-deep tree with reserved and malformed names; `clean` removes such a tree a crashed run left; a removal failure is reported in the check and the next box still runs |
+| The process's token | Before the suspended process runs, its token is read back: an AppContainer token, of this box's package, with exactly its capabilities, at low integrity, restricted | a process made without the AppContainer, without the restricted token, or with fewer capabilities is refused |
 
 ### The layers, in order
 
@@ -212,7 +220,8 @@ off gets through, so the test would fail if the boundary went.
   processes, CPU time, a CPU rate cap of 50% of all cores and below-normal
   priority (so the machine stays usable), UI restrictions, no crash dialogs,
   kill on close. The process is put in the job when it is created, suspended,
-  and checked to be in it before it runs.
+  and checked to be in it, and its token checked against the box, before it
+  runs; if either check fails it is ended and nothing runs.
 - **Watching**: the clock, bytes written, the folder and the free space.
 
 ### Threat model

@@ -175,3 +175,34 @@ def test_a_record_runs_in_the_real_sandbox(tmp_path):
     assert detail["entry"]["stdout"].strip() == "2"
     assert detail["task"]["rejects_files"] == []
     assert check["outcome"] == "ok"
+
+
+def test_clean_reports_what_it_could_not_remove(monkeypatch, capsys):
+    monkeypatch.setattr("sandbox.__main__.sweep",
+                        lambda root: (["profile a"], ["folder b: OSError: held"]))
+    assert main(["clean"]) == 1
+    out = capsys.readouterr().out
+    assert "removed: profile a" in out and "could not remove folder b" in out
+
+
+def test_an_unexpected_error_is_reported_not_raised(monkeypatch, tmp_path, capsys):
+    def boom(*args, **kwargs):
+        raise RecursionError("maximum recursion depth exceeded")
+
+    monkeypatch.setattr("sandbox.__main__.run_directory", boom)
+    assert main(["run", "--dir", str(tmp_path)]) == 2
+    assert "RecursionError" in capsys.readouterr().out
+
+
+def test_a_cleanup_error_is_counted_as_an_error(tmp_path):
+    path = tmp_path / "records.jsonl"
+    add(path)
+    said = []
+
+    def left(root, paths, settings):
+        return {"result": "ran", "reason": None, "cleanup_error": "OSError: held"}
+
+    assert run_file(path, run=left, say=said.append) == {"error": 1}
+    assert "cleanup failed" in said[0]
+    (check,), = checks(path)
+    assert check["outcome"] == "error"

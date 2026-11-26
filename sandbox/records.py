@@ -104,9 +104,11 @@ def run_file(records_path, settings=Settings(), record_ids=(), force=False, say=
             records[index] = {**record, "checks": others + [check]}
             write_records(path, records)
             result = check["detail"].get("result")
-            counts[result] += 1
+            cleanup = check["detail"].get("cleanup_error")
+            counts["error" if cleanup else result] += 1
             reason = check["detail"].get("reason")
-            say(f"{record['record_id']}: {result}" + (f" ({reason})" if reason else ""))
+            say(f"{record['record_id']}: {result}" + (f" ({reason})" if reason else "")
+                + (f"; cleanup failed: {cleanup}" if cleanup else ""))
         return counts
     finally:
         unlock_file(lock)

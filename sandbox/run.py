@@ -22,6 +22,7 @@ Outcomes (``detail["result"]``):
 """
 
 import json
+import os
 import re
 import shutil
 from dataclasses import asdict, dataclass, replace
@@ -30,11 +31,12 @@ from typing import Optional
 
 from sandbox import runtime
 from sandbox.box import Box, Limits, SandboxError
-from sandbox.files import copy_files, read_file
+from sandbox.files import copy_files, listing, read_file
 
 TOOLS = Path(__file__).with_name("tools")
 OUTCOMES = ("ran", "failed", "timeout", "memory", "blocked", "not-runnable", "error")
 TEXT_LIMIT = 4000  # characters of stdout or stderr kept in a record
+MAX_FOLDER_FILES = 2000  # files taken from a folder given with --dir
 # Names an entry point most often has, best first.
 ENTRY_NAMES = ("main.py", "__main__.py", "app.py", "run.py", "cli.py", "pipeline.py")
 # Files that run code but are tools' configuration, never the program.
@@ -270,11 +272,9 @@ def run_folder(source, paths=None, settings=Settings(), root=None):
 
     source = Path(source)
     if paths is None:
-        # Links are left out: they could bring in files from elsewhere.
-        top = source.resolve()
-        paths = sorted(p.relative_to(source).as_posix() for p in source.rglob("*")
-                       if p.is_file() and not p.is_symlink() and not p.is_junction()
-                       and p.resolve().is_relative_to(top))
+        # Links are left out (they could bring in files from elsewhere), and
+        # the walk has no recursion, whatever the folder holds.
+        paths = sorted(listing(source, MAX_FOLDER_FILES))
     detail = {"result": None, "reason": None, "files": len(paths),
               "settings": {"limits": asdict(settings.limits),
                            "command": list(settings.command) if settings.command else None,
@@ -288,47 +288,76 @@ def run_folder(source, paths=None, settings=Settings(), root=None):
     if not runnable and not (hook and hook.configs):
         detail.update(result="not-runnable", reason=_no_python(languages))
         return detail
+    box = Box(root, settings.limits)
     try:
-        with Box(root, settings.limits) as box:
-            if not box.complete:
-                raise SandboxError("a box with a layer turned off cannot run outputs")
-            detail["runtime"] = {"python": box.manifest["python"],
-                                 "requirements_sha256": box.manifest["requirements_sha256"]}
-            copy_files(source, paths, box.app)
-            tools = _install_tools(box)
-            if not runnable:
-                detail["task"] = {"configs": tasks.parse_configs(box)}
-                detail.update(result="not-runnable", reason=_no_python(languages)
-                              + "; a workflow needs its build service, so its files "
-                                "were only parse-checked")
-                return detail
-            survey_run = box.run([box.python(), "-I", str(tools / "survey.py"),
-                                  str(box.app), str(box.folder / "out" / "survey.json")],
-                                 limits=replace(settings.limits, seconds=60))
-            survey = _read_json(box.folder, "out/survey.json")
-            if survey is None or not isinstance(survey.get("files"), list):
-                raise SandboxError("the survey of the files failed: "
-                                   + text(survey_run.stderr, box.folder)[-300:])
-            survey.setdefault("available", {})
-            environment = hook.prepare(box, settings) if hook else {}
-            if settings.clock:
-                environment.update(tasks.clock_environment(settings.clock))
-                if "SIBAR_SANDBOX_STUB" in environment:
-                    environment["SIBAR_SANDBOX_SHIMS"] = "clock,stub"
-            detail["environment"] = sorted(environment)
-
-            def measure():
-                if hook is not None:
-                    try:
-                        detail["task"] = hook.measure(box, detail)
-                    except Exception as error:  # the runs' results still stand
-                        detail["task"] = {"error": f"{type(error).__name__}: {error}"[:300]}
-
-            _run_output(box, tools, survey, paths, settings, environment, detail,
-                        hook.arguments if hook else (), measure)
-    except (SandboxError, runtime.RuntimeMissing, OSError) as error:
+        box.open()
+        _in_box(box, source, paths, settings, detail, hook, languages, runnable)
+    except Exception as error:  # contained: the record says what went wrong
         detail.update(result="error", reason=f"{type(error).__name__}: {error}"[:500])
+    finally:
+        try:
+            box.close()
+        except Exception as error:
+            # What is left stays contained (its permissions grant no one
+            # else), and the next box tries again; never reported as fine.
+            detail["cleanup_error"] = f"{type(error).__name__}: {error}"[:500]
+        if box.left:
+            detail["leftovers"] = box.left[:5]
     return detail
+
+
+def _in_box(box, source, paths, settings, detail, hook, languages, runnable):
+    from sandbox import tasks
+
+    if not box.complete:
+        raise SandboxError("a box with a layer turned off cannot run outputs")
+    detail["runtime"] = {"python": box.manifest["python"],
+                         "requirements_sha256": box.manifest["requirements_sha256"]}
+    copy_files(source, paths, box.app)
+    tools = _install_tools(box)
+    if not runnable:
+        detail["task"] = {"configs": tasks.parse_configs(box)}
+        detail.update(result="not-runnable", reason=_no_python(languages)
+                      + "; a workflow needs its build service, so its files "
+                        "were only parse-checked")
+        return
+    survey_run = box.run([box.python(), "-I", str(tools / "survey.py"),
+                          str(box.app), str(box.folder / "out" / "survey.json")],
+                         limits=replace(settings.limits, seconds=60))
+    survey = _read_json(box.folder, "out/survey.json")
+    if survey is None or not isinstance(survey.get("files"), list):
+        try:
+            made = os.lstat(box.folder / "out" / "survey.json").st_size
+        except OSError:
+            made = None
+        raise SandboxError(
+            f"the survey of the files failed (exit code {_code(survey_run.exit_code)}, "
+            f"ended by {survey_run.cause or 'itself'}, after {survey_run.seconds} s, "
+            f"peak {survey_run.peak_memory_mb} MB, result file "
+            f"{'missing' if made is None else f'of {made} bytes'}): "
+            + (text(survey_run.stderr, box.folder)[-300:] or "no error output"))
+    survey.setdefault("available", {})
+    environment = hook.prepare(box, settings) if hook else {}
+    if settings.clock:
+        environment.update(tasks.clock_environment(settings.clock))
+        if "SIBAR_SANDBOX_STUB" in environment:
+            environment["SIBAR_SANDBOX_SHIMS"] = "clock,stub"
+    detail["environment"] = sorted(environment)
+
+    def measure():
+        if hook is not None:
+            try:
+                detail["task"] = hook.measure(box, detail)
+            except Exception as error:  # the runs' results still stand
+                detail["task"] = {"error": f"{type(error).__name__}: {error}"[:300]}
+
+    _run_output(box, tools, survey, paths, settings, environment, detail,
+                hook.arguments if hook else (), measure)
+
+
+def _code(exit_code):
+    return "none" if exit_code is None else (
+        f"{exit_code:#x}" if exit_code > 0xFFFF else str(exit_code))
 
 
 def _missing_after(run_detail, missing):
@@ -438,10 +467,11 @@ def _summary(found):
 
 
 def check_outcome(detail):
-    """The record's check outcome (ok, failed or error) for a detail."""
+    """The record's check outcome (ok, failed or error) for a detail. A box
+    that could not be cleaned up is never ``ok``."""
     result = detail.get("result")
     tests = detail.get("tests") or {}
-    if result in ("not-runnable", "error", None):
+    if result in ("not-runnable", "error", None) or detail.get("cleanup_error"):
         return "error"
     if result != "ran":
         return "failed"

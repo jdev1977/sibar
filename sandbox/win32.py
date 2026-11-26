@@ -146,6 +146,8 @@ class _Api:
             a, "ConvertSidToStringSidW", B, [PSID, P(wintypes.LPWSTR)])
         self.ConvertStringSidToSidW = _bind(a, "ConvertStringSidToSidW", B, [LP, P(PSID)])
         self.GetLengthSid = _bind(a, "GetLengthSid", D, [PSID])
+        self.GetSidSubAuthority = _bind(a, "GetSidSubAuthority", P(D), [PSID, D])
+        self.IsTokenRestricted = _bind(a, "IsTokenRestricted", B, [HANDLE])
         self.ConvertStringSecurityDescriptorToSecurityDescriptorW = _bind(
             a, "ConvertStringSecurityDescriptorToSecurityDescriptorW", B,
             [LP, D, P(V), P(D)])
@@ -771,6 +773,49 @@ def start(argv, cwd, environment, *, token=None, package=None, capabilities=(),
         return Process(result.hProcess, result.hThread, result.dwProcessId)
     finally:
         a.DeleteProcThreadAttributeList(attribute_list)
+
+
+TOKEN_INTEGRITY_LEVEL, TOKEN_IS_APPCONTAINER = 25, 29
+TOKEN_CAPABILITIES, TOKEN_APPCONTAINER_SID = 30, 31
+LOW_INTEGRITY = 0x1000
+
+
+def token_facts(process):
+    """What the token of the process ``process`` (a handle) is: whether it
+    is an AppContainer token, its package SID, its capabilities, its
+    integrity level and whether it is restricted. (Whether it is a less
+    privileged AppContainer is not asked: Windows here refuses that query.)"""
+    a = api()
+    token = HANDLE()
+    if not a.OpenProcessToken(HANDLE(process), TOKEN_QUERY, ctypes.byref(token)):
+        raise WinError("OpenProcessToken (child)")
+    try:
+        def dword(kind):
+            value = wintypes.DWORD()
+            size = wintypes.DWORD()
+            if not a.GetTokenInformation(token, kind, ctypes.byref(value),
+                                         ctypes.sizeof(value), ctypes.byref(size)):
+                raise WinError(f"GetTokenInformation({kind})")
+            return value.value
+
+        label = _token_information(token, TOKEN_INTEGRITY_LEVEL)
+        level_sid = SID_AND_ATTRIBUTES.from_buffer(label).Sid
+        count = ctypes.cast(level_sid, ctypes.POINTER(ctypes.c_ubyte))[1]
+        integrity = a.GetSidSubAuthority(level_sid, count - 1)[0]
+        facts = {"appcontainer": bool(dword(TOKEN_IS_APPCONTAINER)),
+                 "integrity": integrity, "restricted": bool(a.IsTokenRestricted(token)),
+                 "package": None, "capabilities": set()}
+        if facts["appcontainer"]:
+            info = _token_information(token, TOKEN_APPCONTAINER_SID)
+            facts["package"] = Sid.copy(ctypes.c_void_p.from_buffer(info).value).string
+            groups = _token_information(token, TOKEN_CAPABILITIES)
+            number = wintypes.DWORD.from_buffer(groups).value
+            entries = (SID_AND_ATTRIBUTES * number).from_buffer(
+                groups, ctypes.sizeof(ctypes.c_void_p))
+            facts["capabilities"] = {Sid.copy(entry.Sid).string for entry in entries}
+        return facts
+    finally:
+        a.CloseHandle(token)
 
 
 def in_job(process, job):

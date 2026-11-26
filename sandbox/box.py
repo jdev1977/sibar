@@ -228,24 +228,34 @@ def _alive(pid):
 def sweep(root):
     """Remove what earlier boxes left behind: AppContainer profiles of this
     sandbox whose process is gone, and working folders under ``root`` (call
-    only with ``root``'s lock held). Returns what was removed."""
+    only with ``root``'s lock held). Returns ``(removed, problems)``: what was
+    removed, and what could not be (each tried; none stops the others).
+
+    A folder that cannot be removed stays contained: only its own run's
+    package SID, whose profile is gone, and the sandbox's SID may use it."""
     from sandbox import win32
 
-    removed = []
+    removed, problems = [], []
     for name in win32.profile_names():
         if not name.startswith(PROFILE_PREFIX) or name in _OPEN:
             continue
         pid_text = name[len(PROFILE_PREFIX):].partition("-")[0]
         if pid_text.isdigit() and int(pid_text) != os.getpid() and _alive(int(pid_text)):
             continue
-        win32.delete_profile(name)
-        removed.append(f"profile {name}")
+        try:
+            win32.delete_profile(name)
+            removed.append(f"profile {name}")
+        except Exception as error:
+            problems.append(f"profile {name}: {type(error).__name__}: {error}"[:300])
     work = Path(root) / "work"
     if work.is_dir():
         for child in work.iterdir():
-            remove_tree(child)
-            removed.append(f"folder {child.name}")
-    return removed
+            try:
+                remove_tree(child)
+                removed.append(f"folder {child.name}")
+            except Exception as error:
+                problems.append(f"folder {child.name}: {type(error).__name__}: {error}"[:300])
+    return removed, problems
 
 
 class Box:
@@ -259,7 +269,7 @@ class Box:
         self.name = self.folder = self.package = None
         self._lock = self._token = self._desktop = None
         self._profile = False
-        self.removed = []
+        self.removed, self.left = [], []  # what the sweep removed, and could not
 
     def __enter__(self):
         self.open()
@@ -281,7 +291,7 @@ class Box:
         except LedgerError:
             raise SandboxError(f"another sandbox run is using {self.root}") from None
         try:
-            self.removed = sweep(self.root)
+            self.removed, self.left = sweep(self.root)
             free = shutil.disk_usage(self.root).free >> 20
             if free < self.limits.free_disk_mb + self.limits.disk_mb:
                 raise SandboxError(f"only {free} MB free on the drive of {self.root}")
@@ -425,6 +435,11 @@ class Box:
             if not win32.in_job(process.handle, job.handle):
                 win32.terminate(process)
                 raise SandboxError("the process is not in its job; it was ended")
+            problem = self.token_problem(process.handle)
+            if problem:
+                win32.terminate(process)
+                raise SandboxError(f"the process's token is not as built ({problem}); "
+                                   "it was ended before it ran")
             output = _Capture(out_read, limits.output_bytes)
             errors = _Capture(err_read, limits.output_bytes)
             started = time.monotonic()
@@ -457,6 +472,26 @@ class Box:
             processes=accounting.total_processes, cause=cause,
             memory_refused=job.memory_refused, process_refused=job.process_refused,
             folder_mb=round(size / (1 << 20), 2))
+
+    def token_problem(self, process):
+        """What is wrong with the token of the suspended process ``process``
+        (a handle), for the layers this box has on, or None. Checked before
+        the process runs its first instruction."""
+        from sandbox import win32
+
+        facts = win32.token_facts(process)
+        if self.isolation.appcontainer:
+            if not facts["appcontainer"]:
+                return "not an AppContainer token"
+            if facts["package"] != self.package.string:
+                return "another AppContainer"
+            if facts["capabilities"] != {sid.string for sid in self._capabilities}:
+                return "other capabilities"
+            if facts["integrity"] > win32.LOW_INTEGRITY:
+                return f"integrity level {facts['integrity']:#x}, not low"
+        if self.isolation.restricted_token and not facts["restricted"]:
+            return "not a restricted token"
+        return None
 
     def _watch(self, process, job, limits, started):
         """Wait for the run to end; end it at a limit and return which."""
@@ -504,7 +539,7 @@ class Box:
             try:
                 win32.delete_profile(self.name)
                 self._profile = False
-            except OSError as error:
+            except Exception as error:
                 problems.append(f"AppContainer profile {self.name}: {error}")
         _OPEN.discard(self.name)
         if self.folder is not None and self.folder.exists() and not keep_folder:
@@ -514,9 +549,9 @@ class Box:
                 try:
                     remove_tree(self.folder)
                     break
-                except OSError as error:
+                except Exception as error:  # what is left stays contained
                     if pause is None:
-                        problems.append(str(error))
+                        problems.append(f"{type(error).__name__}: {error}"[:500])
                     else:
                         time.sleep(pause)
         if self._lock is not None:

@@ -311,3 +311,23 @@ def test_the_entry_runs_before_the_tests(output):
                      "test_order.py": ("def test_after():\n"
                                        "    assert open('order.txt').read() == 'entry '\n")})
     assert detail["tests"]["passed"] == 1, detail["tests"]
+
+
+@pytest.mark.sandbox
+def test_a_failed_survey_says_how_it_ended(output, monkeypatch):
+    # On a busy machine the sandbox's low-priority processes can be starved
+    # until the clock ends them, leaving no error output.
+    from sandbox.box import Box
+
+    real = Box.run
+
+    def starved(self, argv, *args, **kwargs):
+        if any(str(part).endswith("survey.py") for part in argv):
+            return result(exit_code=0x5B, cause="timeout", seconds=60.0)
+        return real(self, argv, *args, **kwargs)
+
+    monkeypatch.setattr(Box, "run", starved)
+    detail = output({"main.py": "print(1)\n"})
+    assert detail["result"] == "error"
+    assert "exit code 91, ended by timeout, after 60.0 s" in detail["reason"]
+    assert "result file missing" in detail["reason"] and "no error output" in detail["reason"]

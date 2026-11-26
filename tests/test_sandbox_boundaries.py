@@ -844,3 +844,116 @@ def test_control_outside_the_sandbox_such_a_child_can_be_started(listener, tmp_p
             capture_output=True, text=True, timeout=60, cwd=tmp_path)
     answer = json.loads(out.stdout.strip().splitlines()[-1])
     assert answer["not less privileged"][0] == "started", answer
+
+
+# --- What a run leaves behind, however built ------------------------------------------
+
+DEEP = """
+import os
+# 2000 folders deep, past Python's recursion limit and any short path.
+LONG = chr(92) * 2 + "?" + chr(92)  # the long-path prefix
+current = LONG + os.path.abspath("deep")
+os.mkdir(current)
+for _ in range(2000):
+    current = os.path.join(current, "d")
+    os.mkdir(current)
+for name in ("con", "nul.txt", "aux", "trailing.", "space ", chr(0xDC80) + "lone"):
+    path = os.path.join(LONG + os.getcwd(), name)
+    os.mkdir(path)
+    open(os.path.join(path, name), "w").close()
+print("{}")
+"""
+
+
+def test_a_deep_tree_with_awkward_names_is_cleaned_up():
+    from sandbox.box import Box
+
+    box = Box(limits=replace(SMALL, files=5000))
+    box.open()
+    try:
+        _, result = run_probe(box, DEEP)
+        assert result.exit_code == 0, result.stderr[-500:]
+        folder = box.folder
+    finally:
+        box.close()  # raises if anything were left
+    assert not folder.exists()
+
+
+def test_clean_removes_a_deep_tree_a_crashed_run_left(capsys):
+    from sandbox import runtime
+    from sandbox.__main__ import main
+    from sandbox.files import _long
+
+    leftover = runtime.default_root() / "work" / "deep0001"
+    current = _long(leftover)
+    os.makedirs(current)
+    for _ in range(2000):
+        current = os.path.join(current, "d")
+        os.mkdir(current)
+    assert main(["clean"]) == 0
+    assert "folder deep0001" in capsys.readouterr().out
+    assert not leftover.exists()
+
+
+def test_a_cleanup_failure_is_reported_and_contained(monkeypatch, tmp_path):
+    from sandbox import box as box_module
+    from sandbox.run import Settings, check_outcome, run_folder
+
+    (tmp_path / "main.py").write_text("print('ran')")
+
+    remove = box_module.remove_tree
+
+    def broken(path):  # fails for working folders only, as a hostile tree did
+        if Path(path).parent.name == "work":
+            raise RecursionError("maximum recursion depth exceeded")
+        remove(path)
+
+    monkeypatch.setattr(box_module, "remove_tree", broken)
+    detail = run_folder(tmp_path, settings=Settings(limits=SMALL))
+    assert detail["result"] == "ran"  # the run's own result stands
+    assert "RecursionError" in detail["cleanup_error"]
+    assert check_outcome(detail) == "error"  # never reported as fine
+    # The next box cannot remove it either, but still opens and runs.
+    detail = run_folder(tmp_path, settings=Settings(limits=SMALL))
+    assert detail["result"] == "ran" and "RecursionError" in detail["leftovers"][0]
+    monkeypatch.undo()
+    detail = run_folder(tmp_path, settings=Settings(limits=SMALL))
+    assert "leftovers" not in detail and "cleanup_error" not in detail
+
+
+def test_the_token_is_checked_before_the_process_runs():
+    from sandbox import win32
+    from sandbox.box import Box
+
+    with Box(limits=SMALL) as box:
+        handles = [win32.null_input(), *win32.pipe()]
+        common = dict(stdin=handles[0], stdout=handles[2], stderr=handles[2],
+                      desktop=box._desktop.path)
+        made = {
+            "as built": win32.start([box.python(), "-c", "pass"], box.app,
+                                    box.environment(), token=box._token,
+                                    package=box.package,
+                                    capabilities=box._capabilities, **common),
+            # Controls: what a failed layer would give.
+            "no AppContainer": win32.start([box.python(), "-c", "pass"], box.app,
+                                           box.environment(), token=box._token, **common),
+            "no restricted token": win32.start([box.python(), "-c", "pass"], box.app,
+                                               box.environment(), package=box.package,
+                                               capabilities=box._capabilities, **common),
+            "fewer capabilities": win32.start([box.python(), "-c", "pass"], box.app,
+                                              box.environment(), token=box._token,
+                                              package=box.package,
+                                              capabilities=box._capabilities[:1], **common),
+        }
+        try:
+            found = {label: box.token_problem(process.handle)
+                     for label, process in made.items()}
+        finally:
+            for process in made.values():
+                win32.terminate(process)
+                process.close()
+            for handle in handles:
+                win32.close(handle)
+    assert found == {"as built": None, "no AppContainer": "not an AppContainer token",
+                     "no restricted token": "not a restricted token",
+                     "fewer capabilities": "other capabilities"}
