@@ -16,6 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 from sandbox import TOOL_VERSION
@@ -48,6 +49,24 @@ SKIPPED = frozenset({
 
 class RuntimeMissing(Exception):
     """The runtime is not set up, or not as this code expects."""
+
+
+@contextmanager
+def _locked(root):
+    """Hold the root's lock (the one each sandbox run holds) while the
+    runtime is changed, so no run uses a runtime half replaced."""
+    from runner.ledger import LedgerError, lock_file, unlock_file
+
+    Path(root).mkdir(parents=True, exist_ok=True)
+    try:
+        handle = lock_file(Path(root) / "sandbox.lock")
+    except LedgerError:
+        raise RuntimeMissing(f"a sandbox run is using {root}; try again when it "
+                             "has ended") from None
+    try:
+        yield
+    finally:
+        unlock_file(handle)
 
 
 def default_root():
@@ -117,14 +136,24 @@ def setup(root=None, wheelhouse=None, say=print):
     The packages come from PyPI, or with ``wheelhouse`` from that folder
     only; either way pip checks each file against the hash pinned in
     ``sandbox/requirements.txt``. Returns the manifest written."""
-    from sandbox import win32
-
     if os.name != "nt":
         raise RuntimeMissing("the sandbox runs on Windows only")
     if sys.version_info[:2] != (3, 13) or sys.maxsize < 2**32:
         raise RuntimeMissing("setup needs 64-bit Python 3.13")
     root = Path(root or default_root()).resolve()
-    root.mkdir(parents=True, exist_ok=True)
+    with _locked(root):
+        manifest = _build(root, wheelhouse, say)
+    say("checking that sandboxed code can import every package")
+    problem = self_test(root)
+    if problem:
+        raise RuntimeMissing(f"the runtime does not work in the sandbox: {problem}")
+    say(f"runtime ready in {runtime_dir(root)}")
+    return manifest
+
+
+def _build(root, wheelhouse, say):
+    from sandbox import win32
+
     staging = root / "runtime.new"
     if staging.exists():
         remove_tree(staging)
@@ -174,11 +203,6 @@ def setup(root=None, wheelhouse=None, say=print):
     if target.exists():
         remove_tree(target)
     staging.rename(target)
-    say("checking that sandboxed code can import every package")
-    problem = self_test(root)
-    if problem:
-        raise RuntimeMissing(f"the runtime does not work in the sandbox: {problem}")
-    say(f"runtime ready in {target}")
     return manifest
 
 
@@ -193,13 +217,14 @@ def update_shims(root=None, say=print):
         raise RuntimeMissing(f"no sandbox runtime in {runtime_dir(root)}: run "
                              "`python -m sandbox setup`") from None
     site = site_packages(root)
-    for shim in SHIM.iterdir():
-        if shim.suffix == ".py":
-            shutil.copyfile(shim, site / shim.name)
-            subprocess.run([str(python(root)), "-I", "-m", "py_compile",
-                            str(site / shim.name)], check=True)
-    found["shim_sha256"] = shim_digest()
-    path.write_text(json.dumps(found, indent=2) + "\n", encoding="utf-8")
+    with _locked(root):
+        for shim in SHIM.iterdir():
+            if shim.suffix == ".py":
+                shutil.copyfile(shim, site / shim.name)
+                subprocess.run([str(python(root)), "-I", "-m", "py_compile",
+                                str(site / shim.name)], check=True)
+        found["shim_sha256"] = shim_digest()
+        path.write_text(json.dumps(found, indent=2) + "\n", encoding="utf-8")
     problem = self_test(root)
     if problem:
         raise RuntimeMissing(f"the runtime does not work in the sandbox: {problem}")
@@ -284,6 +309,8 @@ def check(root):
 
 def remove(root=None):
     """Delete the runtime: its folder and the permissions on it."""
-    target = runtime_dir(root or default_root())
+    root = Path(root or default_root()).resolve()
+    target = runtime_dir(root)
     if target.exists():
-        remove_tree(target)
+        with _locked(root):
+            remove_tree(target)
