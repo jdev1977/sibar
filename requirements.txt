@@ -2,6 +2,10 @@ pytest==9.2.0
 PyYAML==6.0.4
 # headless browser for renderer/ (T1.3); then: python -m playwright install chromium
 playwright==1.60.0
+# CSS parser for extractors/website (T1.4): a pure-Python tokenizer that
+# follows the CSS Syntax spec, so comments, strings, escapes and nested blocks
+# are read as a browser reads them
+tinycss2==1.4.0
 # transitive dependencies of pytest, pinned for reproducibility
 colorama==0.4.6
 iniconfig==2.3.1
@@ -12,3 +16,5 @@ Pygments==2.21.0
 greenlet==3.5.6
 pyee==13.0.1
 typing_extensions==4.16.0
+# transitive dependency of tinycss2
+webencodings==0.6.1
