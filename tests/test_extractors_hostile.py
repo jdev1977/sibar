@@ -3,11 +3,15 @@ long single tokens, unclosed delimiters and many near matches, at the size
 limits. Every extractor must finish in bounded time without an error."""
 
 import time
+from pathlib import Path
 
 import pytest
 
 from extractors.base import InputFile, Inputs, run_extractors
 from extractors.registry import extractors_for
+from runner.files import extract_files
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 # Large enough that a quadratic reading takes minutes, small enough that the
 # whole file runs in about a minute. Every piece was also timed once at the
@@ -55,6 +59,30 @@ def test_a_long_run_of_one_piece_is_read_in_bounded_time(project_type, name):
               if values["status"] == "error"}
     assert errors == {}
     assert spent < SECONDS
+
+
+@pytest.mark.parametrize("project_type", ["pipeline", "math", "engineering"])
+def test_windows_line_endings_read_the_same(project_type):
+    for folder in sorted((FIXTURES / project_type).iterdir()):
+        text = (folder / "response.md").read_bytes().decode().replace("\r\n", "\n")
+        read = []
+        for ending in ("\n", "\r\n"):
+            changed = text.replace("\n", ending)
+            files = [InputFile(f.path, f.content.encode())
+                     for f in extract_files(changed)]
+            record = {"raw_response": changed, "prompt_text": "p", "files": []}
+            read.append(run_extractors(extractors_for(project_type),
+                                       Inputs(files, record=record)))
+        assert read[0] == read[1], folder.name
+
+
+def test_files_with_windows_line_endings():
+    source = (b"import cadquery as cq\r\nif __name__ == '__main__':\r\n    pass\r\n"
+              b"thickness = 6\r\n")
+    record = {"raw_response": "see file", "prompt_text": "p", "files": []}
+    out = run_extractors(extractors_for("engineering"),
+                         Inputs([InputFile("a.py", source)], record=record))
+    assert out["engineering.cad"][1]["cad_parameters"] == ["thickness=6"]
 
 
 def test_binary_and_empty_files():

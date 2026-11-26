@@ -97,6 +97,7 @@ def _sources(files):
         text = item.text[:max(left, 0)]
         cut = cut or len(text) < len(item.text)
         left -= len(text)
+        text = text.replace("\r\n", "\n")     # patterns read line ends as \n
         name = item.path.rsplit("/", 1)[-1]
         out.append(Source(item.path, code.language_of(item.path, text), text,
                           not _GENERIC.fullmatch(name)))
@@ -124,7 +125,7 @@ def _build(inputs):
             text = "\n\n".join(f.text[:MAX_TEXT] for f in files
                                if f.suffix in ("md", "txt"))
     truncated = len(text) > MAX_TEXT
-    text = text[:MAX_TEXT]
+    text = text[:MAX_TEXT].replace("\r\n", "\n")
     prose_lines, blocks = split_fences(text)
     prose = "\n".join(prose_lines)
     plain = [b.body for b in blocks
