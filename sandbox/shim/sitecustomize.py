@@ -13,6 +13,13 @@ otherwise make it fail for a reason that is not the code's:
 - multiprocessing names its pipes ``\\\\.\\pipe\\pyc-...``; an AppContainer may
   only make pipes under ``\\\\.\\pipe\\LOCAL\\``, which is its own. The names
   are moved there.
+- ``os.devnull``: the NUL device lets no AppContainer open it, which breaks
+  ``subprocess.DEVNULL``, pytest's output capture and more. Opening it gives
+  a copy of the process's standard input, which the sandbox opens on NUL for
+  reading and writing.
+- Private folders: Python 3.13 gives folders made with mode 0o700 (such as
+  ``tempfile.mkdtemp``'s) a DACL the sandboxed process itself does not
+  match; they inherit the working folder's permissions instead.
 - asyncio: the sandbox cannot make sockets, and Python's ``_overlapped``
   module makes one when it is imported, so ``import asyncio`` (which many
   libraries do just for a type check) would fail. ``_overlapped`` is replaced
@@ -42,6 +49,82 @@ def _fix_realpath():
     realpath.__wrapped__ = original
     realpath.__doc__ = original.__doc__
     ntpath.realpath = realpath
+
+
+def _fix_devnull():
+    """Make ``os.devnull`` usable: the NUL device's DACL has no entry an
+    AppContainer matches, so opening it fails. The sandbox gives every
+    process a standard input that reads from NUL (and may write to it); opens
+    of ``os.devnull`` get a copy of that handle instead."""
+    try:
+        open(os.devnull, "rb").close()
+        return
+    except OSError:
+        pass
+    import builtins
+    import ctypes
+    import io
+    import msvcrt
+    import _winapi
+
+    kernel = ctypes.WinDLL("kernel32")
+    kernel.GetFileType.argtypes = [ctypes.c_void_p]
+    kernel.GetConsoleMode.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    handle = _winapi.GetStdHandle(_winapi.STD_INPUT_HANDLE)
+    mode = ctypes.c_ulong()
+    if (not handle or kernel.GetFileType(handle) != 2  # FILE_TYPE_CHAR
+            or kernel.GetConsoleMode(handle, ctypes.byref(mode))):
+        return  # not the sandbox's NUL input
+    process = _winapi.GetCurrentProcess()
+    null = _winapi.DuplicateHandle(process, handle, process, 0, False,
+                                   _winapi.DUPLICATE_SAME_ACCESS)
+
+    def null_descriptor(flags):
+        copy = _winapi.DuplicateHandle(process, null, process, 0, False,
+                                       _winapi.DUPLICATE_SAME_ACCESS)
+        return msvcrt.open_osfhandle(copy, flags)
+
+    def is_null(path):
+        if not isinstance(path, (str, bytes, os.PathLike)):
+            return False
+        try:
+            text = os.fsdecode(path).lower()
+        except (TypeError, ValueError):
+            return False
+        return text in ("nul", "nul:", "\\\\.\\nul", "//./nul")
+
+    os_open = os.open
+
+    def open_descriptor(path, flags, mode=0o777, *, dir_fd=None):
+        if dir_fd is None and is_null(path):
+            return null_descriptor(flags & (os.O_RDONLY | os.O_WRONLY | os.O_RDWR
+                                            | os.O_APPEND | os.O_BINARY | os.O_TEXT))
+        return os_open(path, flags, mode, dir_fd=dir_fd)
+
+    io_open = io.open
+
+    def open_file(file, mode="r", *args, **kwargs):
+        if is_null(file):
+            return io_open(null_descriptor(os.O_RDWR | os.O_BINARY), mode, *args, **kwargs)
+        return io_open(file, mode, *args, **kwargs)
+
+    os.open = open_descriptor
+    builtins.open = io.open = open_file
+
+
+def _fix_private_folders():
+    """On Windows, Python 3.13 gives a folder made with mode 0o700 (as
+    ``tempfile.mkdtemp`` does) a DACL for the owner, SYSTEM and
+    administrators only, which a sandboxed process does not match: it could
+    not use its own temporary folders. Such folders inherit the working
+    folder's permissions instead, which grant the sandbox and no one else."""
+    mkdir = os.mkdir
+
+    def make_folder(path, mode=0o777, *, dir_fd=None):
+        return mkdir(path, 0o777 if mode == 0o700 else mode, dir_fd=dir_fd)
+
+    make_folder.__doc__ = mkdir.__doc__
+    os.mkdir = make_folder
 
 
 def _find_spec_elsewhere(finder_to_skip, name, path, target):
@@ -256,6 +339,8 @@ STAND_INS = {"_overlapped": _overlapped_stand_in}
 
 if os.name == "nt":
     _fix_realpath()
+    _fix_devnull()
+    _fix_private_folders()
     if os.environ.get("SIBAR_SANDBOX_SHIMS"):
         import sibar_sandbox_shims
 

@@ -45,7 +45,7 @@ PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000
 SE_FILE_OBJECT = 1
 # Window stations and desktops.
 WINSTA_CREATEDESKTOP, WINSTA_READATTRIBUTES = 0x8, 0x2
-GENERIC_READ, GENERIC_ALL = 0x80000000, 0x10000000
+GENERIC_READ, GENERIC_WRITE, GENERIC_ALL = 0x80000000, 0x40000000, 0x10000000
 DESKTOP_ALL = 0x01FF | 0x000F0000
 UOI_NAME = 2
 WAIT_OBJECT_0, WAIT_TIMEOUT = 0, 0x102
@@ -640,9 +640,10 @@ def pipe():
 
 
 def null_input():
-    """An inheritable handle reading from the NUL device."""
+    """An inheritable handle on the NUL device, for reading and writing (see
+    os.devnull in the shim)."""
     attributes = SECURITY_ATTRIBUTES(ctypes.sizeof(SECURITY_ATTRIBUTES), None, True)
-    handle = api().CreateFileW("NUL", GENERIC_READ, 0x3, ctypes.byref(attributes),
+    handle = api().CreateFileW("NUL", GENERIC_READ | GENERIC_WRITE, 0x3, ctypes.byref(attributes),
                                3, 0, None)
     if handle in (None, INVALID_HANDLE):
         raise WinError("CreateFile(NUL)")
