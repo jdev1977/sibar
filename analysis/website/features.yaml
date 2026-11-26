@@ -33,6 +33,15 @@
 #                   (`default`, and exceptions by key)
 #   task_driven     true where the task's subject is expected to decide the
 #                   value; such variables are read per task
+#   depends_on      variables (full names) that partly or wholly decide this
+#                   one: it is computed from them, it describes a thing whose
+#                   presence they carry, or it draws its values from them.
+#                   When a prompt closes one of them, this one is closed too
+#                   (docs/metrics.md, "Open choices"). Followed step by step.
+#   no_verdict      categorical: values that say the page declared nothing or
+#                   the extractor could not class what it found. They count in
+#                   the frequency table; a run showing one is left out when
+#                   compliance with an expected value is judged
 #
 # Changing a role, a bin edge or a mask changes results: raise
 # `metrics_version`. Raising an extractor version means reading this file again
@@ -77,7 +86,10 @@ common:
   skipped_files: {type: number, bins: [0, 1], role: diagnostic, why: health}
 
 # A run that matches `when` has the listed variables set to undetermined.
-# `*` stands for every feature of an extractor.
+# `*` stands for every feature and derived variable of an extractor except
+# its diagnostic ones, which are never masked. A run whose condition variable
+# is itself undetermined is masked too: an unread framework cannot be ruled
+# out. The run's own value decides, whether the variable is open or closed.
 masks:
   - name: unread-framework-stylesheet
     reason: >-
@@ -100,87 +112,87 @@ masks:
 
 features:
   website.palette:
-    dominant_hue: {type: categorical, role: primary}
-    background: {type: categorical, role: primary}
+    dominant_hue: {type: categorical, role: primary, depends_on: [website.palette.color_classes]}
+    background: {type: categorical, role: primary, no_verdict: [default]}
     color_classes: {type: set, role: primary}
-    color_count: {type: number, bins: [0, 4, 8, 13], role: primary}
-    base_scheme: {type: categorical, role: secondary, why: redundant, see: background}
-    hues: {type: set, role: secondary, why: redundant, see: color_classes}
-    colors: {type: set, role: secondary, why: raw, see: color_classes}
-    background_hex: {type: categorical, role: secondary, why: raw, see: background}
-    tailwind_colors: {type: set, empty: not-applicable, role: secondary, why: raw, see: color_classes}
+    color_count: {type: number, bins: [0, 4, 8, 13], role: primary, depends_on: [website.palette.color_classes]}
+    base_scheme: {type: categorical, role: secondary, why: redundant, see: background, depends_on: [website.palette.background]}
+    hues: {type: set, role: secondary, why: redundant, see: color_classes, depends_on: [website.palette.color_classes]}
+    colors: {type: set, role: secondary, why: raw, see: color_classes, depends_on: [website.palette.color_classes]}
+    background_hex: {type: categorical, role: secondary, why: raw, see: background, depends_on: [website.palette.background]}
+    tailwind_colors: {type: set, empty: not-applicable, role: secondary, why: raw, see: color_classes, depends_on: [website.palette.color_classes]}
     unknown_color_utilities: {type: number, bins: [0, 1], role: diagnostic, why: health}
     unknown_color_names: {type: set, role: diagnostic, why: health}
     unparsed_colors: {type: number, bins: [0, 1], role: diagnostic, why: health}
 
   website.fonts:
-    primary_font: {type: categorical, role: primary}
+    primary_font: {type: categorical, role: primary, no_verdict: [default]}
     heading_font: {type: categorical, role: primary}
-    font_sources: {type: set, role: primary}
-    system_stack: {type: boolean, role: primary}
-    primary_category: {type: categorical, role: secondary, why: redundant, see: primary_font}
-    heading_category: {type: categorical, role: secondary, why: redundant, see: heading_font}
-    families: {type: set, role: secondary, why: detail, see: primary_font}
-    family_count: {type: number, bins: [0, 1, 2, 3], role: secondary, why: detail, see: primary_font}
-    generic_families: {type: set, role: secondary, why: detail, see: system_stack}
-    loaded_families: {type: set, empty: not-applicable, role: secondary, why: detail, see: font_sources}
-    font_categories: {type: set, role: secondary, why: redundant, see: primary_font}
+    font_sources: {type: set, role: primary, depends_on: [website.fonts.primary_font, website.fonts.heading_font]}
+    system_stack: {type: boolean, role: primary, depends_on: [website.fonts.primary_font, website.fonts.heading_font]}
+    primary_category: {type: categorical, role: secondary, why: redundant, see: primary_font, no_verdict: [default, unknown], depends_on: [website.fonts.primary_font]}
+    heading_category: {type: categorical, role: secondary, why: redundant, see: heading_font, no_verdict: [unknown], depends_on: [website.fonts.heading_font]}
+    families: {type: set, role: secondary, why: detail, see: primary_font, depends_on: [website.fonts.primary_font, website.fonts.heading_font]}
+    family_count: {type: number, bins: [0, 1, 2, 3], role: secondary, why: detail, see: primary_font, depends_on: [website.fonts.primary_font, website.fonts.heading_font]}
+    generic_families: {type: set, role: secondary, why: detail, see: system_stack, depends_on: [website.fonts.primary_font, website.fonts.heading_font]}
+    loaded_families: {type: set, empty: not-applicable, role: secondary, why: detail, see: font_sources, depends_on: [website.fonts.font_sources]}
+    font_categories: {type: set, role: secondary, why: redundant, see: primary_font, depends_on: [website.fonts.primary_font, website.fonts.heading_font]}
 
   website.libraries:
-    libraries: {type: set, role: primary}
+    libraries: {type: set, role: primary, depends_on: [website.icons-emoji.icon_libraries]}
     framework: {type: categorical, role: primary}
     css_framework: {type: categorical, role: primary}
-    delivery: {type: set, empty: not-applicable, role: primary}
-    library_count: {type: number, bins: [0, 1, 2, 4], role: secondary, why: redundant, see: libraries}
-    cdn_hosts: {type: set, role: secondary, why: raw, see: delivery}
-    tailwind_usage: {type: categorical, role: secondary, why: redundant, see: css_framework}
-    tailwind_evidence: {type: set, empty: not-applicable, role: secondary, why: detail, see: css_framework}
+    delivery: {type: set, empty: not-applicable, role: primary, depends_on: [website.libraries.libraries]}
+    library_count: {type: number, bins: [0, 1, 2, 4], role: secondary, why: redundant, see: libraries, depends_on: [website.libraries.libraries]}
+    cdn_hosts: {type: set, role: secondary, why: raw, see: delivery, depends_on: [website.libraries.delivery, website.fonts.font_sources]}
+    tailwind_usage: {type: categorical, role: secondary, why: redundant, see: css_framework, depends_on: [website.libraries.css_framework]}
+    tailwind_evidence: {type: set, empty: not-applicable, role: secondary, why: detail, see: css_framework, depends_on: [website.libraries.css_framework]}
     unrecognised: {type: set, role: diagnostic, why: health}
 
   website.layout:
     landmarks: {type: set, role: primary}
     layout_systems: {type: set, role: primary}
-    grid_columns: {type: set, empty: not-applicable, role: primary}
+    grid_columns: {type: set, empty: not-applicable, role: primary, depends_on: [website.layout.layout_systems]}
     nav_position: {type: categorical, role: primary}
     sections: {type: ordered-list, role: provisional, why: heuristic, task_driven: true}
-    section_kinds: {type: set, role: provisional, why: heuristic, task_driven: true}
-    section_count: {type: number, bins: [0, 3, 5, 7, 9], role: provisional, why: heuristic, task_driven: true}
+    section_kinds: {type: set, role: provisional, why: heuristic, task_driven: true, depends_on: [website.layout.sections]}
+    section_count: {type: number, bins: [0, 3, 5, 7, 9], role: provisional, why: heuristic, task_driven: true, depends_on: [website.layout.sections]}
     card_groups: {type: number, bins: [0, 1, 2, 3], role: provisional, why: heuristic, task_driven: true}
-    hero: {type: boolean, role: secondary, why: redundant, see: section_kinds}
-    card_group_sizes: {type: set, empty: not-applicable, role: secondary, why: detail, see: card_groups}
-    mapped_card_groups: {type: number, bins: [0, 1], role: secondary, why: detail, see: card_groups}
+    hero: {type: boolean, role: secondary, why: redundant, see: section_kinds, depends_on: [website.layout.section_kinds]}
+    card_group_sizes: {type: set, empty: not-applicable, role: secondary, why: detail, see: card_groups, depends_on: [website.layout.card_groups]}
+    mapped_card_groups: {type: number, bins: [0, 1], role: secondary, why: detail, see: card_groups, depends_on: [website.layout.card_groups]}
     max_widths_px: {type: set, empty: not-applicable, role: secondary, why: raw}
     container_class: {type: boolean, role: secondary, why: detail, see: max_widths_px}
 
   website.corners-shadows:
     corner_style: {type: categorical, role: primary}
-    pill_shapes: {type: boolean, role: primary}
+    pill_shapes: {type: boolean, role: primary, depends_on: [website.corners-shadows.corner_style]}
     shadow_count: {type: number, bins: [0, 1, 3, 6], role: primary}
-    shadow_kinds: {type: set, empty: not-applicable, role: primary}
+    shadow_kinds: {type: set, empty: not-applicable, role: primary, depends_on: [website.corners-shadows.shadow_count]}
     text_shadow: {type: boolean, role: primary}
     backdrop_blur: {type: boolean, role: primary}
-    common_radius: {type: categorical, role: secondary, why: raw, see: corner_style}
-    radii: {type: set, role: secondary, why: raw, see: corner_style}
+    common_radius: {type: categorical, role: secondary, why: raw, see: corner_style, depends_on: [website.corners-shadows.corner_style]}
+    radii: {type: set, role: secondary, why: raw, see: corner_style, depends_on: [website.corners-shadows.corner_style]}
 
   website.gradients:
     gradient_count: {type: number, bins: [0, 1, 3, 6], role: primary}
-    gradient_types: {type: set, empty: not-applicable, role: primary}
-    gradient_directions: {type: set, empty: not-applicable, role: primary}
-    gradient_hues: {type: set, empty: not-applicable, role: primary}
-    gradient_text: {type: boolean, role: primary}
-    gradient_targets: {type: set, empty: not-applicable, role: provisional, why: heuristic}
-    gradient_pairs: {type: set, empty: not-applicable, role: secondary, why: detail, see: gradient_hues}
+    gradient_types: {type: set, empty: not-applicable, role: primary, depends_on: [website.gradients.gradient_count]}
+    gradient_directions: {type: set, empty: not-applicable, role: primary, depends_on: [website.gradients.gradient_count]}
+    gradient_hues: {type: set, empty: not-applicable, role: primary, depends_on: [website.gradients.gradient_count, website.palette.color_classes]}
+    gradient_text: {type: boolean, role: primary, depends_on: [website.gradients.gradient_count]}
+    gradient_targets: {type: set, empty: not-applicable, role: provisional, why: heuristic, depends_on: [website.gradients.gradient_count]}
+    gradient_pairs: {type: set, empty: not-applicable, role: secondary, why: detail, see: gradient_hues, depends_on: [website.gradients.gradient_hues]}
 
   website.icons-emoji:
     icon_kinds: {type: set, role: primary}
-    icon_libraries: {type: set, empty: not-applicable, role: primary}
+    icon_libraries: {type: set, empty: not-applicable, role: primary, depends_on: [website.icons-emoji.icon_kinds]}
     emoji_count: {type: number, bins: [0, 1, 4, 10], role: primary}
     favicon: {type: categorical, role: primary}
-    emoji: {type: set, empty: not-applicable, role: secondary, why: raw, see: emoji_count, task_driven: true}
-    emoji_led_headings: {type: number, bins: [0, 1], role: secondary, why: detail, see: emoji_count}
-    inline_svg_count: {type: number, bins: [0, 1, 6, 16], role: secondary, why: detail, see: icon_kinds}
-    svg_image_count: {type: number, bins: [0, 1], role: secondary, why: detail, see: icon_kinds}
-    text_symbols: {type: set, empty: not-applicable, role: secondary, why: detail, see: icon_kinds}
+    emoji: {type: set, empty: not-applicable, role: secondary, why: raw, see: emoji_count, task_driven: true, depends_on: [website.icons-emoji.emoji_count]}
+    emoji_led_headings: {type: number, bins: [0, 1], role: secondary, why: detail, see: emoji_count, depends_on: [website.icons-emoji.emoji_count]}
+    inline_svg_count: {type: number, bins: [0, 1, 6, 16], role: secondary, why: detail, see: icon_kinds, depends_on: [website.icons-emoji.icon_kinds]}
+    svg_image_count: {type: number, bins: [0, 1], role: secondary, why: detail, see: icon_kinds, depends_on: [website.icons-emoji.icon_kinds]}
+    text_symbols: {type: set, empty: not-applicable, role: secondary, why: detail, see: icon_kinds, depends_on: [website.icons-emoji.icon_kinds]}
 
   website.stock-phrases:
     em_dash_count: {type: number, bins: [0, 1, 3], role: primary}
@@ -198,10 +210,10 @@ features:
         cta-learn-more: 3
         cta-read-more: 3
         cta-try-now: 3
-    stock_phrases: {type: set, role: secondary, why: thin-rules, see: stock_phrase_counts}
-    stock_phrase_categories: {type: set, role: secondary, why: thin-rules, see: stock_phrase_counts}
-    stock_phrase_hits: {type: number, bins: [0, 1, 3, 6], role: secondary, why: thin-rules, see: stock_phrase_counts}
-    stock_phrase_matches: {type: count-map, min_count: {default: 1}, role: secondary, why: thin-rules, see: stock_phrase_counts}
+    stock_phrases: {type: set, role: secondary, why: thin-rules, see: stock_phrase_counts, depends_on: [website.stock-phrases.stock_phrase_counts]}
+    stock_phrase_categories: {type: set, role: secondary, why: thin-rules, see: stock_phrase_counts, depends_on: [website.stock-phrases.stock_phrase_counts]}
+    stock_phrase_hits: {type: number, bins: [0, 1, 3, 6], role: secondary, why: thin-rules, see: stock_phrase_counts, depends_on: [website.stock-phrases.stock_phrase_counts]}
+    stock_phrase_matches: {type: count-map, min_count: {default: 1}, role: secondary, why: thin-rules, see: stock_phrase_counts, depends_on: [website.stock-phrases.stock_phrase_counts]}
     copy_word_count: {type: number, bins: [0, 100, 300, 600, 1000], role: secondary, why: detail, task_driven: true}
     headings_checked: {type: number, bins: [0, 1, 4, 8], role: secondary, why: detail, see: title_case}
     title_case_headings: {type: number, bins: [0, 1, 4, 8], role: secondary, why: detail, see: title_case}
@@ -215,36 +227,36 @@ features:
     has_readme: {type: boolean, role: primary}
     total_bytes: {type: number, bins: [0, 5000, 15000, 40000], role: primary}
     file_kinds: {type: count-map, min_count: {default: 1}, role: secondary, why: detail, see: structure}
-    folders: {type: set, role: secondary, why: raw, see: structure}
+    folders: {type: set, role: secondary, why: raw, see: structure, depends_on: [website.file-structure.structure]}
     max_depth: {type: number, bins: [0, 1, 2], role: secondary, why: detail, see: structure}
-    entry_file: {type: categorical, role: secondary, why: raw, see: structure}
+    entry_file: {type: categorical, role: secondary, why: raw, see: structure, depends_on: [website.file-structure.structure]}
     html_files: {type: number, bins: [0, 1, 2], role: secondary, why: detail, see: structure}
-    external_scripts: {type: number, bins: [0, 1, 2], role: secondary, why: detail, see: inline_script_blocks}
-    external_stylesheets: {type: number, bins: [0, 1, 2], role: secondary, why: detail, see: inline_style_blocks}
-    has_package_json: {type: boolean, role: secondary, why: redundant, see: structure}
+    external_scripts: {type: number, bins: [0, 1, 2], role: secondary, why: detail, see: inline_script_blocks, depends_on: [website.libraries.libraries]}
+    external_stylesheets: {type: number, bins: [0, 1, 2], role: secondary, why: detail, see: inline_style_blocks, depends_on: [website.fonts.font_sources, website.libraries.css_framework]}
+    has_package_json: {type: boolean, role: secondary, why: redundant, see: structure, depends_on: [website.file-structure.structure]}
     has_build_config: {type: boolean, role: secondary, why: detail, see: structure}
 
   website.responsiveness:
     viewport_meta: {type: categorical, role: primary}
     media_query_style: {type: categorical, role: primary}
-    breakpoints_px: {type: set, empty: not-applicable, role: primary}
-    tailwind_breakpoints: {type: set, empty: not-applicable, role: primary}
+    breakpoints_px: {type: set, empty: not-applicable, role: primary, depends_on: [website.responsiveness.media_query_style]}
+    tailwind_breakpoints: {type: set, empty: not-applicable, role: primary, depends_on: [website.libraries.css_framework]}
     fluid_techniques: {type: set, role: primary}
     responsive_images: {type: boolean, role: primary}
     width_media_queries: {type: number, bins: [0, 1, 3, 6], role: secondary, why: detail, see: media_query_style}
 
   website.dark-mode:
-    dark_mode: {type: categorical, role: primary}
-    mechanisms: {type: set, empty: not-applicable, role: primary}
-    forced_dark: {type: boolean, role: secondary, why: redundant, see: dark_mode}
-    theme_toggle: {type: boolean, role: secondary, why: redundant, see: dark_mode}
+    dark_mode: {type: categorical, role: primary, depends_on: [website.palette.background]}
+    mechanisms: {type: set, empty: not-applicable, role: primary, depends_on: [website.dark-mode.dark_mode]}
+    forced_dark: {type: boolean, role: secondary, why: redundant, see: dark_mode, depends_on: [website.dark-mode.dark_mode]}
+    theme_toggle: {type: boolean, role: secondary, why: redundant, see: dark_mode, depends_on: [website.dark-mode.dark_mode]}
 
   website.accessibility:
     html_lang: {type: categorical, role: primary}
     alt_coverage: {type: categorical, not_applicable: [no-images], role: primary}
     h1_count: {type: number, bins: [0, 1, 2], role: primary}
     heading_skips: {type: number, bins: [0, 1], role: primary}
-    main_landmark: {type: boolean, role: primary}
+    main_landmark: {type: boolean, role: primary, depends_on: [website.layout.landmarks]}
     skip_link: {type: boolean, role: primary}
     buttons_without_name: {type: number, bins: [0, 1], role: primary}
     generic_link_text: {type: number, bins: [0, 1], role: primary}
@@ -254,7 +266,7 @@ features:
     reduced_motion: {type: boolean, role: primary}
     lang: {type: categorical, role: secondary, why: detail, see: html_lang}
     images: {type: number, bins: [0, 1, 4, 10], role: secondary, why: detail, see: alt_coverage, task_driven: true}
-    images_missing_alt: {type: number, bins: [0, 1], role: secondary, why: redundant, see: alt_coverage}
+    images_missing_alt: {type: number, bins: [0, 1], role: secondary, why: redundant, see: alt_coverage, depends_on: [website.accessibility.alt_coverage]}
     images_empty_alt: {type: number, bins: [0, 1], role: secondary, why: detail, see: alt_coverage}
     heading_levels: {type: set, role: secondary, why: detail, see: heading_skips}
     form_controls: {type: number, bins: [0, 1, 4, 8], role: secondary, why: detail, see: unlabelled, task_driven: true}

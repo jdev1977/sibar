@@ -5,6 +5,8 @@
 # and level. The two wordings of a cell give the same facts
 # (docs/leak-check.md), so entries are per task and level, never per wording.
 # Only open variables count toward a default; closed ones are reported apart.
+# A variable is also closed, without being listed here, when a variable it
+# depends on is closed (`depends_on` in features.yaml).
 #
 # Per task:
 #   prompt_set_version   the prompt texts these entries were read from. A
@@ -28,6 +30,10 @@
 #                  shift into that level, so the shift is read as the effect
 #                  of that content.
 #
+# Every L2 dictates a light page, so `dark_mode` is closed with it: its value
+# `dark-only` is computed from the page background. Any other value follows
+# the brief.
+#
 # `expect` speaks the extractors' vocabulary, which is coarse: "cyan" lies on
 # the border of teal and blue, "cream" spreads over four background classes.
 # A value listed here is one a compliant page can show; a value not listed is
@@ -41,11 +47,12 @@ tasks:
   bakery-landing:
     prompt_set_version: "1"
     L2:
-      - closed: [website.palette.*]
+      - closed: [website.palette.*, website.dark-mode.dark_mode]
         reason: direction
         quote: "Black text on an off-white background, with cyan as the only accent"
         expect:
           website.palette.base_scheme: {in: [light]}
+          website.dark-mode.dark_mode: {in: [none, system, toggle, both]}
           website.palette.background: {in: [white, gray-light, yellow-light]}
           website.palette.dominant_hue: {in: [teal, blue]}
         note: >-
@@ -100,8 +107,14 @@ tasks:
           - website.layout.section_count
           - website.layout.hero
           - website.accessibility.form_controls
+          - website.file-structure.total_bytes
         reason: content
-        quote: "Required sections:"
+        quote:
+          - "Required sections:"
+          - "a pre-order form (name, email, pickup day, items and quantities)"
+        note: >-
+          The brief supplies the content, and with it most of the page's size
+          (total_bytes).
     associations:
       L1:
         - variables: [website.palette.*, website.fonts.*]
@@ -117,11 +130,12 @@ tasks:
   pricing-page:
     prompt_set_version: "1"
     L2:
-      - closed: [website.palette.*]
+      - closed: [website.palette.*, website.dark-mode.dark_mode]
         reason: direction
         quote: "A warm paper-cream background with dark green ink"
         expect:
           website.palette.base_scheme: {in: [light]}
+          website.dark-mode.dark_mode: {in: [none, system, toggle, both]}
           website.palette.background: {in: [yellow-light, orange-light, gray-light, white]}
           website.palette.dominant_hue: {in: [green, teal]}
         note: >-
@@ -175,17 +189,23 @@ tasks:
           - website.layout.section_kinds
           - website.layout.section_count
           - website.layout.hero
+          - website.file-structure.total_bytes
         reason: content
-        quote: "Required sections:"
+        quote:
+          - "Required sections:"
+        note: >-
+          The brief supplies the content, and with it most of the page's size
+          (total_bytes).
 
   portfolio:
     prompt_set_version: "1"
     L2:
-      - closed: [website.palette.*]
+      - closed: [website.palette.*, website.dark-mode.dark_mode]
         reason: direction
         quote: "A pale gray-blue background, charcoal text and one hot-pink accent"
         expect:
           website.palette.base_scheme: {in: [light]}
+          website.dark-mode.dark_mode: {in: [none, system, toggle, both]}
           website.palette.background: {in: [blue-light, gray-light, white]}
           website.palette.dominant_hue: {in: [pink, red]}
         note: >-
@@ -245,10 +265,15 @@ tasks:
           - website.layout.hero
           - website.accessibility.form_controls
           - website.accessibility.images
+          - website.file-structure.total_bytes
         reason: content
         quote:
           - "Required sections:"
           - "each with a placeholder image"
+          - "Include an inquiry form that asks for name, email, the kind of piece, and a rough budget"
+        note: >-
+          The brief supplies the content, and with it most of the page's size
+          (total_bytes).
     associations:
       L1:
         - variables: [website.palette.*, website.fonts.*]
@@ -258,11 +283,12 @@ tasks:
   event-page:
     prompt_set_version: "1"
     L2:
-      - closed: [website.palette.*]
+      - closed: [website.palette.*, website.dark-mode.dark_mode]
         reason: direction
         quote: "Two inks, fluorescent pink and teal, on pale yellow paper"
         expect:
           website.palette.base_scheme: {in: [light]}
+          website.dark-mode.dark_mode: {in: [none, system, toggle, both]}
           website.palette.background: {in: [yellow-light]}
           website.palette.dominant_hue: {in: [pink, teal]}
         note: >-
@@ -305,8 +331,14 @@ tasks:
           - website.layout.section_count
           - website.layout.hero
           - website.accessibility.form_controls
+          - website.file-structure.total_bytes
         reason: content
-        quote: "Required sections:"
+        quote:
+          - "Required sections:"
+          - "a form that asks for name, email, the item, what is wrong with it, and which repair table"
+        note: >-
+          The brief supplies the content, and with it most of the page's size
+          (total_bytes).
     associations:
       L1:
         - variables: [website.palette.*]
@@ -316,11 +348,12 @@ tasks:
   todo-app:
     prompt_set_version: "1"
     L2:
-      - closed: [website.palette.*]
+      - closed: [website.palette.*, website.dark-mode.dark_mode]
         reason: direction
         quote: "An off-white background with blocks of primary red, yellow and blue, and thick black outlines"
         expect:
           website.palette.base_scheme: {in: [light]}
+          website.dark-mode.dark_mode: {in: [none, system, toggle, both]}
           website.palette.background: {in: [white, gray-light, yellow-light]}
         note: >-
           Three hues are dictated with equal weight, so the dominant hue has
@@ -370,8 +403,15 @@ tasks:
           - website.layout.section_count
           - website.layout.hero
           - website.accessibility.form_controls
+          - website.file-structure.total_bytes
         reason: content
-        quote: "Features:"
+        quote:
+          - "Features:"
+          - "Add, edit and delete tasks, and mark them as done."
+          - "Filter the list by course."
+        note: >-
+          The brief supplies the content, and with it most of the page's size
+          (total_bytes).
     associations:
       L1:
         - variables:
@@ -381,7 +421,11 @@ tasks:
           quote: "deadlines"
           note: Implies a due date for each task.
       L2:
-        - variables: [website.libraries.*, website.file-structure.*]
+        - variables:
+            - website.libraries.libraries
+            - website.libraries.framework
+            - website.file-structure.structure
+            - website.file-structure.inline_script_blocks
           quote: "Keep tasks on this device after the page is reloaded"
           note: >-
             A need, not a technology: it can move the library and file
@@ -390,13 +434,14 @@ tasks:
   dashboard:
     prompt_set_version: "1"
     L2:
-      - closed: [website.palette.*]
+      - closed: [website.palette.*, website.dark-mode.dark_mode]
         reason: direction
         quote:
           - "A warm white background with dark gray text"
           - "Charts in a single oxblood red with grays"
         expect:
           website.palette.base_scheme: {in: [light]}
+          website.dark-mode.dark_mode: {in: [none, system, toggle, both]}
           website.palette.background: {in: [white, gray-light, yellow-light, orange-light]}
           website.palette.dominant_hue: {in: [red]}
       - closed:
@@ -454,8 +499,13 @@ tasks:
           - website.layout.section_kinds
           - website.layout.section_count
           - website.layout.hero
+          - website.file-structure.total_bytes
         reason: content
-        quote: "Required sections:"
+        quote:
+          - "Required sections:"
+        note: >-
+          The brief supplies the content, and with it most of the page's size
+          (total_bytes).
       - closed:
           - website.libraries.*
           - website.fonts.font_sources

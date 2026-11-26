@@ -76,6 +76,22 @@ def resolve(pattern, known):
     return [pattern] if pattern in known else []
 
 
+def closed_in(dictated, features, task, level):
+    """Every variable closed for a task and level: those an entry lists, and
+    those that depend on a closed one (``depends_on``, step by step)."""
+    known = variables(features)
+    closed = {name for entry in dictated["tasks"][task].get(level, [])
+              for pattern in entry["closed"] for name in resolve(pattern, known)}
+    grew = True
+    while grew:
+        grew = False
+        for name, entry in known.items():
+            if name not in closed and closed & set(entry.get("depends_on", [])):
+                closed.add(name)
+                grew = True
+    return closed
+
+
 def bin_labels(edges):
     labels = []
     for index, low in enumerate(edges):
@@ -150,12 +166,36 @@ def test_declarations_are_well_formed(features):
             assert entry["type"] in MULTI and entry["empty"] in ("value", "not-applicable")
         if "not_applicable" in entry:
             assert entry["type"] == "categorical", full
+        if "no_verdict" in entry:
+            assert entry["type"] == "categorical" and entry["no_verdict"], full
         assert ("min_count" in entry) == (entry["type"] == "count-map"), full
         if "min_count" in entry:
             assert all(isinstance(n, int) and n >= 1 for n in entry["min_count"].values())
             assert "default" in entry["min_count"], full
     for name, entry in features["common"].items():
         assert entry["role"] == "diagnostic", name
+
+
+def test_dependencies_are_declared_variables_without_cycles(features):
+    known = variables(features)
+    for full, entry in known.items():
+        extractor = full.rsplit(".", 1)[0]
+        for name in entry.get("depends_on", []):
+            assert name in known and name != full, (full, name)
+            assert known[name]["role"] != "diagnostic", (full, name)
+        # a function of another feature, or its raw form, is closed with it
+        if entry.get("why") in ("redundant", "raw") and "see" in entry:
+            assert f"{extractor}.{entry['see']}" in entry.get("depends_on", []), full
+    def reaches(start):
+        seen, todo = set(), list(known[start].get("depends_on", []))
+        while todo:
+            name = todo.pop()
+            if name not in seen:
+                seen.add(name)
+                todo += known[name].get("depends_on", [])
+        return seen
+    for full in known:
+        assert full not in reaches(full), f"{full} depends on itself"
 
 
 def test_call_to_action_rules_named_in_min_count_exist(features):
@@ -192,6 +232,9 @@ def test_masks_name_declared_variables(features):
             hit = resolve(pattern, known)
             assert hit, pattern
             assert when["variable"] not in hit, "a mask may not hide its own condition"
+            if not pattern.endswith(".*"):
+                # `*` leaves diagnostic features alone; none may be named
+                assert known[pattern]["role"] != "diagnostic", pattern
 
 
 # --- dictated.yaml -------------------------------------------------------------
@@ -255,11 +298,36 @@ def test_an_association_is_not_also_closed(dictated, features):
     known = variables(features)
     for task, body in dictated["tasks"].items():
         for level, notes in body.get("associations", {}).items():
-            closed = {name for entry in body.get(level, [])
-                      for pattern in entry["closed"] for name in resolve(pattern, known)}
+            closed = closed_in(dictated, features, task, level)
             for note in notes:
                 for pattern in note["variables"]:
                     assert not closed & set(resolve(pattern, known)), (task, level, pattern)
+
+
+def test_variables_decided_by_a_closed_one_are_closed(dictated, features):
+    """The cases behind `depends_on` (docs/metrics.md, "Open choices")."""
+    tasks = list(dictated["tasks"])
+    closed = {task: closed_in(dictated, features, task, "L2") for task in tasks}
+    for task in tasks:
+        assert not closed_in(dictated, features, task, "L0")
+        assert not closed_in(dictated, features, task, "L1")
+        # a light page is dictated everywhere; `dark-only` is read from the background
+        assert "website.dark-mode.dark_mode" in closed[task], task
+        assert "website.dark-mode.mechanisms" in closed[task], task
+        # gradient hues come from the dictated palette
+        assert "website.gradients.gradient_hues" in closed[task], task
+        assert "website.file-structure.total_bytes" in closed[task], task
+    for task in ("bakery-landing", "todo-app"):      # the heading face is dictated
+        assert {"website.fonts.font_sources", "website.fonts.system_stack"} <= closed[task]
+        assert "website.fonts.primary_font" not in closed[task]
+    for task in ("portfolio", "event-page", "dashboard"):   # icons are dictated
+        assert {"website.libraries.libraries", "website.libraries.delivery"} <= closed[task]
+    still_open = {task: sorted(name for name, entry in variables(features).items()
+                               if entry["role"] == "primary" and name not in closed[task])
+                  for task in tasks}
+    assert "website.gradients.gradient_count" in still_open["event-page"]
+    assert "website.gradients.gradient_count" not in still_open["bakery-landing"]
+    assert all("website.accessibility.skip_link" in names for names in still_open.values())
 
 
 def test_expected_values_fit_the_variable(dictated, features):
@@ -273,6 +341,8 @@ def test_expected_values_fit_the_variable(dictated, features):
             if declared["type"] in SINGLE:
                 assert set(expect) == {"in"} and expect["in"], (task, name)
                 assert all(isinstance(value, str) for value in expect["in"]), (task, name)
+                # a value that gives no verdict cannot be an expected value
+                assert not set(expect["in"]) & set(declared.get("no_verdict", [])), (task, name)
                 if declared["type"] == "number":
                     assert set(expect["in"]) <= set(bin_labels(declared["bins"])), (task, name)
                 if declared["type"] == "boolean":

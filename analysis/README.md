@@ -7,11 +7,13 @@ One folder per project type holds two data files:
 
 - `<type>/features.yaml`: every feature of that type's extractors, with its
   type (categorical, boolean, number, set, ordered list, count-map), its role
-  (primary, provisional, secondary, diagnostic), its bins, and the reason it
-  is or is not counted. Also the masks, and the metrics version.
+  (primary, provisional, secondary, diagnostic), its bins, the reason it is
+  or is not counted, and the variables that decide it (`depends_on`). Also
+  the masks, and the metrics version.
 - `<type>/dictated.yaml`: per task and level, the choices the prompt takes
   out of the model's hands, with the words of the prompt that do so and, where
-  it can be said, the value a compliant output shows.
+  it can be said, the value a compliant output shows. A variable that depends
+  on a closed one is closed with it.
 
 Present now: [website/](website/).
 

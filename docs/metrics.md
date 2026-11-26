@@ -15,7 +15,8 @@ Two data files hold what the formulas need to know about the features and the
 prompts. T1.6 reads both and decides nothing itself:
 
 - [analysis/website/features.yaml](../analysis/website/features.yaml): every
-  feature's type, role, bins and the reason it is or is not counted;
+  feature's type, role and bins, the reason it is or is not counted, and the
+  variables that decide it;
 - [analysis/website/dictated.yaml](../analysis/website/dictated.yaml): which
   choices each prompt takes out of the model's hands.
 
@@ -229,7 +230,17 @@ source catalogue's condition, which the extractor leaves to the metrics
 
 A mask is declared in `features.yaml` (`masks`): a condition on one
 categorical variable (`in` or `not_in` a list) and the variables it makes
-undetermined. A mask never hides the variable it tests.
+undetermined. A mask never hides the variable it tests. Three details:
+
+- `*` covers every variable of the extractor except its diagnostic ones.
+  Health rates are never masked: each is over every usable run whose
+  extractor has status `ok` or `partial`, masked or not. The share of masked
+  runs is a health rate of its own.
+- When the tested variable is itself undetermined for a run, the mask
+  applies: a framework that cannot be ruled out may be there.
+- A mask is about what could be read, not about what the prompt left open. It
+  goes by the run's own value of the tested variable, also in a cell where
+  that variable is closed.
 
 ## Open choices
 
@@ -245,11 +256,38 @@ cell is either **open** or **closed**:
 The two wordings of a cell give the same facts
 ([leak-check.md](leak-check.md)), so open and closed are properties of the
 task and level, not of the wording. In prompt set version 1, **L0 and L1
-close nothing**; every L2 closes its palette, its copy and its sections,
-five of the six close the corner style, five close the heading or body font,
-and the rest varies by task. A record
+close nothing**; every L2 closes its palette, its copy, its sections and its
+page size, five of the six close the corner style, five close the heading or
+body font, and the rest varies by task. A record
 whose `prompt_set_version` differs from the one in `dictated.yaml` is
 refused: the entries were read from one text.
+
+**Dependent variables.** A variable is also closed when a variable that
+partly or wholly decides it is closed, whether or not `dictated.yaml` lists
+it. `features.yaml` names these ties under `depends_on`. There are three
+kinds:
+
+- it is **computed from** the other: `dark_mode` is `dark-only` when the page
+  background is dark, so a brief that dictates a light page has decided part
+  of it; `base_scheme` is read off `background`;
+- it **describes a thing whose presence the other carries**: the kinds of
+  shadow where `shadow_count` is closed, the mechanisms of a dark mode where
+  `dark_mode` is. Where a brief removes the thing, such a variable would be
+  counted on the runs that disobeyed, and on no others;
+- it **draws its values from** the other: the hues of gradients from the
+  page's colours, the font services from the faces they supply, the
+  libraries from the icon sets among them.
+
+Dependence is followed step by step (`mechanisms` depends on `dark_mode`,
+which depends on `background`). Left open, such a variable would move at L2
+because the brief moved its source, and the move would be read as
+spill-over, as if the brief had not touched it. A dependent variable is in
+the directed table, marked `dependent` with the variable that closed it. It
+has compliance only where `dictated.yaml` lists it with an expected value
+(as it does for `dark_mode`: anything but `dark-only`). Dependence does not
+cover a variable that merely becomes applicable: a dictated form makes
+`unlabelled` (how many of its controls lack a label) applicable, and leaves
+it open.
 
 What open and closed mean for each metric:
 
@@ -261,9 +299,31 @@ What open and closed mean for each metric:
 | Stability verdict | L0 only, where everything is open. | None. |
 | Representative outputs | Counted. | Not counted. |
 
-At L2 some dimensions have no open variable in any task (palette and copy are
-closed everywhere). Their L2 fingerprint is empty by design: there is no
-default to report where every brief dictated the choice.
+What stays open at L2 in prompt set version 1, worked out from the two data
+files:
+
+| Dimension | Primary variables open at L2, with the number of tasks (of six) where each is open | Open in no task |
+|---|---|---|
+| palette | none | `dominant_hue`, `background`, `color_classes`, `color_count` |
+| fonts | `primary_font` 3, `heading_font` 1, `system_stack` 1 | `font_sources` |
+| libraries | `libraries` 3, `framework` 5, `css_framework` 5, `delivery` 3 |  |
+| layout | `landmarks` 6, `layout_systems` 6, `grid_columns` 4, `nav_position` 6 |  |
+| corners-shadows | `corner_style` 1, `pill_shapes` 1, `shadow_count` 1, `shadow_kinds` 1, `text_shadow` 2, `backdrop_blur` 3 |  |
+| gradients | `gradient_count` 3, `gradient_types` 3, `gradient_directions` 3, `gradient_text` 3 | `gradient_hues` |
+| icons-emoji | `icon_kinds` 3, `icon_libraries` 3, `emoji_count` 3, `favicon` 6 |  |
+| copy | none | `em_dash_count`, `exclamation_count`, `title_case` |
+| file-structure | `structure` 6, `file_count` 6, `inline_style_blocks` 6, `inline_script_blocks` 6, `style_attributes` 6, `has_readme` 6 | `total_bytes` |
+| responsiveness | `viewport_meta` 6, `media_query_style` 6, `breakpoints_px` 6, `tailwind_breakpoints` 5, `fluid_techniques` 6, `responsive_images` 6 |  |
+| dark-mode | none | `dark_mode`, `mechanisms` |
+| accessibility | `html_lang` 6, `alt_coverage` 6, `h1_count` 6, `heading_skips` 6, `main_landmark` 6, `skip_link` 6, `buttons_without_name` 6, `generic_link_text` 6, `aria_attributes` 6, `focus_styles` 6, `outline_removed` 6, `reduced_motion` 6, `unlabelled` 6 |  |
+
+Palette, copy and dark mode have no open variable at L2, and `font_sources`,
+`gradient_hues` and `total_bytes` are open in no task. Their L2 fingerprint
+is empty by design: there is no default to report where every brief decided
+the choice. Most corner, shadow and font variables are open in one or two
+tasks, too few for a pooled row (T below 3). The L2 spill-over therefore
+rests mainly on layout, file structure, responsiveness and accessibility,
+with libraries, gradients and icons on three to five tasks.
 
 **Associations.** L1 content can pull an open choice without dictating it: a
 sourdough bakery suggests warm colours. `dictated.yaml` lists these
@@ -319,11 +379,16 @@ Tasks where v is closed at that level are left out before any of this.
   run counts the same there whether or not it has a value.
 
 **Too little to report.** A fingerprint row with **T below 3** or **n_eff
-below 16** is labelled `insufficient data` and reports no top choice. Below 16
-effective runs even a unanimous result cannot be shown to be a strong default
-(the lower bound for 15 of 15 is 0.796, for 16 of 16 it is 0.806); below 3
-tasks there is no usable interval across tasks (two tasks give a multiplier of
-12.7). The shares are still shown.
+below 16** is labelled `insufficient data` and reports no top choice. Both
+limits are conventions, not error rates: the clear-lead condition is as valid
+at 12 effective runs as at 60. They are there so that a label means the same
+in every row. Below 16 effective runs no result can be shown to be a strong
+default (the lower bound for 15 of 15 is 0.796, for 16 of 16 it is 0.806),
+and an established majority needs 12 of 15, so `default` would mean "four
+runs in five" in a thin row and "two in three" (38 of 60) in a full one.
+Below 3 tasks a pooled row is a per-task table under another name, and there
+is no usable interval across tasks (two tasks give a multiplier of 12.7).
+The shares, the intervals and the three evidence conditions are still shown.
 
 **Per-task tables** use the first two lines only (cell, then task), with
 weights and n_eff worked out within the task. They exist for every variable,
@@ -549,6 +614,13 @@ task interval of E for the dimension is above 0. Per variable, E is shown
 with its interval but is descriptive: there are 62 variables, and some
 intervals exclude 0 by chance.
 
+**What is printed.** For every open variable and every dimension, and each
+pair of levels: S with its task interval, the yardstick, and E with its task
+interval, side by side. S says how far the choice moved; E says how much of
+that is beyond what rewording does. A large S beside an E near 0 is a choice
+that moves with the phrasing as much as with the direction, and it takes
+both numbers to see that.
+
 **Open and closed.** For a task, a variable counts toward the dimension's
 sensitivity between L and L' only if it is open at both. This is the
 spill-over: what the brief moved without naming it. L0 to L1 has no closed
@@ -561,15 +633,24 @@ table:
 - **compliance**, where `expect` is given: the share of runs at that level
   that show an expected value (`in`: the choice is one of the list;
   `absent`: the set holds none of the items; `present`: it holds all of
-  them), among the runs that have a value;
+  them), among the runs that have a value and a verdict. A run whose value
+  is listed under `no_verdict` in `features.yaml` has none: `unknown` (a
+  font that the table of font categories does not hold) or `default` (the
+  page declares nothing, and what shows is the browser's or a framework's).
+  Such a run is left out and counted as `no verdict`. It did not disobey; the
+  extractor cannot say;
 - **persistence**, for a variable with one value per run and an `in` list:
   the share of runs at that level that still show the task's **L0 default**.
   It is read only when both hold:
   1. the task's own L0 table (both wordings, that model) has a single nominal
      top choice d with a clear lead at the task's n_eff;
-  2. d is not in the `in` list. If the brief asks for what the model does
-     anyway, an unchanged output is obedience, not persistence
-     ([leak-check.md](leak-check.md), "Notes for other tasks").
+  2. d is not in the `in` list and is not a `no_verdict` value. If the brief
+     asks for what the model does anyway, an unchanged output is obedience,
+     not persistence ([leak-check.md](leak-check.md), "Notes for other
+     tasks").
+
+  Runs with a `no_verdict` value are left out of persistence as they are out
+  of compliance.
 
 Compliance and persistence are pooled over the tasks where they can be read,
 with the usual weights, and carry a run interval at their n_eff.
@@ -604,8 +685,11 @@ effective runs it is the **Wilson score interval**, with z = 1.96:
 It never leaves 0 to 1, it does not collapse when a share is 0 or 1 (which a
 plain "p plus or minus" interval does, and with 5 runs a cell is often
 unanimous), and it has a closed form. It treats the pooled runs as n_eff
-independent draws. Because the pooling is stratified by cell, the real
-variance is no larger than that, so the interval errs on the wide side.
+independent draws. With complete cells the real variance is no larger than
+that, because the pooling is stratified by cell, and the interval errs on the
+wide side. With unequal cells this is not guaranteed (a small cell that is
+split, while the full cells agree, adds more variance than n_eff allows
+for), and the interval is an approximation.
 
 **The task interval: what about tasks other than these six?** The six tasks
 are a sample of the things people ask for, and runs of the same task are
@@ -661,10 +745,21 @@ level, 60 per model and level, 180 per level over three models.
   levels, a few `leading` labels near the limit are wrong. The stability rule
   exists to catch them.
 
-**About two models.** Two shares near 0.5, each from 60 runs, must differ by
-about **26 points** to be found four times in five (5% level); from 10 runs
-each, by 63 points. Differences between models on a single variable that are
-smaller than a quarter of the runs are invisible in the pilot.
+**About two models.** "The models differ" is read from the task interval of
+the model shift D. For two models whose shares of a yes/no choice lie d
+apart, at 0.5 - d/2 and 0.5 + d/2 in every task, it is declared this often
+(simulation, 2,000 to 6,000 draws):
+
+| True difference d | 0 | 10 points | 20 | 26 | 30 | 34 | 40 | 50 | 55 | 60 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| one variable | under 1% | 1% | 2% | 6% | 11% | 18% | 34% | 66% | 82% | 92% |
+| a dimension of five such variables | 1% | 4% | 22% | 50% | 73% | 88% | 98% | 100% | 100% | 100% |
+
+On a single variable two models must differ by about **55 points** to be
+told apart four times in five; on a dimension by about **32 points**, if all
+its variables differ. A plain comparison of two shares from 60 runs each
+would find 26 points four times in five, but that is not the rule used here:
+it takes the 60 runs as independent, and runs of one task are alike.
 
 **About tasks.** With six tasks the task interval is the mean plus or minus
 1.05 standard deviations of the six task values (2.571 / sqrt(6)). A measure
@@ -678,23 +773,35 @@ standard deviation. And a default holds across tasks only if all six agree.
   standard deviation 0.043 (0.028 at a share of 0.8); for one task alone the
   standard deviation is 0.106;
 - the chance that "direction moved it" (lower end of the task interval of E
-  above 0) is declared, when the share truly moves by d in every task:
+  above 0) is declared, when the share truly moves from 0.5 to 0.5 + d in
+  every task:
 
 | True move d | 0 | 10 points | 20 | 30 | 40 | 50 |
 |---|---|---|---|---|---|---|
 | one variable | 1% | 2% | 5% | 18% | 50% | 92% |
 | a dimension of five such variables | 2% | 6% | 27% | 80% | 100% | 100% |
 
+The five-variable rows of both tables assume five independent variables that
+all move by the same amount, and the same five in every task. A real
+dimension does worse. Its variables are correlated (six corner and shadow
+variables are not six independent looks at a model), only some of them move,
+and at L2 the open variables of a dimension differ from task to task (the
+table under [Open choices](#open-choices)), which widens the spread of the
+task values. The power of a real dimension lies between the two rows.
+
 So the pilot **can** show: defaults with a share of roughly two thirds or
 more at a level; whether such a default holds in all six tasks; shifts of a
-dimension by about 30 points or more between levels (L0 to L2 on a directed
-dimension is expected to be far larger); that a default gave way, on four or
-more tasks; differences between models of a quarter of the runs or more.
+dimension by about 30 points or more between levels, if most of its
+variables move (L0 to L2 on a directed dimension is expected to be far
+larger); that a default gave way, on four or more tasks; differences between
+models of about 30 points or more across a dimension, or about 55 points on
+a single variable.
 
 It **cannot** show: which of two choices leads when they are within 20 to 25
 points of each other; a default's share to better than about 12 points either
 side; moves of a single variable below about 40 points (so most of what L1
-does to single variables); anything per task beyond a description (10 runs);
+does to single variables); differences between models on a single variable
+below about 50 points; anything per task beyond a description (10 runs);
 whether a default would hold on tasks unlike these six; and nothing about the
 product surface. Across 12 dimensions, 3 pairs of levels and 3 models there
 are 108 tests of "direction moved it"; at a false-alarm rate near 2%, two or
@@ -753,15 +860,31 @@ claims nothing, and a tie in F10 that includes F5's choice is `lost`, not a
 reversal; a tie in F10 between other choices is a reversal. For a set, an
 item held by exactly half of the runs in F10 is not a reversal.
 
+**Growth of established defaults.** Doubling can change a table in two ways
+that call for opposite answers: it can uncover defaults that five runs were
+too few to show, or it can shuffle claims among choices that are near a tie.
+Let E5 be the number of established defaults in F5: the variables with one
+value per run whose reported top choice has an established majority, plus
+the default items of all set variables. E10 is the same count in F10.
+
+    growth = E10 / E5 - 1          (E5 = 0 and E10 > 0 counts as above any limit)
+
 **Verdict.**
 
 | Verdict | Condition | What happens |
 |---|---|---|
-| `stable` | score at least **0.90** and at most 1 reversal | 5 runs per cell stand for this model. T1.9 may recommend 5 for the full grid if every model is stable. |
-| `unstable` | score below 0.90, at most 1 reversal | Doubling changed more than one reported top choice in ten. The pilot's L0 fingerprint for the model is taken from the 10-run data, the variables that changed are listed and marked `unstable` in the pilot report, and T1.9 recommends 10 runs per cell for the full grid. With the Human's approval of the spend, the check is repeated once, 10 against 20, on the same cells. If that is unstable too, the run count stays at 10 and the variables still changing are reported as `contested`: see below why more runs then stop helping. |
+| `stable` | score at least **0.90** and at most 1 reversal | 5 runs per cell stand for this model. T1.9 may recommend 5 for the full grid if no model is `unstable: defaults still appearing`. |
+| `unstable: defaults still appearing` | score below 0.90, at most 1 reversal, growth of **0.10** or more | Ten runs report at least a tenth more established defaults than five: more runs are buying defaults. T1.9 recommends 10 runs per cell for the full grid. With the Human's approval of the spend, the check is repeated once, 10 against 20, on the same cells, and read by this same table. |
+| `unstable: contested choices` | score below 0.90, at most 1 reversal, growth below 0.10 | Doubling changed more than one reported top choice in ten, but added few established defaults: the changes are claims won and lost among choices near a tie, and leads without a majority. More runs do not settle these (below), so the run count is not raised on their account: 5 runs per cell stand for this model. The variables that changed are marked `contested` in the pilot report and are not called defaults. |
 | `drift suspected` | 2 or more reversals, whatever the score | No recommendation on the run count from this model. Compare run indexes 1 to 5 with 6 to 10 as two groups (the shift per dimension, which should be near 0; the dates; the `model_id_returned` values). If the provider changed the model between the two runs, the model's L0 is run again as a new batch. |
 | `no defaults` | no counted variable | Recorded as such; the fingerprint has no top choices to be stable. |
 | `not run` | a cell is short of usable runs | Named cells are completed first. |
+
+With any verdict, the report lists every counted variable that changed: the
+kind of change (new, lost, reversed; for a set, the items gained and
+dropped) and whether the choice had an established majority in F5 and in
+F10. Once the ten runs exist, the pilot's L0 tables are computed from all of
+them, whatever the verdict.
 
 **What the verdict does not cover.** L1 and L2, the per-task tables, the
 provisional variables, and the sensitivity measures. They are covered by
@@ -778,11 +901,15 @@ any. It was checked by simulation at the planned sizes (not committed code;
 - 6 tasks x 2 wordings, n runs per cell, then n more;
 - each task has its own shares, drawn around the model's shares (Dirichlet
   and beta draws with concentration 10, so tasks differ visibly);
-- four kinds of model. *Strong*: the top choice of every variable has a true
-  share between 0.75 and 1, items are near 0 or near 1. *Fairly strong*:
-  between 0.6 and 1. *Mixed*: between 0.4 and 1, items anywhere between 0
-  and 1. *Weak*: shares drawn flat, items between 0.3 and 0.7. *No defaults*:
-  all choices equally likely.
+- five kinds of model in which every variable is of one kind. *Strong*: the
+  top choice of every variable has a true share between 0.75 and 1, items
+  are near 0 or near 1. *Fairly strong*: between 0.6 and 1. *Mixed*: between
+  0.4 and 1, items anywhere between 0 and 1. *Weak*: shares drawn flat, items
+  between 0.3 and 0.7. *No defaults*: all choices equally likely;
+- and a **blend**, the likelier case for a real model: each variable is
+  strong with chance 0.6, weak with chance 0.2 and without a default with
+  chance 0.2 (second simulation, seed 20261127, which also gave the split of
+  the unstable verdicts below).
 
 | Model | Runs per cell | Mean score | Middle 90% of scores | `stable` |
 |---|---|---|---|---|
@@ -801,25 +928,62 @@ any. It was checked by simulation at the planned sizes (not committed code;
 | no defaults | 3 to 6 | 0.359 | 0.133 to 0.625 | 0% |
 | no defaults | **5 to 10** | 0.377 | 0.190 to 0.579 | **0%** |
 | no defaults | 10 to 20 | 0.495 | 0.333 to 0.658 | 0% |
+| blend | 3 to 6 | 0.910 | 0.844 to 0.970 | 62% |
+| blend | **5 to 10** | 0.914 | 0.847 to 0.972 | **65%** |
+| blend | 10 to 20 | 0.922 | 0.856 to 0.980 | 75% |
+| blend | 20 to 40 | 0.927 | 0.869 to 0.979 | 79% |
+
+How the verdicts split (second simulation; no row had two reversals):
+
+| Model | Runs per cell | `stable` | `unstable: defaults still appearing` | `unstable: contested choices` | Median growth |
+|---|---|---|---|---|---|
+| strong | 5 to 10 | 100% | 0% | 0% | 0.00 |
+| fairly strong | 5 to 10 | 100% | 0% | 0% | +0.04 |
+| mixed | 5 to 10 | 49% | 30% | 21% | +0.09 |
+| mixed | 10 to 20 | 84% | 5% | 11% | +0.06 |
+| weak | 5 to 10 | 1% | 96% | 3% | +0.26 |
+| weak | 10 to 20 | 9% | 67% | 24% | +0.14 |
+| no defaults | 5 to 10 | 0% | 94% | 6% | +0.71 |
+| blend | 3 to 6 | 62% | 6% | 32% | +0.04 |
+| blend | 5 to 10 | 65% | 12% | 23% | +0.06 |
+| blend | 10 to 20 | 75% | 6% | 19% | +0.04 |
+| blend | 20 to 40 | 79% | 6% | 15% | +0.05 |
 
 What the figures show:
 
 - **The rule discriminates.** At 5 to 10 runs it passes a model with strong
   or fairly strong defaults every time, fails a model with weak or no
-  defaults every time, and passes a mixed model half the time. It neither
-  passes nearly everything nor fails nearly everything.
+  defaults every time, passes a mixed model half the time and a blend two
+  times in three. It neither passes nearly everything nor fails nearly
+  everything.
 - **The limit of 0.90** sits between the kinds of model: at 0.85 a mixed
   model passes 89% of the time and a weak one 4%; at 0.95 a fairly strong
   model passes only 82% and a mixed one 9%.
-- **It responds to the run count.** A mixed model passes 24% of the time at 3
-  to 6 runs, 50% at 5 to 10 and 87% at 10 to 20. This is why an `unstable`
-  verdict is answered with 10 runs, and why one repeat at 10 to 20 is worth
-  its cost. A model that still fails there is a weak one (9%), whose
-  contested choices more runs do not settle.
+- **More runs help some models and not others.** A mixed model, whose
+  defaults are of every strength, passes 24% of the time at 3 to 6 runs, 50%
+  at 5 to 10 and 87% at 10 to 20: its middling defaults settle as runs are
+  added. A blend does not respond: 62%, 65%, 75% and 79% from 3 to 6 up to
+  20 to 40 runs. Its strong variables are settled at any run count and its
+  contested ones at none, so **a model of this kind can be `unstable` at
+  every run count**, one time in five even at 20 to 40 runs. Raising the run
+  count for it buys nothing.
+- **Growth tells the two apart**, which is why the unstable verdict is split.
+  A weak model, which has modest defaults that more runs do bring out, shows
+  growth of 0.10 or more in 96% of cases at 5 to 10 runs (median +0.26). An
+  unstable blend is `contested choices` two times in three (23% against
+  12%), an unstable mixed model `defaults still appearing` three times in
+  five (30% against 21%). Stable models grow little: a strong one by 0.02 at
+  most, a fairly strong one by 0.09 at most (95th percentiles). A model with
+  no defaults at all is sent to 10 runs as well, on a tiny base (8
+  established defaults becoming 13, of some 130 possible): with tasks that
+  differ, six tasks hold small real majorities that more runs find. The
+  repeat at 10 to 20 is read by the same table, so it stops there unless
+  defaults are still appearing.
 - **Reversals do not happen by chance.** Without drift, one reversal occurred
   in at most 1.8% of simulated models and two or more in none of 9,500
   (every row above, and the mixed and fairly strong models again with no task
-  effect and with a strong one). Allowing one keeps the false alarm rare.
+  effect and with a strong one), nor in any of the 5,500 of the second
+simulation. Allowing one keeps the false alarm rare.
 - **Reversals do signal drift.** Drift was simulated by letting the added
   runs of a task come, for each variable with a given chance, from a changed
   model (its choices rotated by one place). At a chance of one half, a mixed
@@ -865,13 +1029,14 @@ runs has no representative output.
 | Confidence of every interval | 95% (z = 1.96; t at 0.975) | convention | |
 | Clear lead, established majority, default item | Wilson lower end above 0.5 | derived | names a level pair in about 5% of cases (simulated 4.5% to 5.1%) |
 | Strong default | Wilson lower end above 0.8 | convention | needs 55 of 60, or 16 unanimous runs |
-| Insufficient data | T below 3 or n_eff below 16 | derived | 16: least unanimous runs for a strong default; 3: least tasks for a t multiplier under 5 |
+| Insufficient data | T below 3 or n_eff below 16 | convention | keeps a label's meaning the same in every row. 16: least unanimous runs for a strong default; 3: least tasks for a t multiplier under 5 |
 | Incomplete outcomes; partly read | more than 10% of runs | derived | the bias it allows (10 points at most) stays under the half-width at 60 runs (12 points) |
 | Task-dependent | spread of 0.7 or more | derived | false flag at most 3.3% with 10 runs per task |
 | Holds across tasks | support T of T, T at least 5 | derived | chance 1/32 or less; 5 of 6 would be 7/64 |
-| Direction moved a dimension; models differ | lower end of the task interval above 0 | derived | false alarm 2.5% per test by construction; 1% to 2% simulated for the excess |
+| Direction moved a dimension; models differ | lower end of the task interval above 0 | derived | false alarm 2.5% per test by construction; simulated 1% to 2% for the excess, about 1% for the model shift |
 | Persists / gave way | run interval above / below 0.10 | convention | "gave way" needs 0 of 35 or more |
 | Stability score | at least 0.90 | derived | separates strong from weak simulated models; table above |
+| Growth that sends a model to 10 runs | 0.10 or more | derived | weak simulated models reach it in 96% of cases, stable ones in under 5%; it splits the unstable blends and mixed models |
 | Reversals allowed | 1 | derived | two or more never occurred without drift in 9,500 simulated models |
 | Cells complete enough for the stability check | 4 of 5, and 8 of 10 usable | convention | |
 | Bin edges, CTA rule minimum of 3 | `features.yaml` | first guess | review after the pilot |
@@ -1157,6 +1322,12 @@ bunny-fonts]`. One cell of five runs: {google-fonts}, {}, {}, {self-hosted},
 {}. Four hold none of the listed items: compliance in the cell **4/5**. With
 `present: [self-hosted]` it would be 1/5. A set has no persistence.
 
+No verdict: `heading_category` closed with `in: [sans, display]`, and
+`unknown` declared as a `no_verdict` value. One cell of five runs: sans,
+display, unknown, serif, sans. The unknown run is left out; three of the
+other four show an expected value: compliance in the cell **3/4**, not 3/5,
+with one run counted as `no verdict`.
+
 ### 11. Two models
 
 Cell t1 A at L0. Model m1 as in E1 (rounded 4, pill 1). Model m2: pill, pill,
@@ -1188,9 +1359,18 @@ z^2 x (x1 + x2)):
 | v6 (set) | tailwindcss 26, lucide 19, react 6 | tailwindcss (484 > 115.248); lucide 64: no | tailwindcss 50, lucide 40, react 13 | tailwindcss (1600), lucide (400 > 230.496) | default sets {tailwindcss} and {lucide, tailwindcss} | 1/2 |
 
 Counted variables: v1, v2, v3, v5, v6. **Score = (1 + 0 + 0 + 0 + 1/2) / 5 =
-3/10.** Reversals: 1. Verdict: **`unstable`** (score below 0.90, one
-reversal). Had v5 also ended with b on top, there would be 2 reversals and
-the verdict `drift suspected`.
+3/10.** Reversals: 1.
+
+Established defaults (with two choices, a clear lead is an established
+majority): in F5 the choices of v1, v3 and v5 and one default item, **E5 =
+4**; in F10 the choices of v1 and v2 and two default items, **E10 = 4**.
+**Growth = 4/4 - 1 = 0.**
+
+Verdict: **`unstable: contested choices`** (score below 0.90, one reversal,
+growth below 0.10): two defaults came and two went. Had v5 kept an
+established majority in F10, E10 would be 5, growth 1/4, and the verdict
+`unstable: defaults still appearing`. Had v5 instead ended with b on top, there would be 2 reversals
+and the verdict `drift suspected`.
 
 ### 13. Representative output
 
@@ -1223,6 +1403,26 @@ A3 and B1 tie at 59/108. Wording A goes first: the representative output is
 first). The least typical: A5. B3 has no value for `corner_style`, so its
 typicality is the mean of two dimensions.
 
+### 14. Closed by dependence
+
+With `depends_on` chains a <- b <- c (b depends on a, c on b): closing a
+closes b and c; closing b closes c and leaves a open; closing c closes
+nothing else.
+
+From the two data files, prompt set version 1, level L2. Primary and
+provisional variables that no entry lists and that are closed all the same:
+
+| Task | Closed by dependence alone |
+|---|---|
+| bakery-landing | `font_sources`, `system_stack` (the heading face is dictated); `mechanisms` (through `dark_mode`) |
+| pricing-page | `mechanisms` |
+| portfolio | `gradient_hues` (the palette); `libraries`, `delivery` (through `icon_libraries`); `mechanisms` |
+| event-page | `gradient_hues`; `libraries`, `delivery`; `mechanisms` |
+| todo-app | `font_sources`, `system_stack`; `mechanisms` |
+| dashboard | `gradient_hues`; `tailwind_breakpoints` (through `css_framework`); `mechanisms` |
+
+At L0 and L1 nothing is closed, by an entry or by dependence.
+
 ## Notes for T1.6
 
 - Read `features.yaml` and `dictated.yaml`; hard-code no feature name, bin,
@@ -1231,6 +1431,12 @@ typicality is the mean of two dimensions.
   another version; a `prompt_set_version` other than the one in
   `dictated.yaml`; a number below its first bin edge; records of more than
   one `settings` value in one table.
+- A variable is closed for a task and level when an entry of
+  `dictated.yaml` lists it or when it depends, in any number of steps, on
+  one that is closed. Work this out from the files; the table of example 14
+  and the table under "Open choices" are tests of it.
+- Compliance and persistence leave out runs with a `no_verdict` value and
+  count them.
 - Keep shares, agreements and shifts as exact fractions
   (`fractions.Fraction`) until they are written out. Ties, the 0.7 and 0.90
   limits and "fewer than half" are decided on fractions; the clear-lead,
@@ -1240,7 +1446,7 @@ typicality is the mean of two dimensions.
 - The tests reproduce every bold figure of the worked examples, and the
   intermediate values given with them.
 - The stability check is a command that takes a record file and a model and
-  prints the score, the four counts, the verdict and the variables that
-  changed.
+  prints the score, the four counts, E5, E10 and the growth, the verdict,
+  and the variables that changed with the kind of change.
 - T4.1 designs the default score of a real artifact. Nothing here fixes it;
   typicality is its nearest relative and may be reused.
