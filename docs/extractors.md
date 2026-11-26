@@ -599,5 +599,11 @@ accessible markup (counted only as the component).
 Some features can be dictated by an L2 prompt (an L2 bakery brief names a
 cyan accent and square corners). Extractors record what the page does either
 way; deciding which features a prompt fixed, and leaving them out of a
-default, is done by the metrics (T1.5, T1.6) using
-[prompts/website/leak-check.md](../prompts/website/leak-check.md).
+default, is done by the metrics ([metrics.md](metrics.md), "Open choices"),
+from the list in
+[analysis/website/dictated.yaml](../analysis/website/dictated.yaml), which
+was read from
+[prompts/website/leak-check.md](../prompts/website/leak-check.md). How each
+feature is counted (its type, role and bins) is in
+[analysis/website/features.yaml](../analysis/website/features.yaml); raising
+an extractor's version means updating that file.

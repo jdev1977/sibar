@@ -14,11 +14,12 @@ Project documents. Present now:
   written in T1.2 and reused by T2.2 and the Wave 2 leak checks
 - [extractors.md](extractors.md): the extractor interface and the twelve
   website extractors, feature by feature (T1.4)
+- [metrics.md](metrics.md): the fingerprint tables, convergence, prompt
+  sensitivity, intervals, the stability rule and their worked examples (T1.5)
 
 Added by later tasks in [tasks.md](../tasks.md):
 
 - T0.6: `cost.md`, cost estimate
-- T1.5: `metrics.md`, metric definitions
 - T1.9: `pilot.md`, pilot report
 - T2.5: `tagger.md`, tagger calibration
 - T4.1: `scoring.md`, scoring design
