@@ -21,10 +21,10 @@ prompt_set_version: "1"
 prompts:
   L0:
     A: Work out the pressure drop in a pipe that carries 1.5 L/s of water up 6 m over a length of 35 m, with an inside diameter of 40 mm, and choose a pump for it.
-    B: Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to suit?
+    B: Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to match?
   L1:
     A: Work out the pressure drop in a pipe that carries 1.5 L/s of water up 6 m over a length of 35 m, with an inside diameter of 40 mm, and choose a pump for it, for a community garden that wants to move water from its pond up to a storage tank at the top of the plot.
-    B: Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to suit? A community garden wants to move water from its pond up to a storage tank at the top of the plot.
+    B: Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to match? A community garden wants to move water from its pond up to a storage tank at the top of the plot.
   # L2 direction: polyethylene pipe with the Hazen-Williams equation and a
   # stated coefficient, fittings as an equivalent length, a pump run from a
   # solar-charged 12 V battery with a stated efficiency, pressures in kPa as
@@ -33,6 +33,10 @@ prompts:
   # a chart or an implicit equation, plastic or steel pipe assumed, minor
   # losses estimated loosely, a mains-powered centrifugal pump with a
   # margin added.
+  # Close to the expected default (T2.2): polyethylene is a smooth plastic
+  # pipe, the same roughness family as the plastic pipe expected at L0. Do
+  # not read pipe material as a persisting default for this task; the
+  # friction method and the power supply are the choices that move.
   L2:
     A: |
       Work out the pressure drop in a pipe that carries 1.5 L/s of water up 6 m over a length of 35 m, with an inside diameter of 40 mm, and choose a pump for it, for the Wickley Lane Community Garden, which wants to move water from its pond up to a storage tank at the top of the plot.
@@ -51,7 +55,7 @@ prompts:
       Presentation:
       - Put the answers in a table first, with each pressure in kPa as well as in meters of water, then give the working.
     B: |
-      Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to suit? We're the Wickley Lane Community Garden, and we want to move water from our pond up to a storage tank at the top of the plot.
+      Can you work out the pressure drop when 1.5 L/s of water is pumped 6 m uphill through 35 m of pipe with a 40 mm inside diameter, and pick a pump to match? We're the Wickley Lane Community Garden, and we want to move water from our pond up to a storage tank at the top of the plot.
 
       The pipe will be black polyethylene, and the friction should come from the Hazen-Williams equation with C = 140. A strainer, 4 elbows and a check valve make up the fittings, which count as another 8 m of pipe. The water temperature is 15 °C, and both the pond and the tank are open to the atmosphere. Power comes from a 12 V battery that solar panels keep charged, and the pump turns 40% of the electrical power it draws into power in the water.
 

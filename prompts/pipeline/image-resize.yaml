@@ -13,10 +13,10 @@ prompt_set_version: "1"
 prompts:
   L0:
     A: Write code that resizes a batch of images.
-    B: Can you set up a way to resize a batch of images?
+    B: Can you set up some code to resize a batch of images?
   L1:
     A: Write code that resizes a batch of product photos for a pottery studio's website, so the photos load quickly for its customers.
-    B: Can you set up a way to resize a batch of product photos? They're for a pottery studio's website, and they need to load quickly for its customers.
+    B: Can you set up some code to resize a batch of product photos? They're for a pottery studio's website, and they need to load quickly for its customers.
   # L2 direction: every processor core used, photos already done skipped so
   # a re-run is quick, a dry-run option, phone photos turned upright,
   # camera and location details removed, a failure that leaves the other
@@ -24,6 +24,9 @@ prompts:
   # Points away from the expected default: one loop over the files in a
   # single process, every photo redone on each run, sideways phone photos
   # left sideways, metadata kept, the run stopped by the first bad file.
+  # Close to the expected default: JPEG quality 85 is a value code often
+  # uses unasked. It is part of the output wanted; do not read quality as a
+  # persisting default for this task.
   L2:
     A: |
       Write code that resizes a batch of product photos for the Saltmarsh Pottery website, so the photos load quickly for its customers.
@@ -43,14 +46,16 @@ prompts:
       - A photo that fails leaves the others unaffected.
       - At the end, print how many photos were resized, skipped and failed, with the reason for each failure.
     B: |
-      Can you set up a way to resize a batch of product photos? They're for our Saltmarsh Pottery website, and they need to load quickly for our customers.
+      Can you set up some code to resize a batch of product photos? They're for our Saltmarsh Pottery website, and they need to load quickly for our customers.
 
       The photos sit in one folder and were taken on the studio's camera and phone; their names look like mug-blue-01.jpg or vase-tall-03.png. A few are at least 6000 pixels wide, a few are under the target size already, some phone shots are saved on their side with a flag saying which way to rotate them, and some PNG files have see-through backgrounds.
 
       Every photo should end up with its longer side at 1600 pixels and its proportions unchanged, except that one already below that size stays as it is. Phone shots should be rotated upright. Please write the results to a different folder as JPEG at quality 85, keeping each name but ending it in .jpg, filling see-through areas with white, and stripping out camera and location details.
 
-      It ought to keep every processor core busy, so 2,000 photos get done quickly. When a photo's output is newer than its input, leave it alone, so running it again deals only with new photos. A dry-run option would help too: it lists what it would do and touches nothing. One photo failing shouldn't stop the rest, and when it's done it should report how many photos were resized, skipped and failed, giving the reason for every failure.
+      It ought to keep every processor core busy, so 2,000 photos get done quickly. When a photo's output is newer than its input, leave it alone, so running it again deals only with new photos. A dry-run option would help too: it lists what it would do and touches nothing. If one photo fails, the rest should still go through, and when it's done it should report how many photos were resized, skipped and failed, giving the reason for every failure.
 notes: >-
-  Written for T2.1. "Images" is the plan's subject; the noun "code" (A) and
-  "a way" (B) leave open whether the result is one script, several modules
-  or a command-line tool.
+  Written for T2.1. "Images" is the plan's subject; the noun "code", in
+  both wordings, leaves open whether the result is one script, several
+  modules or a command-line tool. T2.2: B said "a way", which also left
+  open whether the answer is code at all; reasons in leak-check.md in this
+  folder.

@@ -47,7 +47,7 @@ prompts:
     B: |
       Can you figure out how a $9000 loan with an annual interest rate of 7% gets paid off over 5 years in equal monthly payments? It's for someone buying their first car who is trying to decide if they can afford it.
 
-      Every month the lender adds a twelfth of the yearly rate to whatever is still owed. The loan begins on March 1, 2027, so the first payment falls a month later, on April 1, 2027. Round every payment to the nearest cent and let the final one make up the difference, so that nothing at all remains to pay at the end.
+      Every month the lender charges interest at a twelfth of the yearly rate on whatever is still owed. The loan begins on March 1, 2027, so the first payment falls a month later, on April 1, 2027. Round every payment to the nearest cent and let the final one make up the difference, so that nothing at all remains to pay at the end.
 
       I'd like to know what the regular payment is and what the last one comes to, how much interest gets paid in total, and the whole month-by-month schedule: for each month, its date, the amount paid, how much of it is interest, how much goes to the principal, and what is still owed afterward.
 

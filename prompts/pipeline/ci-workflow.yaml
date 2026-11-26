@@ -27,6 +27,10 @@ prompts:
   # scripting language, tested on one operating system, with no coverage
   # gate and no release check.
   # The build service is left open at L2 as well.
+  # Close to the expected default (T2.2): running on proposed changes and
+  # on pushes to a branch called main is what most workflows do unasked. It
+  # is a fact about the project; do not read triggers as a persisting
+  # default for this task.
   L2:
     A: |
       Write a continuous integration workflow for tallyfold, a small open-source software package maintained by a few volunteers, so that every proposed change is checked before it is merged.
@@ -52,4 +56,8 @@ prompts:
 notes: >-
   Written for T2.1. "Continuous integration" is the plan's task; the build
   service, the package's language and the steps are left open at L0 and L1.
-  "Small" describes the package (the subject), not the workflow.
+  "Small" describes the package (the subject), not the workflow. T2.2:
+  "workflow" is also the word some build services use for their own files;
+  it is the plan's noun and is kept, and the service chosen at L0 is read
+  as the default for a request worded this way (leak-check.md in this
+  folder).

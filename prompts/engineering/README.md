@@ -4,8 +4,9 @@ Six engineering or mechanical tasks, each at three levels of direction (L0,
 L1, L2) and in two wordings (A, B): 36 prompts. One YAML file per task, in
 the format described in [../README.md](../README.md). Written for task T2.1
 in [tasks.md](../../tasks.md), under the leak-check rules in
-[docs/leak-check.md](../../docs/leak-check.md). The leak check itself is
-T2.2; reference solutions are T2.3.
+[docs/leak-check.md](../../docs/leak-check.md). The leak check (T2.2) read
+every prompt; its verdicts, reasons and rewrites are in
+[leak-check.md](leak-check.md). Reference solutions are T2.3.
 
 **The outputs are study data, not designs.** They are collected to measure
 what models do by default (plan.md, "Engineering answers"). No prompt frames
@@ -73,11 +74,20 @@ comment, for T2.3.
 | conveyor-gear-ratio | 0.4 m/s, 150 mm | Drum speed 50.9 rpm | Overall ratio, given the stated motor speed | Exact ratio 33.87 at 1725 rpm; belt speed within 2% for the stated tooth counts |
 | heat-sink | 20 W, 1.0 °C/W, 125 °C, 40 °C | 4.25 °C/W junction to air; 3.25 °C/W case to air | Heat-sink limit, given the stated interface | Plate at most 2.95 °C/W; square side 135 mm; junction about 121 °C |
 | pipe-and-pump | 1.5 L/s, 6 m, 35 m, 40 mm | Velocity 1.19 m/s; Reynolds number about 4.8e4; static head 6 m | Friction loss (about 1.35 to 1.6 m by Colebrook, smooth to commercial steel), given the stated roughness and temperature | Friction about 1.84 m; head about 7.84 m; about 115 W hydraulic, 288 W electrical, 24 A |
-| shelf-bracket | None | Not checkable | Not checkable | Moment at the wall 200 lb·in; stress and screw force for the stated outline |
+| shelf-bracket | None | Not checkable | Not checkable | Moment at the wall 200 lb·in; plywood stress and the force on each screw for the stated outline and screw positions |
 | compression-spring | None | Not checkable | Not checkable | Rate 6.0 lbf/in; rate and stresses consistent with the stated wire and coils |
 
 Values are approximate until T2.3 writes and re-solves the references and
 sets the tolerances.
+
+Shelf bracket, for T2.3: T2.2 changed how the L2 bracket is fixed, because a
+flat laser-cut piece that stands square to the wall can only have holes
+through its face. It is now screwed through its face into the side of a wood
+strip on the wall, so the screws are loaded across their length and the
+brief asks for the force on each screw, not a pull-out force. With the
+screws a distance e from the wall and s apart, each takes 40 × (5 − e) / s
+sideways and 20 lb downward. The moment at the wall, 200 lb·in, is
+unchanged.
 
 ## Units: given or left open
 
@@ -112,10 +122,10 @@ in each file; the defaults are guesses until the pilot measures them.
 | Task | Dictated at L2 | Close to the expected default |
 | --- | --- | --- |
 | cantilever-beam | Solid rectangular aluminum bar, depth twice width, safety factor 3, deflection limit, whole millimeters, textbook sources, answer and checks table first | None found |
-| conveyor-gear-ratio | Motor speed, two stages (toothed belt, then roller chain), tooth range, speed tolerance, tooth table first | None found |
-| heat-sink | Flat vertical copper plate, thermal pad, stated surface coefficient, resistance chain first, 3 significant figures | None found |
-| pipe-and-pump | Polyethylene with Hazen-Williams, fittings as equivalent length, 12 V solar supply with stated efficiency, kPa and meters of water, table first | None found |
-| shelf-bracket | US units, birch plywood on a laser cutter taking flat outlines, quarter-circle profile, two screws into a stud, working stress | None found |
+| conveyor-gear-ratio | Motor speed, two stages (toothed belt, then roller chain), tooth range, speed tolerance, tooth table first | A 4-pole induction motor is the likely assumed motor |
+| heat-sink | Flat vertical copper plate, thermal pad, stated surface coefficient, resistance chain first, 3 significant figures | Cooling by still air |
+| pipe-and-pump | Polyethylene with Hazen-Williams, fittings as equivalent length, 12 V solar supply with stated efficiency, kPa and meters of water, table first | A smooth plastic pipe |
+| shelf-bracket | US units, birch plywood on a laser cutter taking flat outlines, quarter-circle profile, two screws through its face into a wood strip on the wall, working stress | None found |
 | compression-spring | US units, type 302 stainless wire with properties, bore limit, allowable stress, number of presses, table first | None found |
 
 Left open at L2 as well: standards cited (except where a textbook source is
@@ -159,8 +169,12 @@ listed for pipelines:
 - every prompt holds its task's givens word for word, and L0 and L1 hold no
   other number and no count word;
 - L0 and L1 use none of the listed engineering open choices;
-- no L2 names a listed default (such as fins, a fan, music wire or a worm
-  gearbox), and no prompt at any level uses a listed safety-critical word;
+- no L2 names a listed default (such as fins, a fan, music wire, a worm
+  gearbox or the beam's own weight), and no prompt at any level uses a
+  listed safety-critical word;
+- the shelf-bracket L2 can be built as written: its screws go through the
+  plywood into a wood strip, and it asks for no pull-out force;
+- no prompt uses an idiom that leans to one locale;
 - the two units-open tasks have no givens and give inches at L2;
 - each file has comments for its givens and for what is checkable;
 - the two L2 wordings have the same numbers (givens aside) in the same order.

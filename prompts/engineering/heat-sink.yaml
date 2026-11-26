@@ -31,6 +31,10 @@ prompts:
   # Points away from the expected default: an extruded aluminum finned
   # heat sink picked from a catalog by its rating, a thin layer of thermal
   # paste, a fan suggested as a fallback.
+  # Close to the expected default (T2.2): cooling by still air is likely
+  # what an L0 answer assumes as well. Do not read the kind of cooling as a
+  # persisting default for this task; the plate, the copper and the pad
+  # are the choices that move.
   L2:
     A: |
       Size a heat sink for a component that dissipates 20 W, with a junction-to-case thermal resistance of 1.0 °C/W, a maximum junction temperature of 125 °C and surrounding air at 40 °C, for a hobbyist building an audio amplifier at home whose output transistor has to cope with long listening sessions.
