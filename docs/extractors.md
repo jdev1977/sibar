@@ -143,13 +143,24 @@ Tailwind-specific classes are used (`bg-indigo-600`, `rounded-2xl`,
 only when Tailwind is referenced or classes-only, so Bootstrap's `rounded` is
 not read as a 4px radius.
 
-Coverage of utility classes (Tailwind v3 default theme; a project's own
-`tailwind.config` theme is not read, except an inline config's `fontFamily`
-and `darkMode`):
+**The project's own theme** is read too (`tailwind_config.py`): the
+`colors` and `fontFamily` objects of an inline `tailwind.config = {...}` or a
+`tailwind.config.*` file (v3, wherever they sit: `theme` or `theme.extend`),
+and `--color-*` / `--font-*` in a CSS `@theme` block (v4). Nested colour
+keys join with `-` (`primary: {500: ...}` is `primary-500`; `DEFAULT` is the
+bare name). Configs are read by a small bounded reader of object literals,
+never run: keys, nested objects, arrays and strings; spreads, references and
+function calls are skipped. A theme colour whose value is not a plain colour
+(`hsl(var(--primary))`, common in shadcn-style setups) is a known name with
+no colour and counts in `unparsed_colors`. `darkMode` is read from inline
+configs and config files alike.
+
+Coverage of utility classes (Tailwind v3 default palette plus the project's
+theme colours and fonts):
 
 | Utility | Read as | Feature family |
 |---|---|---|
-| `bg- text- border(-side)- from- via- to- ring- ring-offset- fill- stroke- outline- decoration- divide- accent- caret- shadow- placeholder-` with a palette colour, `white`, `black` or `[#hex]`, any variant, any `/opacity` (except `/0`) | that colour, from Tailwind v3's palette | palette, gradients |
+| `bg- text- border(-side)- from- via- to- ring- ring-offset- fill- stroke- outline- decoration- divide- accent- caret- shadow- placeholder-` with a palette colour, `white`, `black`, `[#hex]` or a theme colour name, any variant, any `/opacity` (except `/0`) | that colour, from Tailwind v3's palette or the theme; a colour name in neither (and not a size or keyword such as `text-xl`, `border-2`, `bg-cover`) is counted in `unknown_color_utilities` | palette, gradients, shadows |
 | `rounded`, `rounded-{side}-{size}`, `rounded-[...]` | radius: none 0, xs/sm 2, (bare) 4, md 6, lg 8, xl 12, 2xl 16, 3xl 24, full | corners |
 | `shadow`, `shadow-{xs,sm,md,lg,xl,2xl,inner,none}`, `shadow-{colour}` | xs to md subtle, lg to 2xl soft, inner inset; a colour makes it `colored` | shadows |
 | `bg-gradient-to-*`, `bg-linear-to-*`, `bg-linear-{angle}`, `bg-radial`, `bg-conic`, `bg-clip-text` | gradient type, direction, gradient text | gradients |
@@ -170,9 +181,11 @@ Colours are kept as `#rrggbb` (lower case, alpha dropped; fully transparent
 colours are left out) and named by a **class**:
 
 - `black`, `white` or `gray-<lightness>` for near-neutral colours: CIELAB
-  chroma below 12, or below 6 when L* is 85 or more. Tailwind's `gray`,
-  `zinc`, `neutral` and `stone` stay neutral; creams such as `#fdf6e3` read
-  as `yellow-light`; `black` is L* under 12, `white` over 97.
+  chroma below 16, or below 6 when L* is 85 or more. All of Tailwind's grey
+  families stay neutral (`slate`, the bluest, reaches chroma 14.5); real
+  navies stay blue (`#1e3a8a` has chroma about 50, `#14213d` about 23);
+  creams such as `#fdf6e3` read as `yellow-light`; `black` is L* under 12,
+  `white` over 97.
 - otherwise `<hue>-<lightness>`: hue from the HSL angle, one of `red` (under
   12 or from 345), `orange` (12), `yellow` (40), `green` (70), `teal` (165),
   `blue` (195), `indigo` (232), `violet` (250), `purple` (270), `pink` (295);
@@ -182,8 +195,14 @@ colours are left out) and named by a **class**:
 The boundaries put Tailwind's families on their own names (indigo-500 is
 indigo, purple-500 purple, violet-500 violet); rose falls in red, sky in
 blue, cyan in teal, fuchsia in purple. Pure `#0000ff` (hue 240) reads as
-indigo. Tailwind's `slate` 400 to 900 read as blue (they are blue-greys), and
-`slate-950` as black.
+indigo. The blue/indigo boundary is HSL 232: `#667eea`, the start of the
+well-known purple gradient, is hue 229 and reads as `blue-mid`, while
+`#6366f1` (indigo-500, 239) is `indigo-mid`; a gradient from `#667eea` to
+`#764ba2` is `blue>violet`. `slate-900` (`#0f172a`) is `black`.
+
+A colour counts toward a page's **dominant hue** only when its chroma is 20
+or more: pale tints (a cream background, `indigo-50`) name a hue in
+`color_classes` and `hues` but do not outvote the accent colour.
 
 Read: hex (3, 4, 6, 8 digits), the 148 CSS named colours (as words only in
 colour properties, or as a custom property's whole value), `rgb() rgba()
@@ -196,7 +215,8 @@ any other selector that does not mention dark. Counted as
 
 ## The website extractors
 
-Each is version `1` (stock phrases `1+rules.1`). "No input" lists when the
+Versions: palette, fonts, layout, corners-shadows, gradients and dark-mode
+`2`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
 extractor returns `status: no-input`.
 
 ### website.palette
@@ -209,19 +229,24 @@ No input: no HTML and no CSS.
 | `color_count` | number of `colors` |
 | `color_classes` | sorted distinct classes of those colours (vocabulary above) |
 | `hues` | sorted distinct chromatic hues (no neutrals) |
-| `dominant_hue` | the hue used most (each declaration or class use counts once; ties go alphabetically); `none` if no chromatic colour |
-| `tailwind_colors` | sorted distinct Tailwind colour names used (`indigo-600`, `white`) |
+| `dominant_hue` | the hue used most among colours of chroma 20 or more (each declaration or class use counts once; ties go alphabetically); `none` if there is none |
+| `tailwind_colors` | sorted distinct Tailwind colour names used: palette (`indigo-600`, `white`) and theme (`primary-500`, `brand`) |
+| `unknown_color_utilities` | number of distinct colour names in colour utilities that are neither in the palette nor in the theme read (`bg-brand-500` with no readable config) |
+| `unknown_color_names` | those names, sorted (at most 50) |
 | `background` | class of the page background; `default` when nothing sets one (the browser's white); `null` when set through a value that cannot be read |
 | `background_hex` | its `#rrggbb`, or null |
 | `base_scheme` | `light` or `dark` (background L* under 50); `light` for `default`; null when unknown |
-| `unparsed_colors` | count of colour values not read |
+| `unparsed_colors` | count of colour values not read, theme colour uses whose value is not a plain colour included |
 
 The page background is the first found of: a plain `bg-*` class on `<body>`
 or `<html>`; the last `background`/`background-color` outside `@media` on
 `html`, `body` or `:root` (or their `style`); a `bg-*` class on the first
 full-height wrapper (`min-h-screen`, `h-screen`...) of the page or its
 components. Its first visible colour counts, so a gradient background gives
-its first stop.
+its first stop. When the page starts dark (`forced_dark` in the dark-mode
+extractor), a `dark:bg-*` class wins over the plain one, and rules and
+custom properties on `.dark`, `html.dark` or `[data-theme="dark"]` win
+over the plain page rules.
 
 Blind spots: colours set by scripts at run time, in images or SVG files, and
 in stylesheets loaded from a CDN (a framework's own palette) are not seen.
@@ -235,13 +260,13 @@ No input: no HTML and no CSS.
 
 | Feature | Value |
 |---|---|
-| `families` | sorted named families declared (`font-family`, `font`, Tailwind font classes, inline config) or loaded (font services, `@font-face`, `@fontsource`), lower case, quotes removed; icon fonts left out |
+| `families` | sorted named families declared (`font-family`, `font`, Tailwind font classes, the Tailwind theme) or loaded (font services, `@font-face`, `@fontsource`), lower case, quotes removed; icon fonts left out |
 | `family_count` | number of `families` |
 | `generic_families` | sorted generic names declared: `serif`, `sans-serif`, `monospace`, `system-ui`, `ui-sans-serif`... |
 | `loaded_families` | families loaded from a font service URL, `@font-face` or `@fontsource` |
 | `font_categories` | sorted categories of all named and generic families: `sans`, `serif`, `mono`, `display`, `script`, `system`, `unknown` (from a table of about 250 common fonts in `fonts.py`) |
 | `font_sources` | sorted: `google-fonts`, `bunny-fonts`, `adobe-fonts`, `fontshare`, `rsms-inter`, `fontsource`, `self-hosted` |
-| `primary_font` | first family of the page's font: the last `font-family`/`font` outside `@media` on `html`, `body`, `:root` or `*`; else a Tailwind font class on `<html>`/`<body>`; else an inline config's `sans`; else `default` |
+| `primary_font` | first family of the page's font: the last `font-family`/`font` outside `@media` on `html`, `body`, `:root` or `*` (`var()` followed); else a Tailwind font class on `<html>`/`<body>`; else the theme's `sans` (config or `@theme --font-sans`); else `default` |
 | `primary_category` | its category, or `default` |
 | `heading_font` | first family declared for a selector naming `h1`, `h2` or `h3`, else a Tailwind font class on the first `<h1>`; `same` if none (it inherits) |
 | `heading_category` | its category, or `same` |
@@ -249,7 +274,7 @@ No input: no HTML and no CSS.
 
 Blind spots: the font a framework's stylesheet sets (Bootstrap's system
 stack, Tailwind's preflight stack when no config names one: `default`);
-fonts given through `var()` (the name is skipped); a `tailwind.config.js`
+fonts given through a `var()` that does not resolve (the name is skipped); a theme family behind a spread or reference in a config (the reader skips them); a `tailwind.config.js`
 file's theme. A font loaded but never used still appears in `families`.
 
 ### website.libraries
@@ -292,8 +317,9 @@ No input: no HTML (or JSX/Vue/Svelte markup).
 | `landmarks` | sorted landmark elements used: `header nav main footer aside section article` |
 | `layout_systems` | sorted: `grid`, `flex`, `float`, `columns` (CSS `display`, `float`, `columns` and Tailwind classes) |
 | `grid_columns` | sorted column counts: from `grid-template-columns` (`repeat(3, ...)` or a track list) and `grid-cols-N`; `auto-fit`/`auto-fill` for `repeat(auto-fit, ...)` |
-| `card_groups` | number of groups of three or more sibling elements with the same tag and classes, each holding a heading or paragraph (sections, list items, links and table rows do not count) |
-| `card_group_sizes` | sorted sizes of those groups |
+| `card_groups` | number of card groups: three or more sibling elements holding a heading or paragraph that share tag and classes, allowing one sibling of the same tag with other classes (a highlighted card, such as the middle pricing tier); plus JSX cards written once inside `.map(...)` (sections, list items, paragraphs, headings, links and table rows are never cards) |
+| `card_group_sizes` | sorted sizes of the static groups (a group from `.map(...)` has no known size and is not listed) |
+| `mapped_card_groups` | number of JSX card groups written inside `.map(...)` |
 | `nav_position` | `sticky` or `fixed` (CSS `position` on a header/nav selector, or Tailwind `sticky`/`fixed` on `<header>`/`<nav>`), `static` if there is a header or nav, `none` if not |
 | `max_widths_px` | sorted `max-width` values of 480px or more outside `@media` (rem as 16px) and Tailwind `max-w-*` sizes |
 | `container_class` | true if Tailwind's `container` class is used |
@@ -303,10 +329,19 @@ Blocks are the children of `<body>`, with a single wrapper (`div`, `main`,
 (`a`, `span`, `img`, `button`...) and scripts are not blocks. When the entry
 page has fewer than two blocks (an empty `#root`), the component file with the
 most blocks is used; in JSX, the element rendering two or more components is
-the page. A block's kind comes from, in order: its tag (`header`, `nav`,
-`footer`, `aside`, `form`), a component's name (`<PricingTable>`), its `id`,
-its classes, its `aria-label`, the words of its first `h1`-`h3`. The first
-content block holding an `h1` that nothing else names is `hero`.
+the page. A block's kind comes from, in order:
+
+1. a name saying hero: a component name (`<HeroSection>`), `id`, class or
+   `aria-label` (so `<header class="hero">` is `hero`);
+2. its tag: `header`, `nav`, `footer`, `aside`, `form`;
+3. another kind its name gives (`<PricingTable>`, `id="faq"`);
+4. `hero` for the first content block (after any header or nav) that holds
+   an `<h1>`, whatever the h1 says;
+5. the words of its first `<h2>` or `<h3>` (never the h1).
+
+Names and headings are split into words (`HeroSection`, `hero_section`,
+"Ready to get started?"), so multi-word names such as `get-started`,
+`how-it-works` and `call-to-action` match whatever separates the words.
 
 Blind spots: section kinds from keywords miss blocks named in other
 languages or by content alone (they become `other`); order across separate
@@ -324,7 +359,7 @@ No input: no HTML and no CSS.
 | `common_radius` | the radius used most, not counting 0 and `full` (ties to the smaller); `full` if only pills; `none` if no radius |
 | `corner_style` | from `common_radius`: `square` (none or 0), `subtle` (up to 4px), `rounded` (up to 12px), `very-rounded`, `pill` |
 | `pill_shapes` | true if any radius is `full` |
-| `shadow_count` | number of `box-shadow` declarations that draw a shadow, plus Tailwind shadow classes |
+| `shadow_count` | number of `box-shadow` declarations that draw a shadow (`var()` followed, so `box-shadow: var(--shadow-lg)` counts at its use; the custom property's own definition does not), plus Tailwind shadow classes |
 | `shadow_kinds` | sorted kinds of each shadow layer: `inset`; `hard` (no blur, offset); `glow` (no offset, blurred); `subtle` (blur under 10px); `soft`; plus `colored` when its colour is not neutral |
 | `text_shadow` | true if any `text-shadow` other than none |
 | `backdrop_blur` | true if `backdrop-filter: blur(...)` or Tailwind `backdrop-blur*` (glass panels) |
@@ -339,11 +374,11 @@ No input: no HTML and no CSS.
 
 | Feature | Value |
 |---|---|
-| `gradient_count` | number of CSS gradient functions (`linear- radial- conic-` and `repeating-`) plus elements with a Tailwind gradient class |
+| `gradient_count` | number of CSS gradient functions (`linear- radial- conic-` and `repeating-`) where they are used, plus elements with a Tailwind gradient class. A gradient kept in a custom property counts at each `var()` that uses it, not where it is defined |
 | `gradient_types` | sorted: `linear`, `radial`, `conic` |
 | `gradient_directions` | sorted directions of linear gradients: `135deg` (angles in degrees, any unit converted), `to-right`, `to-bottom-right`...; `to-bottom` when none is given (the default) |
 | `gradient_hues` | sorted hues (and neutral names) of every colour stop |
-| `gradient_pairs` | sorted `first>last` hue of each gradient's first and last stop, such as `indigo>purple` |
+| `gradient_pairs` | sorted `first>last` hue of each gradient's first and last visible stop, such as `indigo>purple`; only for gradients with two or more visible stops (a colour fading to `transparent` gives no pair). Tailwind stops with a variant (`dark:from-slate-900`, `hover:to-x`) are left out |
 | `gradient_text` | true if gradient-filled text: `background-clip: text` in a rule with a gradient, or Tailwind `bg-clip-text` with a gradient |
 | `gradient_targets` | sorted: `page` (html/body/:root), `hero`, `button`, `text`, `other` |
 
@@ -382,6 +417,7 @@ No input: no HTML.
 | `stock_phrases` | sorted ids of rules that matched |
 | `stock_phrase_counts` | `{rule id: hits}`, sorted by id |
 | `stock_phrase_hits` | total hits |
+| `stock_phrase_matches` | `{matched phrase: count}`, sorted, for the phrase-list rules, so single words grouped in one rule (`robust`, `enhance`) can be counted or dropped one by one |
 | `stock_phrase_categories` | sorted categories matched: `cta`, `placeholder`, `marketing`, `ai-vocabulary`, `significance`, `chat-residue`, `construction` |
 | `copy_word_count` | words in the page's visible text |
 | `em_dash_count` | em dashes (—) in the visible text |
@@ -399,14 +435,22 @@ copied whole. A rule is a list of lower-case phrases matched on whole words,
 or a regular expression restricted to bounded repeats (no `*` or `+`, `{m,n}`
 up to 100 and never on a group, no backreferences), checked when the file is
 loaded. Text is matched after lower-casing, straightening quotes and
-collapsing spaces, one element's text per line, so a phrase never spans two
-elements. The visible text is the page's text outside `script`, `style`,
+collapsing spaces, one **block element's** text per line: text split by
+inline elements (`Ready to <span>get started</span>`) is joined, so the
+phrase matches, but a phrase never runs across two blocks. A rule's
+`scope` is `copy` (the default: the visible text, plus `placeholder`,
+`title` and `aria-label`) or `alt` (image `alt` text only; the stock-photo
+descriptions rule uses it, so a stat labelled "Happy Customers" is not a
+hit). The visible text is the page's text outside `script`, `style`,
 `template`, `noscript` and `head` (plus the title), JSX text, and script
 strings that read as prose; `alt`, `placeholder`, `title` and `aria-label`
 are matched as well.
 
 A hit means the page uses the phrase, not that a model wrote it: "get
-started" is a fine button. Blind spots: text that scripts build from pieces;
+started" is a fine button. The pixelslop catalogue flags generic CTA labels
+only when one label repeats three or more times across sections; the `cta-*`
+rules here count every occurrence, so that condition is applied downstream
+(from `stock_phrase_counts`) and is not part of the rule. Blind spots: text that scripts build from pieces;
 copy in images; languages other than English; single-word rules such as
 `robust` or `vibrant` that are ordinary words in some pages.
 
@@ -453,14 +497,15 @@ No input: no HTML and no CSS.
 
 | Feature | Value |
 |---|---|
-| `dark_mode` | `system` (follows the system setting), `toggle` (switched by a class or attribute), `both`, `dark-only` (no dark mechanism, and a dark page background), `none` |
+| `dark_mode` | `system` (follows the system setting), `toggle` (switched by a class or attribute), `both`, `dark-only` (the page starts dark and nothing switches it: a forced dark theme with no toggle control or script, or no dark mechanism and a dark page background), `none` |
+| `forced_dark` | true if the entry page starts in its dark theme: `class="dark"` or `data-theme`/`data-mode`/`data-bs-theme`/`data-color-scheme="dark"` on `<html>` or `<body>`. The palette then reads the `dark:bg-*` class and `.dark`/`[data-theme="dark"]` rules and variables for the background |
 | `mechanisms` | sorted evidence: `prefers-color-scheme-css`, `prefers-color-scheme-js` (`matchMedia`), `color-scheme-property` (CSS or `<meta name="color-scheme">`), `light-dark-function`, `dark-class-selector` (`.dark`, `.dark-mode`...), `data-theme-attribute` (`[data-theme="dark"]`, `data-bs-theme`...), `toggle-script` (a script adds a dark class or sets `data-theme` to dark), `tailwind-dark-variant`, `tailwind-class-strategy` (`darkMode: 'class'` or `'selector'`, or `@custom-variant dark`) |
 | `theme_toggle` | true if a control is named for it (id, class, `aria-label` or `title` mentioning theme, dark or night) or a toggle script exists |
 
 Tailwind's `dark:` variant counts as `system` unless a class strategy or toggle
 script is found (its default follows the system). Blind spots: dark modes
-done entirely in JavaScript styles, and a `tailwind.config.js` file's
-`darkMode` (only inline configs are read).
+done entirely in JavaScript styles; a dark theme forced by a script at
+load time (counted as a toggle script, not as `forced_dark`).
 
 ### website.accessibility
 
