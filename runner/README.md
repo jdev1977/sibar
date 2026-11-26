@@ -1,7 +1,11 @@
 # runner
 
 Python package for producing run records: their format and validator, and the
-generation runs against the models under test. Nothing is implemented yet.
+generation runs against the models under test.
+
+So far only `models.py` exists: it loads and checks [models.yaml](../models.yaml),
+the list of models under test (T0.2). The list is not final until
+`confirmed_by_human` in it is `true`.
 
 Run output goes to the gitignored `data/`, not here.
 

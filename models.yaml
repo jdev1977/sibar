@@ -1,0 +1,360 @@
+# Models under test (task T0.2). Loaded and checked by runner/models.py.
+#
+# Every value comes from the provider's own documentation, read on the
+# date_checked of the entry. A null value has a note saying why. Nothing here
+# was confirmed by a live API call: no keys exist yet (T0.3).
+#
+# Selection rule
+#   main:  the model the provider's documentation recommends starting with.
+#          DeepSeek makes no recommendation, so its Pro-tier model is used.
+#   small: the newest model of the provider's smallest general-purpose text
+#          line that is generally available with no announced shutdown.
+#
+# Prices are USD per 1M tokens: standard (not batch, cached or priority) rate,
+# shortest prompt-length tier. Notes record other tiers.
+#
+# In defaults, max_output_tokens is the most a synchronous call can produce and
+# default_max_tokens is the limit applied when the request sends none.
+
+schema_version: 1
+
+# Set to true only by the person running the project, after checking this file.
+confirmed_by_human: true
+
+# Pilot (Phase 1, three models): the main models of Anthropic, OpenAI and
+# Google. Main models are what most users get by default, and these three
+# providers have the consumer products compared in Phase 5.
+pilot:
+  - claude-opus-5-5
+  - gpt-6.2-sol
+  - gemini-4-hydrogen
+
+models:
+  - id: claude-opus-5-5
+    provider: anthropic
+    tier: main
+    display_name: Claude Opus 5.5
+    input_price_per_mtok_usd: 4.00
+    output_price_per_mtok_usd: 20.00
+    defaults:
+      temperature: null
+      thinking_on_by_default: true
+      default_effort: medium
+      max_output_tokens: 128000
+      default_max_tokens: null
+      max_tokens_required: true
+    retirement_date: null
+    retirement_not_before: 2027-09-22
+    api_key_env: ANTHROPIC_API_KEY
+    sources:
+      - https://platform.claude.com/docs/en/models/opus-5-5/overview
+      - https://platform.claude.com/docs/en/about-claude/pricing
+      - https://platform.claude.com/docs/en/about-claude/model-deprecations
+      - https://platform.claude.com/docs/en/build-with-claude/thinking
+      - https://platform.claude.com/docs/en/build-with-claude/effort
+      - https://platform.claude.com/docs/en/api/messages/create
+      - https://platform.claude.com/docs/en/api/versioning
+    date_checked: 2026-11-25
+    notes:
+      temperature: >-
+        Not settable: API version 2026-10-21 rejects temperature, top_p and
+        top_k with a 400 error. No default value is documented.
+      thinking_on_by_default: Adaptive thinking, which cannot be turned off.
+      max_output_tokens: >-
+        Documented as "128K"; 128000 is our reading, the exact integer was not
+        shown.
+      default_max_tokens: max_tokens is required, so there is no default.
+      retirement_date: >-
+        None announced. Documented as "not sooner than September 22, 2027".
+      api: Send the header anthropic-version 2026-10-21.
+
+  - id: claude-haiku-5-5
+    provider: anthropic
+    tier: small
+    display_name: Claude Haiku 5.5
+    input_price_per_mtok_usd: 0.10
+    output_price_per_mtok_usd: 0.50
+    defaults:
+      temperature: null
+      thinking_on_by_default: true
+      default_effort: medium
+      max_output_tokens: 128000
+      default_max_tokens: null
+      max_tokens_required: true
+    retirement_date: null
+    retirement_not_before: 2027-10-07
+    api_key_env: ANTHROPIC_API_KEY
+    sources:
+      - https://platform.claude.com/docs/en/models/haiku-5-5/overview
+      - https://platform.claude.com/docs/en/about-claude/pricing
+      - https://platform.claude.com/docs/en/about-claude/model-deprecations
+      - https://platform.claude.com/docs/en/build-with-claude/thinking
+      - https://platform.claude.com/docs/en/build-with-claude/effort
+      - https://platform.claude.com/docs/en/api/messages/create
+      - https://platform.claude.com/docs/en/api/versioning
+    date_checked: 2026-11-25
+    notes:
+      price: >-
+        Rates shown apply to prompts up to 100,000 tokens. Longer prompts cost
+        0.50 input and 2.50 output.
+      temperature: >-
+        Not settable: API version 2026-10-21 rejects temperature, top_p and
+        top_k with a 400 error. No default value is documented.
+      thinking_on_by_default: >-
+        Adaptive thinking; can be disabled at high effort or below.
+      max_output_tokens: >-
+        Documented as "128K"; 128000 is our reading, the exact integer was not
+        shown.
+      default_max_tokens: max_tokens is required, so there is no default.
+      retirement_date: >-
+        None announced. Documented as "not sooner than October 7, 2027".
+      api: Send the header anthropic-version 2026-10-21.
+
+  - id: gpt-6.2-sol
+    provider: openai
+    tier: main
+    display_name: GPT-6.2 Sol
+    input_price_per_mtok_usd: 2.00
+    output_price_per_mtok_usd: 10.00
+    defaults:
+      temperature: null
+      thinking_on_by_default: true
+      default_effort: null
+      max_output_tokens: 128000
+      default_max_tokens: null
+      max_tokens_required: false
+    retirement_date: null
+    retirement_not_before: null
+    api_key_env: OPENAI_API_KEY
+    sources:
+      - https://developers.openai.com/api/docs/models/gpt-6.2-sol
+      - https://developers.openai.com/api/docs/guides/model-selection
+      - https://developers.openai.com/api/docs/guides/latest-model
+      - https://developers.openai.com/api/docs/guides/reasoning
+      - https://developers.openai.com/api/docs/pricing
+      - https://developers.openai.com/api/docs/deprecations
+      - https://developers.openai.com/api/reference/resources/responses/methods/create
+    date_checked: 2026-11-25
+    notes:
+      price: >-
+        Requests over 272K input tokens cost 4.00 input and 15.00 output.
+      temperature: >-
+        The GPT-6.2 migration guide says to omit temperature and top_p. The API
+        reference gives a generic default of 1, not stated for this model.
+      thinking_on_by_default: >-
+        Inferred: the model rejects reasoning effort "none", so every call
+        reasons.
+      default_effort: >-
+        Not stated for this model. The API reference gives a generic default of
+        "medium" and the reasoning guide lists "medium" for GPT-6.1 Sol, but
+        omits GPT-6.2. Record the effort a live response reports (T0.3).
+      default_max_tokens: >-
+        max_output_tokens is optional; the value applied when omitted is not
+        stated.
+      retirement_date: No shutdown date is listed on the deprecations page.
+      retirement_not_before: >-
+        No dated promise. Generally available models get at least 6 months'
+        notice.
+      snapshot: No dated snapshot ID is listed, only gpt-6.2-sol.
+      api: >-
+        Use the Responses API. Provider's flagship is gpt-6.2-astra (8 / 40);
+        gpt-6.2-sol is its recommended starting model.
+
+  - id: gpt-6-luna
+    provider: openai
+    tier: small
+    display_name: GPT-6 Luna
+    input_price_per_mtok_usd: 0.10
+    output_price_per_mtok_usd: 0.50
+    defaults:
+      temperature: null
+      thinking_on_by_default: true
+      default_effort: medium
+      max_output_tokens: 128000
+      default_max_tokens: null
+      max_tokens_required: false
+    retirement_date: null
+    retirement_not_before: null
+    api_key_env: OPENAI_API_KEY
+    sources:
+      - https://developers.openai.com/api/docs/models/gpt-6-luna
+      - https://developers.openai.com/api/docs/guides/model-selection
+      - https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra
+      - https://developers.openai.com/api/docs/guides/reasoning
+      - https://developers.openai.com/api/docs/pricing
+      - https://developers.openai.com/api/docs/deprecations
+      - https://developers.openai.com/api/reference/resources/responses/methods/create
+    date_checked: 2026-11-25
+    notes:
+      price: >-
+        Requests over 272K input tokens cost 0.20 input and 0.75 output.
+      temperature: >-
+        The GPT-6 guide says to remove temperature and top_p when reasoning
+        effort is not "none", and the default is "medium". The API reference
+        gives a generic default of 1, not stated for this model.
+      default_max_tokens: >-
+        max_output_tokens is optional; the value applied when omitted is not
+        stated.
+      retirement_date: No shutdown date is listed on the deprecations page.
+      retirement_not_before: >-
+        No dated promise. Generally available models get at least 6 months'
+        notice.
+      api: Use the Responses API.
+
+  - id: gemini-4-hydrogen
+    provider: google
+    tier: main
+    display_name: Gemini 4 Hydrogen
+    input_price_per_mtok_usd: 1.50
+    output_price_per_mtok_usd: 7.50
+    defaults:
+      temperature: null
+      thinking_on_by_default: true
+      default_effort: high
+      max_output_tokens: 65536
+      default_max_tokens: 65536
+      max_tokens_required: false
+    retirement_date: null
+    retirement_not_before: null
+    api_key_env: GEMINI_API_KEY
+    sources:
+      - https://aistudio.google.com/docs/latest-model
+      - https://aistudio.google.com/docs/models/gemini-4-hydrogen
+      - https://aistudio.google.com/docs/thinking
+      - https://aistudio.google.com/docs/text-generation
+      - https://aistudio.google.com/docs/pricing
+      - https://aistudio.google.com/docs/deprecations
+    date_checked: 2026-11-25
+    notes:
+      temperature: >-
+        Custom temperature, top_p and top_k are ignored on Gemini 4, with
+        deprecation warnings; a later release will reject them. No default value
+        is documented for this model.
+      default_effort: Called "thinking level" by Google.
+      max_output_tokens: >-
+        Limit for synchronous requests without long decode, which allows up to
+        1048576.
+      max_tokens_required: >-
+        Inferred: max_output_tokens is documented as an optional override.
+      retirement_date: No shutdown date announced.
+      retirement_not_before: No earliest date is promised.
+      api: >-
+        Current documentation uses the Interactions API; generateContent is
+        labelled legacy. Provider also lists gemini-4-carbon and
+        gemini-4-neon as flagship reasoning models; Hydrogen is its recommended
+        starting model.
+
+  - id: gemini-3.5-flash-lite
+    provider: google
+    tier: small
+    display_name: Gemini 3.5 Flash-Lite
+    input_price_per_mtok_usd: 0.30
+    output_price_per_mtok_usd: 2.50
+    defaults:
+      temperature: null
+      thinking_on_by_default: true
+      default_effort: minimal
+      max_output_tokens: 65536
+      default_max_tokens: null
+      max_tokens_required: false
+    retirement_date: null
+    retirement_not_before: null
+    api_key_env: GEMINI_API_KEY
+    sources:
+      - https://aistudio.google.com/docs/models
+      - https://aistudio.google.com/docs/models/gemini-3.5-flash-lite
+      - https://aistudio.google.com/docs/whats-new-gemini-3.6
+      - https://aistudio.google.com/docs/thinking
+      - https://aistudio.google.com/docs/text-generation
+      - https://aistudio.google.com/docs/pricing
+      - https://aistudio.google.com/docs/deprecations
+    date_checked: 2026-11-25
+    notes:
+      temperature: >-
+        The Gemini 3.6 and 3.5 Flash-Lite page says temperature, top_p and
+        top_k are deprecated and ignored. No default value is documented for
+        this model.
+      default_effort: Called "thinking level" by Google.
+      default_max_tokens: >-
+        The model page gives an output limit of 65536 but does not say what
+        applies when none is sent.
+      max_tokens_required: >-
+        Inferred: max_output_tokens is documented as an optional override.
+      retirement_date: No shutdown date announced.
+      retirement_not_before: No earliest date is promised.
+      api: >-
+        Current documentation uses the Interactions API; generateContent is
+        labelled legacy.
+
+  - id: deepseek-v4-pro
+    provider: deepseek
+    tier: main
+    display_name: DeepSeek-V4-Pro
+    input_price_per_mtok_usd: 1.32
+    output_price_per_mtok_usd: 3.96
+    defaults:
+      temperature: 1.0
+      thinking_on_by_default: true
+      default_effort: high
+      max_output_tokens: 393216
+      default_max_tokens: null
+      max_tokens_required: false
+    retirement_date: null
+    retirement_not_before: null
+    api_key_env: DEEPSEEK_API_KEY
+    sources:
+      - https://api-docs.deepseek.com/quick_start/pricing
+      - https://api-docs.deepseek.com/api/create-chat-completion
+      - https://api-docs.deepseek.com/guides/thinking_mode
+      - https://api-docs.deepseek.com/updates
+    date_checked: 2026-11-25
+    notes:
+      price: >-
+        Peak, cache-miss rates. Off-peak is half. Peak is 01:00-04:00 and
+        06:00-10:00 UTC, Monday to Friday, except Chinese public holidays.
+      temperature: Documented default; it has no effect in thinking mode.
+      default_max_tokens: >-
+        Documented as "64K" in thinking mode at the default effort; the exact
+        integer is not stated.
+      retirement_date: None announced.
+      retirement_not_before: No earliest date is promised.
+      snapshot: >-
+        Served version on the check date was DeepSeek-V4-Pro-0813. The API ID
+        carries no version, so record the version each run reports.
+
+  - id: deepseek-flash
+    provider: deepseek
+    tier: small
+    display_name: DeepSeek-V4.1-Flash
+    input_price_per_mtok_usd: 0.30
+    output_price_per_mtok_usd: 1.20
+    defaults:
+      temperature: 1.0
+      thinking_on_by_default: true
+      default_effort: high
+      max_output_tokens: 393216
+      default_max_tokens: null
+      max_tokens_required: false
+    retirement_date: null
+    retirement_not_before: null
+    api_key_env: DEEPSEEK_API_KEY
+    sources:
+      - https://api-docs.deepseek.com/quick_start/pricing
+      - https://api-docs.deepseek.com/api/create-chat-completion
+      - https://api-docs.deepseek.com/guides/thinking_mode
+      - https://api-docs.deepseek.com/updates
+    date_checked: 2026-11-25
+    notes:
+      price: >-
+        Peak, cache-miss rates. Off-peak is half. Peak is 01:00-04:00 and
+        06:00-10:00 UTC, Monday to Friday, except Chinese public holidays.
+      temperature: Documented default; it has no effect in thinking mode.
+      default_max_tokens: >-
+        Documented as "64K" in thinking mode at the default effort; the exact
+        integer is not stated.
+      retirement_date: None announced.
+      retirement_not_before: No earliest date is promised.
+      snapshot: >-
+        Rolling alias: served version on the check date was
+        DeepSeek-V4.1-Flash-1017 and it has been replaced in place before.
+        Record the version each run reports.

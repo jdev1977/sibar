@@ -15,13 +15,14 @@ levels of direction (L0 bare, L1 brief, L2 directed) and run several times.
 - [tasks.md](tasks.md): the task list, with IDs such as T0.1.
 
 **Status:** early setup (Phase 0). The repository layout and the secret scan are
-in place. The runner, prompts, extractors, rubrics and viewer are not built yet,
-and no results exist.
+in place, and a model list awaits confirmation. The runner, prompts, extractors,
+rubrics and viewer are not built yet, and no results exist.
 
 ## Layout
 
 | Path | What goes there |
 |---|---|
+| [models.yaml](models.yaml) | The models under test: IDs, prices, defaults and sources |
 | [prompts/](prompts/README.md) | Task prompts, by project type |
 | [runner/](runner/README.md) | Python package: run record format and generation runs |
 | [extractors/](extractors/README.md) | Python package: features parsed from outputs |
