@@ -57,6 +57,7 @@ class Variable:
     part: Optional[str] = None     # coverage only
     whole: Optional[str] = None
     common: bool = False           # status, error, skipped_files
+    tasks: tuple = ()              # asked only in these tasks; () is every task
 
     @property
     def single(self):
@@ -104,6 +105,18 @@ class Expect:
     no_verdict: frozenset = frozenset()
 
 
+@dataclass(frozen=True)
+class Outcome:
+    """How a type without pages decides that a run has an artifact: the
+    rubric's gate item, and optionally a feature that shows nothing was
+    delivered (docs/metrics.md, "Types with a rubric")."""
+
+    gate: str
+    no_solution: frozenset
+    needs: Optional[str] = None
+    needs_no_artifact: frozenset = frozenset()
+
+
 @dataclass
 class Spec:
     project_type: str
@@ -114,6 +127,7 @@ class Spec:
     masks: tuple
     tasks: dict                   # task -> dictated body
     source: dict = field(default_factory=dict)  # file paths, for messages
+    outcome: Optional[Outcome] = None    # None: read from `structure` (website)
 
     # --- names ---------------------------------------------------------------
 
@@ -236,7 +250,21 @@ def _variable(name, extractor, feature, raw, dimension, common=False):
         no_verdict=frozenset(str(x) for x in raw.get("no_verdict", ())),
         depends_on=tuple(raw.get("depends_on", ())),
         task_driven=bool(raw.get("task_driven", False)),
-        part=raw.get("part"), whole=raw.get("whole"), common=common)
+        part=raw.get("part"), whole=raw.get("whole"), common=common,
+        tasks=tuple(raw.get("tasks", ())))
+
+
+def _outcome(raw, variables):
+    if raw is None:
+        return None
+    needs = raw.get("needs") or {}
+    for name in [raw["gate"], *([needs["variable"]] if needs else [])]:
+        if name not in variables:
+            raise SpecError(f"outcome: {name} is not declared")
+    return Outcome(
+        gate=raw["gate"], no_solution=frozenset(raw["no_solution"]),
+        needs=needs.get("variable"),
+        needs_no_artifact=frozenset(needs.get("no_artifact", ())))
 
 
 def _read_yaml(path):
@@ -289,7 +317,12 @@ def load_spec(project_type="website", directory=None):
         extractor_versions={k: str(v) for k, v in features["extractor_versions"].items()},
         dimensions=dimensions, variables=variables, masks=(),
         tasks=dict(dictated["tasks"]),
-        source={"features": str(features_path), "dictated": str(dictated_path)})
+        source={"features": str(features_path), "dictated": str(dictated_path)},
+        outcome=_outcome(features.get("outcome"), variables))
+    for name, var in variables.items():
+        unknown = set(var.tasks) - set(spec.tasks)
+        if unknown:
+            raise SpecError(f"{name}: unknown tasks {', '.join(sorted(unknown))}")
     built = []
     for raw in features.get("masks") or ():
         when = raw["when"]

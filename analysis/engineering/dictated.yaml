@@ -1,0 +1,586 @@
+# What each engineering prompt takes out of the model's hands (T2.8): the choices
+# are open or closed per task and level as in analysis/website/dictated.yaml
+# (docs/metrics.md, "Open choices").
+#
+# Two kinds of entry:
+#   rubric.engineering.*   copied word for word from
+#                     rubrics/engineering.v1.dictated.yaml; change it there and
+#                     here together (tests/test_metrics_types.py compares)
+#   engineering.*          the extractor features, read from the "What each L2
+#                     dictates" table of prompts/engineering/leak-check.md and the
+#                     L2 texts
+#
+# L0 and L1 close nothing, with one exception: where a task's givens are in
+# SI units at every level, the unit system is not the model's to choose
+# (prompts/engineering/README.md).
+#
+# Changing an entry changes results: raise `metrics_version`.
+schema_version: 1
+project_type: engineering
+tasks:
+  cantilever-beam:
+    prompt_set_version: '1'
+    L0:
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 1.5 m long
+    L1:
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 1.5 m long
+    L2:
+    - closed:
+      - rubric.engineering.assumptions_stated
+      - rubric.engineering.result_form
+      reason: content
+      quote: 'Assumptions set by the problem:'
+      expect:
+        rubric.engineering.result_form:
+          in:
+          - one-worked
+    - closed:
+      - rubric.engineering.material_assumed
+      - rubric.engineering.section_shape
+      reason: content
+      quote: The beam is a solid rectangular bar of 6061-T6 aluminum
+      expect:
+        rubric.engineering.material_assumed:
+          in:
+          - aluminum
+        rubric.engineering.section_shape:
+          in:
+          - solid-rectangle
+    - closed:
+      - rubric.engineering.safety_margin
+      reason: direction
+      quote: Use a safety factor of 3 on yield for the bending stress.
+      expect:
+        rubric.engineering.safety_margin:
+          in:
+          - numeric
+    - closed:
+      - rubric.engineering.checks_performed
+      reason: direction
+      quote:
+      - Use a safety factor of 3 on yield for the bending stress.
+      - The tip may deflect at most 15 mm.
+      expect:
+        rubric.engineering.checks_performed:
+          present:
+          - strength
+          - deflection
+    - closed:
+      - rubric.engineering.self_weight
+      reason: content
+      quote: The load at the free end is the only load on the beam.
+      expect:
+        rubric.engineering.self_weight:
+          in:
+          - neglected-stated
+          - not-mentioned
+      note: The brief says what holds and does not name the beam's own weight
+        (docs/leak-check.md, rule 15).
+    - closed:
+      - rubric.engineering.part_selection
+      reason: direction
+      quote: The smallest width and depth, in whole millimeters, that meet both
+        limits
+      expect:
+        rubric.engineering.part_selection:
+          in:
+          - computed-size
+    - closed:
+      - rubric.engineering.formula_source
+      reason: direction
+      quote: name the textbook source of each one
+      expect:
+        rubric.engineering.formula_source:
+          in:
+          - named
+    - closed:
+      - rubric.engineering.answer_position
+      reason: direction
+      quote: Start with a one-line answer
+      expect:
+        rubric.engineering.answer_position:
+          in:
+          - before-working
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 1.5 m long
+    - closed:
+      - engineering.materials.materials
+      - engineering.quantities.quantities
+      reason: content
+      quote: The beam is a solid rectangular bar of 6061-T6 aluminum
+      expect:
+        engineering.materials.materials:
+          present:
+          - aluminum
+    - closed:
+      - engineering.safety.safety_factor
+      - engineering.safety.safety_factor_mentioned
+      reason: direction
+      quote: Use a safety factor of 3 on yield
+      expect:
+        engineering.safety.safety_factor:
+          in:
+          - '3'
+        engineering.safety.safety_factor_mentioned:
+          in:
+          - 'true'
+    - closed:
+      - engineering.checks.checks
+      reason: direction
+      quote: The tip may deflect at most 15 mm.
+      expect:
+        engineering.checks.checks:
+          present:
+          - bending
+          - deflection
+    - closed:
+      - engineering.standards.standard_bodies
+      reason: direction
+      quote: name the textbook source of each one
+      note: Textbooks are asked for; standards named beside them are not read
+        as a default here.
+    - closed:
+      - engineering.reply.tables
+      reason: direction
+      quote: then a table of the checks
+  compression-spring:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.engineering.assumptions_stated
+      - rubric.engineering.result_form
+      reason: content
+      quote: 'Requirements:'
+      expect:
+        rubric.engineering.result_form:
+          in:
+          - one-worked
+    - closed:
+      - rubric.engineering.material_assumed
+      reason: content
+      quote: the wire is type 302 stainless steel
+      expect:
+        rubric.engineering.material_assumed:
+          in:
+          - stainless-steel
+    - closed:
+      - rubric.engineering.design_load
+      reason: content
+      quote: it pushes back with 1.2 lbf
+      expect:
+        rubric.engineering.design_load:
+          in:
+          - numeric
+    - closed:
+      - rubric.engineering.safety_margin
+      reason: direction
+      quote: Keep the shear stress at the working length below 45% of the tensile
+        strength.
+      expect:
+        rubric.engineering.safety_margin:
+          in:
+          - numeric
+    - closed:
+      - rubric.engineering.checks_performed
+      reason: direction
+      quote:
+      - Keep the shear stress at the working length below 45% of the tensile strength.
+      - It must last for 100,000 presses.
+      expect:
+        rubric.engineering.checks_performed:
+          present:
+          - strength
+      note: The brief asks whether the spring will last and why, which an answer
+        can give in words. Only the stress check is judged.
+    - closed:
+      - rubric.engineering.answer_position
+      reason: direction
+      quote: Start with one table of the design values, then give the working.
+      expect:
+        rubric.engineering.answer_position:
+          in:
+          - before-working
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote:
+      - Free length 0.75 in.
+      - 1.2 lbf
+      expect:
+        engineering.units.unit_system:
+          in:
+          - us-customary
+    - closed:
+      - engineering.materials.materials
+      - engineering.quantities.quantities
+      reason: content
+      quote: the wire is type 302 stainless steel
+      expect:
+        engineering.materials.materials:
+          present:
+          - stainless-steel
+    - closed:
+      - engineering.checks.checks
+      - engineering.safety.safety_factor
+      reason: direction
+      quote: Keep the shear stress at the working length below 45% of the tensile
+        strength.
+      expect:
+        engineering.checks.checks:
+          present:
+          - shear
+    - closed:
+      - engineering.reply.tables
+      reason: direction
+      quote: Start with one table of the design values
+  conveyor-gear-ratio:
+    prompt_set_version: '1'
+    L0:
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 0.4 m/s
+    L1:
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 0.4 m/s
+    L2:
+    - closed:
+      - rubric.engineering.assumptions_stated
+      - rubric.engineering.result_form
+      reason: content
+      quote: 'Drive details:'
+      expect:
+        rubric.engineering.result_form:
+          in:
+          - one-worked
+    - closed:
+      - rubric.engineering.motor_speed_assumed
+      reason: content
+      quote: The motor is a 4-pole induction motor that turns at 1725 rpm under
+        load.
+      expect:
+        rubric.engineering.motor_speed_assumed:
+          in:
+          - near-1800
+      note: 'Close to the expected default: a 4-pole motor is the motor most likely
+        assumed at L0. Compliance can be read; do not read motor speed as a default
+        that persists.'
+    - closed:
+      - rubric.engineering.reduction_kind
+      reason: direction
+      quote: 'The reduction has two stages: a toothed belt from the motor, then
+        a roller chain to the drum shaft.'
+      expect:
+        rubric.engineering.reduction_kind:
+          in:
+          - belt-or-chain
+    - closed:
+      - rubric.engineering.answer_position
+      reason: direction
+      quote: Start with a short table of the chosen tooth counts, then give the
+        working.
+      expect:
+        rubric.engineering.answer_position:
+          in:
+          - before-working
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 0.4 m/s
+    - closed:
+      - engineering.reply.tables
+      - engineering.quantities.quantities
+      reason: direction
+      quote: Start with a short table of the chosen tooth counts
+    associations:
+      L0:
+      - variables:
+        - rubric.engineering.reduction_kind
+        quote: gear ratio
+        note: The plan's noun leans toward gears at every level (docs/leak-check.md,
+          rule 8). Read the share of open-gears and gearbox-unit as the default
+          for a request that says "gear ratio".
+  heat-sink:
+    prompt_set_version: '1'
+    L0:
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 20 W
+    L1:
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 20 W
+    L2:
+    - closed:
+      - rubric.engineering.assumptions_stated
+      - rubric.engineering.result_form
+      reason: content
+      quote: 'Mounting details:'
+      expect:
+        rubric.engineering.result_form:
+          in:
+          - one-worked
+    - closed:
+      - rubric.engineering.material_assumed
+      - rubric.engineering.cooling_mode
+      reason: direction
+      quote: The heat sink is a flat, vertical copper plate, 3 mm thick, cooled
+        by still air on both faces.
+      expect:
+        rubric.engineering.material_assumed:
+          in:
+          - copper
+        rubric.engineering.cooling_mode:
+          in:
+          - natural
+      note: Still air is close to the expected default. Compliance can be read
+        for cooling_mode; do not read it as a default that persists. The copper
+        plate is the choice that moves.
+    - closed:
+      - rubric.engineering.interface_resistance
+      reason: content
+      quote: A thermal pad between the transistor and the plate adds 0.3 °C/W.
+      expect:
+        rubric.engineering.interface_resistance:
+          in:
+          - included
+    - closed:
+      - rubric.engineering.part_selection
+      reason: direction
+      quote: the side of the smallest square plate, rounded up to the next 5 mm
+      expect:
+        rubric.engineering.part_selection:
+          in:
+          - computed-size
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 20 W
+    - closed:
+      - engineering.materials.materials
+      - engineering.quantities.quantities
+      reason: direction
+      quote: The heat sink is a flat, vertical copper plate
+      expect:
+        engineering.materials.materials:
+          present:
+          - copper
+    - closed:
+      - engineering.checks.checks
+      reason: content
+      quote: The junction temperature with that plate.
+    - closed:
+      - engineering.reply.list_items
+      reason: direction
+      quote: Set out the heat path as a chain of thermal resistances
+  pipe-and-pump:
+    prompt_set_version: '1'
+    L0:
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 1.5 L/s
+    L1:
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 1.5 L/s
+    L2:
+    - closed:
+      - rubric.engineering.assumptions_stated
+      - rubric.engineering.result_form
+      reason: content
+      quote: 'System details:'
+      expect:
+        rubric.engineering.result_form:
+          in:
+          - one-worked
+    - closed:
+      - rubric.engineering.material_assumed
+      reason: content
+      quote: The pipe is black polyethylene.
+      expect:
+        rubric.engineering.material_assumed:
+          in:
+          - plastic
+      note: A smooth plastic pipe is also the expected default. Compliance can
+        be read; do not read pipe material as a default that persists.
+    - closed:
+      - rubric.engineering.friction_method
+      reason: direction
+      quote: Use the Hazen-Williams equation with C = 140.
+      expect:
+        rubric.engineering.friction_method:
+          in:
+          - hazen-williams
+    - closed:
+      - rubric.engineering.minor_losses
+      reason: content
+      quote: The fittings (a strainer, 4 elbows and a check valve) add the equivalent
+        of 8 m of extra pipe.
+      expect:
+        rubric.engineering.minor_losses:
+          in:
+          - included
+    - closed:
+      - rubric.engineering.answer_position
+      reason: direction
+      quote: Put the answers in a table first
+      expect:
+        rubric.engineering.answer_position:
+          in:
+          - before-working
+    - closed:
+      - engineering.units.unit_system
+      reason: content
+      quote: 1.5 L/s
+    - closed:
+      - engineering.materials.materials
+      - engineering.quantities.quantities
+      reason: content
+      quote: The pipe is black polyethylene.
+      expect:
+        engineering.materials.materials:
+          present:
+          - polyethylene
+    - closed:
+      - engineering.quantities.pipe_roughness_mm
+      reason: direction
+      quote: Use the Hazen-Williams equation with C = 140.
+      note: The brief replaces a roughness height by a coefficient.
+    - closed:
+      - engineering.quantities.water_temperature_c
+      reason: content
+      quote: The water is at 15 °C
+      expect:
+        engineering.quantities.water_temperature_c:
+          in:
+          - '15'
+    - closed:
+      - engineering.quantities.supply_voltage
+      reason: content
+      quote: The pump runs from a 12 V battery
+      expect:
+        engineering.quantities.supply_voltage:
+          in:
+          - '12'
+    - closed:
+      - engineering.reply.tables
+      reason: direction
+      quote: Put the answers in a table first
+    associations:
+      L2:
+      - variables:
+        - rubric.engineering.pump_type
+        quote: The pump runs from a 12 V battery charged by solar panels
+        note: The kind of pump is asked for and left open, but a 12 V supply narrows
+          what can be bought. Read the L2 share with that in mind.
+  shelf-bracket:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.engineering.assumptions_stated
+      - rubric.engineering.result_form
+      reason: content
+      quote: 'Requirements:'
+      expect:
+        rubric.engineering.result_form:
+          in:
+          - one-worked
+    - closed:
+      - rubric.engineering.material_assumed
+      - rubric.engineering.manufacturing_notes
+      reason: content
+      quote:
+      - It is cut from 1/4 in birch plywood on a laser cutter that takes only
+        flat outlines
+      - held to it by two screws through the plywood
+      expect:
+        rubric.engineering.material_assumed:
+          in:
+          - wood
+      note: The brief gives the making process and the fixing, so a response that
+        repeats them is not volunteering them. No value is expected for manufacturing_notes.
+    - closed:
+      - rubric.engineering.bracket_form
+      reason: direction
+      quote: The profile is a solid quarter circle
+      expect:
+        rubric.engineering.bracket_form:
+          in:
+          - gusset-plate
+    - closed:
+      - rubric.engineering.design_load
+      reason: content
+      quote: each carries 40 lb spread evenly over the shelf's depth
+      expect:
+        rubric.engineering.design_load:
+          in:
+          - numeric
+    - closed:
+      - rubric.engineering.checks_performed
+      - rubric.engineering.safety_margin
+      reason: direction
+      quote: The bending stress in the plywood at its weakest section, against
+        a working stress of 1000 psi.
+      expect:
+        rubric.engineering.checks_performed:
+          present:
+          - strength
+      note: The brief gives a working stress, which already holds a margin. No
+        value is expected for safety_margin.
+    - closed:
+      - rubric.engineering.part_selection
+      reason: direction
+      quote: Give all dimensions in inches, to the nearest 1/16 in.
+      expect:
+        rubric.engineering.part_selection:
+          in:
+          - computed-size
+    - closed:
+      - engineering.units.unit_system
+      reason: direction
+      quote: Give all dimensions in inches
+      expect:
+        engineering.units.unit_system:
+          in:
+          - us-customary
+    - closed:
+      - engineering.materials.materials
+      - engineering.quantities.quantities
+      reason: content
+      quote: birch plywood
+      expect:
+        engineering.materials.materials:
+          present:
+          - wood
+    - closed:
+      - engineering.checks.checks
+      - engineering.safety.safety_factor
+      reason: direction
+      quote:
+      - The bending moment where the bracket meets the wall, and the force on
+        each screw.
+      - against a working stress of 1000 psi
+      expect:
+        engineering.checks.checks:
+          present:
+          - bending
+    associations:
+      L0:
+      - variables:
+        - engineering.cad.cad_format
+        quote: CAD file
+        note: A CAD file is asked for at every level; the format is left open.

@@ -1,0 +1,510 @@
+# What each pipeline prompt takes out of the model's hands (T2.8): the choices
+# are open or closed per task and level as in analysis/website/dictated.yaml
+# (docs/metrics.md, "Open choices").
+#
+# Two kinds of entry:
+#   rubric.pipeline.*   copied word for word from
+#                     rubrics/pipeline.v1.dictated.yaml; change it there and
+#                     here together (tests/test_metrics_types.py compares)
+#   pipeline.*          the extractor features, read from the "What each L2
+#                     dictates" table of prompts/pipeline/leak-check.md and the
+#                     L2 texts
+#
+# L0 and L1 close nothing, with one exception: where a task's givens are in
+# SI units at every level, the unit system is not the model's to choose
+# (prompts/pipeline/README.md).
+#
+# Changing an entry changes results: raise `metrics_version`.
+schema_version: 1
+project_type: pipeline
+tasks:
+  ci-workflow:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.pipeline.ci_checks
+      reason: direction
+      quote:
+      - Run the tests on Linux, macOS and Windows
+      - Fail if any file is not formatted with the language's own formatter
+      - Measure test coverage and fail if it falls below 80%.
+      expect:
+        rubric.pipeline.ci_checks:
+          present:
+          - tests
+          - lint-or-format
+          - coverage
+      note: The brief lists the checks. A build, a publish step or a type check
+        added beside them is not against it. The changelog check on a version
+        tag is an `other` check; it is not judged, because other can hold anything.
+    - closed:
+      - pipeline.language.primary_language
+      reason: content
+      quote: A library written in Go
+    - closed:
+      - pipeline.ci.triggers
+      reason: direction
+      quote:
+      - Run on every change proposed to the main branch and on every push to it.
+      - On a version tag
+      expect:
+        pipeline.ci.triggers:
+          present:
+          - pull-request
+          - push
+      note: Equal to the expected default (docs/leak-check.md, rule 14).
+    - closed:
+      - pipeline.ci.matrix_os
+      - pipeline.ci.matrix_keys
+      reason: direction
+      quote: Run the tests on Linux, macOS and Windows
+      expect:
+        pipeline.ci.matrix_os:
+          present:
+          - linux
+          - macos
+          - windows
+    - closed:
+      - pipeline.ci.ci_tools
+      reason: direction
+      quote:
+      - Fail if any file is not formatted with the language's own formatter
+      - Measure test coverage and fail if it falls below 80%.
+      expect:
+        pipeline.ci.ci_tools:
+          present:
+          - coverage
+          - go-test
+          - go-vet
+          - gofmt
+    - closed:
+      - pipeline.ci.timeout
+      - pipeline.ci.cancel_superseded
+      reason: direction
+      quote: Finish within 10 minutes, and cancel an older run on the same branch
+      expect:
+        pipeline.ci.timeout:
+          in:
+          - set
+        pipeline.ci.cancel_superseded:
+          in:
+          - set
+    associations:
+      L0:
+      - variables:
+        - pipeline.ci.ci_service
+        quote: workflow
+        note: Read the service as the default for a request that says "workflow"
+          (docs/leak-check.md, rule 8).
+  csv-to-database:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.pipeline.sample_data
+      - rubric.pipeline.input_assumption
+      reason: content
+      quote: 'with a header row and these columns: order_id, order_date, customer_email,
+        product, quantity, unit_price. Some sample rows:'
+      note: The brief names the columns and supplies rows to try the code on.
+    - closed:
+      - rubric.pipeline.cleaning_steps
+      reason: content
+      quote: 'Cleaning rules:'
+      expect:
+        rubric.pipeline.cleaning_steps:
+          present:
+          - trims-whitespace
+          - normalises-case
+          - parses-dates
+          - converts-types
+          - removes-duplicates
+      note: 'Prices stored as whole cents are a type conversion. Dropping a row
+        that repeats an earlier one is removes-duplicates, a cleaning step where
+        the repeats go to no separate place, as the brief asks. A response that
+        writes the repeats to a file shows sets-aside under bad_input_handling
+        and not removes-duplicates, and so does not meet this expectation. A row
+        without an order_id goes to the rejects file: rows written to a separate
+        place are always bad_input_handling (sets-aside) and never a cleaning
+        step, so removes-incomplete-rows is not expected. This follows the rule
+        the two items share (the guidance of cleaning_steps).'
+    - closed:
+      - rubric.pipeline.bad_input_handling
+      reason: direction
+      quote: to a rejects file, with the reason next to it
+      expect:
+        rubric.pipeline.bad_input_handling:
+          present:
+          - sets-aside
+    - closed:
+      - rubric.pipeline.rerun_behavior
+      reason: direction
+      quote: Loading the same file a second time leaves the database as it was.
+      expect:
+        rubric.pipeline.rerun_behavior:
+          in:
+          - replaces
+          - skips-or-merges
+      note: 'A second run that stops on a key conflict (stops-on-repeat) may also
+        leave the database unchanged. It is not counted as following the brief,
+        which asks for a second load that works. replaces is counted as following
+        it: the same file loaded afresh leaves the same rows. The tag cannot tell
+        that from a pipeline that empties the table and so loses the rows of other
+        months. Read compliance here as an upper bound.'
+    - closed:
+      - rubric.pipeline.storage_kind
+      reason: constraint
+      quote: with no separate server to install
+      note: 'A real need that points to an embedded database, the expected default
+        (docs/leak-check.md, rule 14). No expected value: storage is not read
+        at L2 for this task, as compliance or as persistence.'
+    - closed:
+      - pipeline.libraries.third_party
+      - pipeline.libraries.database_libraries
+      - pipeline.language.primary_language
+      reason: constraint
+      quote: Use only the language's standard library
+      expect:
+        pipeline.libraries.third_party:
+          absent:
+          - pandas
+          - polars
+          - sqlalchemy
+          - pydantic
+          - click
+          - pytest
+      note: The library line narrows the language and the database too; neither
+        is read as a default for this task.
+    - closed:
+      - pipeline.testing.tests_present
+      reason: direction
+      quote: Include a test for each cleaning rule.
+      expect:
+        pipeline.testing.tests_present:
+          in:
+          - 'true'
+    - closed:
+      - pipeline.logging.uses_print
+      - pipeline.operations.output_formats
+      reason: direction
+      quote: At the end, print how many rows were read, loaded and rejected.
+      expect:
+        pipeline.logging.uses_print:
+          in:
+          - 'true'
+        pipeline.operations.output_formats:
+          present:
+          - database
+          - printed
+    associations:
+      L0:
+      - variables:
+        - rubric.pipeline.storage_kind
+        quote: a database
+        note: The task names a database at every level, so flat files are not
+          an open answer here. Read the kind of database only (embedded or server).
+          Database against files is read on daily-api-fetch.
+      - variables:
+        - pipeline.libraries.database_libraries
+        quote: a database
+        note: The task names a database at every level; read the engine, not database
+          against files.
+  daily-api-fetch:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.pipeline.sample_data
+      - rubric.pipeline.input_assumption
+      reason: content
+      quote: 'The response is JSON with one entry per station and hour, for example:'
+      note: The brief gives the fields and an example response.
+    - closed:
+      - rubric.pipeline.scheduling
+      reason: direction
+      quote: It runs once and then exits. The machine's own scheduler starts it
+        at 6:00am each day
+      expect:
+        rubric.pipeline.scheduling:
+          absent:
+          - in-process
+          - ci-schedule
+          - orchestrator
+      note: 'The scheduler is said to exist already, so a response that delivers
+        no scheduler entry (none) follows the brief as much as one that gives
+        a cron line. The machine''s own scheduler may be the L0 default itself:
+        check the pilot before reading this as a default that gave way.'
+    - closed:
+      - rubric.pipeline.retry_policy
+      reason: direction
+      quote: try again up to 3 times, a minute apart
+      expect:
+        rubric.pipeline.retry_policy:
+          in:
+          - retries-fixed-wait
+    - closed:
+      - rubric.pipeline.storage_kind
+      reason: direction
+      quote: Store the readings as one CSV file per month
+      expect:
+        rubric.pipeline.storage_kind:
+          in:
+          - flat-files
+    - closed:
+      - rubric.pipeline.rerun_behavior
+      reason: direction
+      quote: Fetching the same day twice leaves the files as they were.
+      expect:
+        rubric.pipeline.rerun_behavior:
+          in:
+          - replaces
+          - skips-or-merges
+      note: 'replaces is counted as following the brief: a day''s rows written
+        afresh leave the same content. The tag cannot tell that from a pipeline
+        that rewrites a whole month''s file from one day''s data, which would
+        lose rows. Read compliance here as an upper bound.'
+    - closed:
+      - rubric.pipeline.gap_recovery
+      reason: direction
+      quote: If an earlier run failed and left a day missing, the next run fetches
+        that day too.
+      expect:
+        rubric.pipeline.gap_recovery:
+          in:
+          - backfills
+          - refetches-window
+      note: A run that fetches a fixed span of recent days again also fetches
+        a day the run before it missed, so refetches-window is counted as following
+        the brief. It does so only inside its span; the tag does not hold the
+        span's length. manual-date and other are not counted.
+    - closed:
+      - pipeline.libraries.scheduling_libraries
+      reason: direction
+      quote: It runs once and then exits. The machine's own scheduler starts it
+      expect:
+        pipeline.libraries.scheduling_libraries:
+          absent:
+          - schedule
+          - apscheduler
+          - airflow
+          - prefect
+          - dagster
+          - luigi
+          - celery
+          - rocketry
+          - node-cron
+          - cron
+          - node-schedule
+          - agenda
+          - github.com/robfig/cron
+          - github.com/go-co-op/gocron
+    - closed:
+      - pipeline.operations.retry_present
+      reason: direction
+      quote: try again up to 3 times, a minute apart
+      expect:
+        pipeline.operations.retry_present:
+          in:
+          - 'true'
+    - closed:
+      - pipeline.operations.output_formats
+      - pipeline.libraries.database_libraries
+      reason: direction
+      quote: Store the readings as one CSV file per month
+      expect:
+        pipeline.operations.output_formats:
+          present:
+          - csv
+    - closed:
+      - pipeline.logging.uses_print
+      - pipeline.logging.logging_libraries
+      reason: content
+      quote: Write one line per run to a log file
+      note: The brief fixes what is logged and where; how it is written is not
+        read as a default.
+  data-validation:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.pipeline.sample_data
+      - rubric.pipeline.input_assumption
+      reason: content
+      quote: 'in JSON Lines (one JSON object per line), for example:'
+      note: The brief gives the fields and two sample readings. Where the field
+        rules sit is rule_definition; no value is expected here.
+    - closed:
+      - rubric.pipeline.rule_definition
+      reason: direction
+      quote: Keep the rules in a separate file that the network's coordinator
+        can edit without changing the code.
+      expect:
+        rubric.pipeline.rule_definition:
+          in:
+          - external-file
+    - closed:
+      - rubric.pipeline.bad_input_handling
+      reason: direction
+      quote: Each rejected reading goes to a rejects file for the day, together
+        with every rule it broke.
+      expect:
+        rubric.pipeline.bad_input_handling:
+          present:
+          - sets-aside
+    - closed:
+      - rubric.pipeline.failure_signal
+      reason: direction
+      quote: The exit code is 0 when fewer than 5% of the readings are rejected
+        and 2 otherwise
+      expect:
+        rubric.pipeline.failure_signal:
+          in:
+          - exit-status
+    - closed:
+      - pipeline.config.config_sources
+      reason: direction
+      quote: Keep the rules in a separate file
+      expect:
+        pipeline.config.config_sources:
+          present:
+          - config-file
+    - closed:
+      - pipeline.operations.output_formats
+      reason: content
+      quote: Valid readings go on to the next step unchanged, in the same format
+  image-resize:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.pipeline.aspect_handling
+      reason: direction
+      quote: keeping its proportions
+      expect:
+        rubric.pipeline.aspect_handling:
+          in:
+          - keeps-proportions
+    - closed:
+      - rubric.pipeline.rerun_behavior
+      reason: direction
+      quote: Skip a photo whose output is already newer than the input
+      expect:
+        rubric.pipeline.rerun_behavior:
+          in:
+          - skips-or-merges
+    - closed:
+      - rubric.pipeline.bad_input_handling
+      reason: direction
+      quote:
+      - A photo that fails leaves the others unaffected.
+      - with the reason for each failure
+      expect:
+        rubric.pipeline.bad_input_handling:
+          present:
+          - skips-and-reports
+    - closed:
+      - pipeline.operations.parallel_work
+      reason: direction
+      quote: Use every processor core
+      note: Any form of parallel work follows the brief, so no value is expected.
+    - closed:
+      - pipeline.images.orientation_handling
+      reason: direction
+      quote: Phone photos turned the right way up.
+      expect:
+        pipeline.images.orientation_handling:
+          in:
+          - present
+      note: 'A keyword reading: whether the photos come out upright is the sandbox''s
+        to show.'
+    - closed:
+      - pipeline.images.metadata_handling
+      reason: direction
+      quote: Camera and location details removed from the files.
+      expect:
+        pipeline.images.metadata_handling:
+          in:
+          - strips
+          no_verdict:
+          - unmentioned
+      note: Some libraries drop metadata when they save, with no word in the code,
+        so `unmentioned` gives no verdict.
+    - closed:
+      - pipeline.logging.uses_print
+      - pipeline.operations.output_formats
+      reason: direction
+      quote: At the end, print how many photos were resized, skipped and failed
+      expect:
+        pipeline.logging.uses_print:
+          in:
+          - 'true'
+        pipeline.operations.output_formats:
+          present:
+          - image
+          - printed
+  log-aggregation:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.pipeline.sample_data
+      - rubric.pipeline.input_assumption
+      - rubric.pipeline.log_format_assumed
+      reason: content
+      quote: 'Each line is one request:'
+      expect:
+        rubric.pipeline.log_format_assumed:
+          in:
+          - other
+      note: The brief invents a line format that is none of the well-known ones,
+        and gives sample lines.
+    - closed:
+      - rubric.pipeline.bad_input_handling
+      reason: direction
+      quote: The number of malformed lines, with the first 5 of them.
+      expect:
+        rubric.pipeline.bad_input_handling:
+          present:
+          - skips-and-reports
+    - closed:
+      - pipeline.operations.file_reading
+      reason: direction
+      quote: Read the files one line at a time
+      expect:
+        pipeline.operations.file_reading:
+          in:
+          - streaming
+    - closed:
+      - pipeline.layout.structure
+      - pipeline.config.config_sources
+      reason: direction
+      quote: Organize the code as a small package with separate parts
+      expect:
+        pipeline.layout.structure:
+          in:
+          - package
+        pipeline.config.config_sources:
+          present:
+          - arguments
+    - closed:
+      - pipeline.testing.tests_present
+      reason: direction
+      quote: Include tests for the parser
+      expect:
+        pipeline.testing.tests_present:
+          in:
+          - 'true'
+    - closed:
+      - pipeline.logging.uses_print
+      - pipeline.operations.output_formats
+      reason: direction
+      quote: Write the hourly figures to a CSV file and print the rest
+      expect:
+        pipeline.logging.uses_print:
+          in:
+          - 'true'
+        pipeline.operations.output_formats:
+          present:
+          - csv
+          - printed
+    associations:
+      L1:
+      - variables:
+        - rubric.pipeline.log_format_assumed
+        quote: access logs
+        note: Suggests a web server's access log layout.

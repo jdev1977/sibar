@@ -1,0 +1,129 @@
+# Math features as the metrics read them (T2.8). The format and the rules
+# are those of analysis/website/features.yaml and docs/metrics.md; the
+# features are described in docs/extractors.md. Two things differ here, both
+# in docs/metrics.md, "Types with a rubric":
+#
+#   outcome   a run has an artifact when the rubric's gate item says the reply
+#             gives a solution.
+#   tasks     rubric items only: the tasks the item is asked for. In any other
+#             task the variable is not applicable
+#
+# The rubric.math variables are tagger.rubric.variable_declarations(rubric)
+# with `tasks` added; tests/test_metrics_types.py compares the two. Their
+# version "<rubric version>@*" takes any one tagger model, and tables never
+# mix two. Every feature that a keyword or a pattern may misread starts
+# `provisional` until outputs have been reviewed (T2.11).
+schema_version: 1
+project_type: math
+metrics_version: "1"
+
+outcome:
+  gate: rubric.math.response_mode
+  no_solution: [asks-first, declines]
+
+extractor_versions:
+  math.reply: "1"
+  math.notation: "1"
+  math.voice: "1"
+  math.currency: "1"
+  math.precision: "1"
+  math.units: "1"
+  math.methods: "1"
+  math.constants: "1"
+  math.code: "1"
+  rubric.math: "1@*"
+
+# The dimension each extractor's variables are summarised under.
+dimensions:
+  math.reply: reply-shape
+  math.notation: notation
+  math.voice: voice
+  math.currency: currency
+  math.precision: precision
+  math.units: units
+  math.methods: method
+  math.constants: constants
+  math.code: code
+  rubric.math: rubric   # each item names its own
+
+common:
+  status: {type: categorical, role: diagnostic, why: health}
+  error: {type: categorical, role: diagnostic, why: health}
+  skipped_files: {type: number, bins: [0, 1], role: diagnostic, why: health}
+
+features:
+  math.reply:
+    words: {type: number, role: primary, bins: [0, 150, 400, 800, 1600]}
+    headings: {type: number, role: primary, bins: [0, 1, 3, 6]}
+    list_items: {type: number, role: primary, bins: [0, 1, 5, 15]}
+    code_blocks: {type: number, role: primary, bins: [0, 1, 2, 4, 8]}
+    tables: {type: number, role: primary, bins: [0, 1, 2, 4]}
+    largest_table_rows: {type: number, role: secondary, why: detail, see: tables, bins: [0, 1, 5, 13], depends_on: [math.reply.tables]}
+
+  math.notation:
+    main_notation: {type: categorical, role: primary}
+    notation: {type: set, role: secondary, why: redundant, see: main_notation, depends_on: [math.notation.main_notation]}
+    has_formula: {type: boolean, role: primary}
+
+  math.voice:
+    address: {type: categorical, role: primary}
+    you_count: {type: number, role: secondary, why: detail, see: address, bins: [0, 1, 2, 8], depends_on: [math.voice.address]}
+    we_count: {type: number, role: secondary, why: detail, see: address, bins: [0, 1, 2, 8], depends_on: [math.voice.address]}
+
+  math.currency:
+    currency: {type: set, role: provisional, why: heuristic, empty: not-applicable, task_driven: true}
+
+  math.precision:
+    result_sig_figs: {type: categorical, role: provisional, why: heuristic}
+    result_decimals: {type: categorical, role: provisional, why: heuristic}
+    result_basis: {type: categorical, role: secondary, why: detail}
+    result_numbers: {type: number, role: secondary, why: detail, bins: [0, 1, 3, 8]}
+    max_decimals: {type: number, role: secondary, why: detail, bins: [0, 1, 3, 5, 8]}
+    long_decimals: {type: boolean, role: primary}
+
+  math.units:
+    unit_system: {type: categorical, role: secondary, why: detail, task_driven: true}
+    unit_style: {type: categorical, role: primary, not_applicable: [none]}
+    unit_symbols: {type: set, role: secondary, why: raw, see: unit_system, depends_on: [math.units.unit_system]}
+    concentration_notation: {type: set, role: primary, empty: not-applicable, task_driven: true}
+
+  math.methods:
+    methods: {type: set, role: primary, task_driven: true}
+
+  math.constants:
+    g_value: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    drag_coefficient: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    air_density: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    projectile_mass: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    projectile_diameter: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    ka_value: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    pka_value: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    kw_value: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+
+  math.code:
+    code_present: {type: boolean, role: primary}
+    code_languages: {type: set, role: primary, empty: not-applicable, depends_on: [math.code.code_present]}
+    plot_code: {type: boolean, role: primary, depends_on: [math.code.code_present]}
+    plot_libraries: {type: set, role: secondary, why: detail, see: plot_code, empty: not-applicable, depends_on: [math.code.plot_code]}
+
+  rubric.math:
+    response_mode: {type: categorical, role: provisional, why: heuristic, dimension: response}
+    result_form: {type: categorical, role: provisional, why: heuristic, dimension: response, tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]}
+    opening: {type: categorical, role: provisional, why: heuristic, dimension: tone}
+    closing: {type: categorical, role: provisional, why: heuristic, dimension: tone}
+    assumptions_stated: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]}
+    answer_position: {type: categorical, role: provisional, why: heuristic, dimension: structure, tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]}
+    computation_medium: {type: categorical, role: provisional, why: heuristic, dimension: method, tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]}
+    answer_check: {type: categorical, role: provisional, why: heuristic, dimension: checks, tasks: [hypothesis-test, least-squares-fit, loan-amortization, projectile-drag, titration-curve]}
+    method_family: {type: categorical, role: provisional, why: heuristic, dimension: method, tasks: [loan-amortization, projectile-drag, titration-curve]}
+    drag_model: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [projectile-drag]}
+    schedule_extent: {type: categorical, role: provisional, why: heuristic, dimension: structure, tasks: [loan-amortization]}
+    payment_rounding: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [loan-amortization]}
+    curve_presentation: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: structure, tasks: [titration-curve]}
+    test_used: {type: categorical, role: provisional, why: heuristic, dimension: method, tasks: [hypothesis-test]}
+    significance_level: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [hypothesis-test]}
+    normality_treatment: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [hypothesis-test]}
+    fit_route: {type: categorical, role: provisional, why: heuristic, dimension: method, tasks: [least-squares-fit]}
+    fit_extras: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: checks, tasks: [least-squares-fit]}
+    entropy_framings: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: explanation, tasks: [entropy-explanation]}
+    entropy_examples: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: explanation, tasks: [entropy-explanation]}

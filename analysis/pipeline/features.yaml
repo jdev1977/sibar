@@ -1,0 +1,155 @@
+# Pipeline features as the metrics read them (T2.8). The format and the rules
+# are those of analysis/website/features.yaml and docs/metrics.md; the
+# features are described in docs/extractors.md. Two things differ here, both
+# in docs/metrics.md, "Types with a rubric":
+#
+#   outcome   a run has an artifact when the rubric's gate item says the reply
+#             gives a solution, and the reply holds code.
+#   tasks     rubric items only: the tasks the item is asked for. In any other
+#             task the variable is not applicable
+#
+# The rubric.pipeline variables are tagger.rubric.variable_declarations(rubric)
+# with `tasks` added; tests/test_metrics_types.py compares the two. Their
+# version "<rubric version>@*" takes any one tagger model, and tables never
+# mix two. Every feature that a keyword or a pattern may misread starts
+# `provisional` until outputs have been reviewed (T2.11).
+schema_version: 1
+project_type: pipeline
+metrics_version: "1"
+
+outcome:
+  gate: rubric.pipeline.response_mode
+  no_solution: [asks-first, declines]
+  needs:
+    variable: pipeline.layout.structure
+    no_artifact: [no-code]
+
+extractor_versions:
+  pipeline.reply: "1"
+  pipeline.language: "1"
+  pipeline.layout: "1"
+  pipeline.testing: "1"
+  pipeline.comments: "1"
+  pipeline.libraries: "1"
+  pipeline.logging: "1"
+  pipeline.config: "1"
+  pipeline.operations: "1"
+  pipeline.images: "1"
+  pipeline.ci: "1"
+  rubric.pipeline: "1@*"
+
+# The dimension each extractor's variables are summarised under.
+dimensions:
+  pipeline.reply: reply-shape
+  pipeline.language: language
+  pipeline.layout: layout
+  pipeline.testing: testing
+  pipeline.comments: comments
+  pipeline.libraries: libraries
+  pipeline.logging: logging
+  pipeline.config: configuration
+  pipeline.operations: operations
+  pipeline.images: images
+  pipeline.ci: ci
+  rubric.pipeline: rubric   # each item names its own
+
+common:
+  status: {type: categorical, role: diagnostic, why: health}
+  error: {type: categorical, role: diagnostic, why: health}
+  skipped_files: {type: number, bins: [0, 1], role: diagnostic, why: health}
+
+features:
+  pipeline.reply:
+    words: {type: number, role: primary, bins: [0, 150, 400, 800, 1600]}
+    headings: {type: number, role: primary, bins: [0, 1, 3, 6]}
+    list_items: {type: number, role: primary, bins: [0, 1, 5, 15]}
+    code_blocks: {type: number, role: primary, bins: [0, 1, 2, 4, 8]}
+    tables: {type: number, role: primary, bins: [0, 1, 2, 4]}
+    largest_table_rows: {type: number, role: secondary, why: detail, see: tables, bins: [0, 1, 5, 13], depends_on: [pipeline.reply.tables]}
+
+  pipeline.language:
+    primary_language: {type: categorical, role: primary, not_applicable: [none]}
+    languages: {type: set, role: secondary, why: redundant, see: primary_language, depends_on: [pipeline.language.primary_language]}
+
+  pipeline.layout:
+    structure: {type: categorical, role: primary, task_driven: true}
+    source_files: {type: number, role: secondary, why: redundant, see: structure, bins: [0, 1, 2, 4], depends_on: [pipeline.layout.structure]}
+    file_names: {type: set, role: secondary, why: raw, see: structure, depends_on: [pipeline.layout.structure]}
+    has_readme: {type: boolean, role: primary}
+    dependency_files: {type: set, role: primary}
+    entry_point_guard: {type: boolean, role: secondary, why: detail}
+
+  pipeline.testing:
+    tests_present: {type: boolean, role: primary}
+    test_files: {type: number, role: secondary, why: detail, see: tests_present, bins: [0, 1, 2, 4], depends_on: [pipeline.testing.tests_present]}
+    test_frameworks: {type: set, role: primary, empty: not-applicable, depends_on: [pipeline.testing.tests_present]}
+
+  pipeline.comments:
+    comment_lines: {type: number, role: secondary, why: detail, bins: [0, 1, 10, 30]}
+    comment_density: {type: categorical, role: primary}
+    docstrings: {type: number, role: secondary, why: detail, bins: [0, 1, 4, 10]}
+    has_docstrings: {type: boolean, role: primary}
+
+  pipeline.libraries:
+    imports: {type: set, role: secondary, why: raw, see: third_party, depends_on: [pipeline.libraries.third_party]}
+    third_party: {type: set, role: primary}
+    other_imports: {type: set, role: secondary, why: raw, see: third_party, depends_on: [pipeline.libraries.third_party]}
+    stdlib_only: {type: boolean, role: secondary, why: redundant, see: third_party, depends_on: [pipeline.libraries.third_party]}
+    database_libraries: {type: set, role: primary}
+    scheduling_libraries: {type: set, role: primary}
+
+  pipeline.logging:
+    logging_style: {type: categorical, role: primary, depends_on: [pipeline.logging.uses_print]}
+    logging_libraries: {type: set, role: primary}
+    uses_print: {type: boolean, role: secondary, why: redundant, see: logging_style}
+
+  pipeline.config:
+    config_sources: {type: set, role: primary}
+    key_source: {type: categorical, role: provisional, why: heuristic, not_applicable: [none], task_driven: true}
+
+  pipeline.operations:
+    retry_present: {type: boolean, role: provisional, why: heuristic}
+    retry_libraries: {type: set, role: primary, depends_on: [pipeline.operations.retry_present]}
+    file_reading: {type: categorical, role: provisional, why: heuristic, not_applicable: [none]}
+    read_calls: {type: set, role: secondary, why: detail, see: file_reading, depends_on: [pipeline.operations.file_reading]}
+    output_formats: {type: set, role: provisional, why: heuristic}
+    parallel_work: {type: set, role: primary}
+
+  pipeline.images:
+    image_libraries: {type: set, role: primary, empty: not-applicable, task_driven: true}
+    orientation_handling: {type: categorical, role: primary, not_applicable: [no-image-code], task_driven: true}
+    orientation_calls: {type: set, role: secondary, why: detail, see: orientation_handling, empty: not-applicable, depends_on: [pipeline.images.orientation_handling]}
+    metadata_handling: {type: categorical, role: primary, not_applicable: [no-image-code], task_driven: true}
+    metadata_calls: {type: set, role: secondary, why: detail, see: metadata_handling, empty: not-applicable, depends_on: [pipeline.images.metadata_handling]}
+
+  pipeline.ci:
+    ci_service: {type: categorical, role: primary, not_applicable: [none], task_driven: true}
+    triggers: {type: set, role: primary, empty: not-applicable, task_driven: true}
+    matrix_keys: {type: set, role: secondary, why: detail, empty: not-applicable, task_driven: true}
+    matrix_os: {type: set, role: primary, empty: not-applicable, task_driven: true}
+    matrix_versions: {type: set, role: secondary, why: raw, see: matrix_keys, empty: not-applicable, depends_on: [pipeline.ci.matrix_keys]}
+    ci_tools: {type: set, role: primary, empty: not-applicable, task_driven: true}
+    timeout: {type: categorical, role: primary, not_applicable: [no-workflow], task_driven: true}
+    cancel_superseded: {type: categorical, role: primary, not_applicable: [no-workflow], task_driven: true}
+
+  rubric.pipeline:
+    response_mode: {type: categorical, role: provisional, why: heuristic, dimension: response}
+    result_form: {type: categorical, role: provisional, why: heuristic, dimension: response}
+    opening: {type: categorical, role: provisional, why: heuristic, dimension: tone}
+    closing: {type: categorical, role: provisional, why: heuristic, dimension: tone}
+    assumptions_stated: {type: categorical, role: provisional, why: heuristic, dimension: assumptions}
+    usage_docs: {type: categorical, role: provisional, why: heuristic, dimension: operation}
+    sample_data: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [csv-to-database, daily-api-fetch, data-validation, image-resize, log-aggregation]}
+    input_assumption: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: assumptions, tasks: [csv-to-database, daily-api-fetch, data-validation, log-aggregation]}
+    bad_input_handling: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: robustness, tasks: [csv-to-database, data-validation, image-resize, log-aggregation]}
+    rerun_behavior: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: robustness, tasks: [csv-to-database, daily-api-fetch, image-resize]}
+    storage_kind: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: operation, tasks: [csv-to-database, daily-api-fetch]}
+    cleaning_steps: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: method, tasks: [csv-to-database]}
+    scheduling: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: operation, tasks: [daily-api-fetch]}
+    retry_policy: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: robustness, tasks: [daily-api-fetch]}
+    gap_recovery: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: robustness, tasks: [daily-api-fetch]}
+    log_format_assumed: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: assumptions, tasks: [log-aggregation]}
+    aspect_handling: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: method, tasks: [image-resize]}
+    ci_checks: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: method, tasks: [ci-workflow]}
+    rule_definition: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: method, tasks: [data-validation]}
+    failure_signal: {type: categorical, not_applicable: [not-applicable], role: provisional, why: heuristic, dimension: robustness, tasks: [data-validation]}

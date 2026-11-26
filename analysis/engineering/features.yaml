@@ -1,0 +1,122 @@
+# Engineering features as the metrics read them (T2.8). The format and the rules
+# are those of analysis/website/features.yaml and docs/metrics.md; the
+# features are described in docs/extractors.md. Two things differ here, both
+# in docs/metrics.md, "Types with a rubric":
+#
+#   outcome   a run has an artifact when the rubric's gate item says the reply
+#             gives a solution.
+#   tasks     rubric items only: the tasks the item is asked for. In any other
+#             task the variable is not applicable
+#
+# The rubric.engineering variables are tagger.rubric.variable_declarations(rubric)
+# with `tasks` added; tests/test_metrics_types.py compares the two. Their
+# version "<rubric version>@*" takes any one tagger model, and tables never
+# mix two. Every feature that a keyword or a pattern may misread starts
+# `provisional` until outputs have been reviewed (T2.11).
+schema_version: 1
+project_type: engineering
+metrics_version: "1"
+
+outcome:
+  gate: rubric.engineering.response_mode
+  no_solution: [asks-first, declines]
+
+extractor_versions:
+  engineering.reply: "1"
+  engineering.units: "1"
+  engineering.safety: "1"
+  engineering.standards: "1"
+  engineering.checks: "1"
+  engineering.materials: "1"
+  engineering.quantities: "1"
+  engineering.cad: "1"
+  rubric.engineering: "1@*"
+
+# The dimension each extractor's variables are summarised under.
+dimensions:
+  engineering.reply: reply-shape
+  engineering.units: units
+  engineering.safety: safety
+  engineering.standards: standards
+  engineering.checks: checks
+  engineering.materials: materials
+  engineering.quantities: quantities
+  engineering.cad: cad
+  rubric.engineering: rubric   # each item names its own
+
+common:
+  status: {type: categorical, role: diagnostic, why: health}
+  error: {type: categorical, role: diagnostic, why: health}
+  skipped_files: {type: number, bins: [0, 1], role: diagnostic, why: health}
+
+features:
+  engineering.reply:
+    words: {type: number, role: primary, bins: [0, 150, 400, 800, 1600]}
+    headings: {type: number, role: primary, bins: [0, 1, 3, 6]}
+    list_items: {type: number, role: primary, bins: [0, 1, 5, 15]}
+    code_blocks: {type: number, role: primary, bins: [0, 1, 2, 4, 8]}
+    tables: {type: number, role: primary, bins: [0, 1, 2, 4]}
+    largest_table_rows: {type: number, role: secondary, why: detail, see: tables, bins: [0, 1, 5, 13], depends_on: [engineering.reply.tables]}
+
+  engineering.units:
+    unit_system: {type: categorical, role: primary, not_applicable: [none]}
+    metric_mentions: {type: number, role: secondary, why: detail, see: unit_system, bins: [0, 1, 5, 20], depends_on: [engineering.units.unit_system]}
+    us_mentions: {type: number, role: secondary, why: detail, see: unit_system, bins: [0, 1, 5, 20], depends_on: [engineering.units.unit_system]}
+    unit_symbols: {type: set, role: secondary, why: raw, see: unit_system, depends_on: [engineering.units.unit_system]}
+
+  engineering.safety:
+    safety_factor: {type: categorical, role: provisional, why: heuristic}
+    safety_factor_mentioned: {type: boolean, role: primary}
+    safety_factor_values: {type: set, role: secondary, why: raw, see: safety_factor, depends_on: [engineering.safety.safety_factor]}
+
+  engineering.standards:
+    standard_bodies: {type: set, role: primary}
+    standards_cited: {type: boolean, role: secondary, why: redundant, see: standard_bodies, depends_on: [engineering.standards.standard_bodies]}
+    standards: {type: set, role: secondary, why: raw, see: standard_bodies, depends_on: [engineering.standards.standard_bodies]}
+
+  engineering.checks:
+    checks: {type: set, role: primary}
+    spring_end_type: {type: categorical, role: provisional, why: heuristic, not_applicable: [no-spring], task_driven: true}
+    stress_correction: {type: categorical, role: primary, not_applicable: [no-spring], task_driven: true}
+
+  engineering.materials:
+    materials: {type: set, role: provisional, why: heuristic}
+
+  engineering.quantities:
+    supply_voltage: {type: categorical, role: provisional, why: heuristic, task_driven: true}
+    supply_voltages: {type: set, role: secondary, why: raw, see: supply_voltage, depends_on: [engineering.quantities.supply_voltage]}
+    pipe_roughness_mm: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    water_temperature_c: {type: categorical, role: provisional, why: heuristic, not_applicable: [not-relevant], task_driven: true}
+    quantities: {type: set, role: secondary, why: raw, task_driven: true}
+
+  engineering.cad:
+    cad_format: {type: categorical, role: primary, task_driven: true}
+    cad_formats: {type: set, role: secondary, why: redundant, see: cad_format, depends_on: [engineering.cad.cad_format]}
+    code_languages: {type: set, role: primary}
+    cad_parameters: {type: set, role: secondary, why: raw, see: cad_format, depends_on: [engineering.cad.cad_format]}
+
+  rubric.engineering:
+    response_mode: {type: categorical, role: provisional, why: heuristic, dimension: response}
+    result_form: {type: categorical, role: provisional, why: heuristic, dimension: response}
+    opening: {type: categorical, role: provisional, why: heuristic, dimension: tone}
+    closing: {type: categorical, role: provisional, why: heuristic, dimension: tone}
+    assumptions_stated: {type: categorical, role: provisional, why: heuristic, dimension: assumptions}
+    answer_position: {type: categorical, role: provisional, why: heuristic, dimension: structure}
+    safety_margin: {type: categorical, role: provisional, why: heuristic, dimension: checks}
+    formula_source: {type: categorical, role: provisional, why: heuristic, dimension: method}
+    part_selection: {type: categorical, role: provisional, why: heuristic, dimension: design}
+    caveats: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: practice}
+    material_assumed: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [cantilever-beam, compression-spring, heat-sink, pipe-and-pump, shelf-bracket]}
+    checks_performed: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: checks, tasks: [cantilever-beam, compression-spring, shelf-bracket]}
+    manufacturing_notes: {type: set, empty: not-applicable, role: provisional, why: heuristic, dimension: practice, tasks: [cantilever-beam, compression-spring, heat-sink, shelf-bracket]}
+    design_load: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [compression-spring, shelf-bracket]}
+    section_shape: {type: categorical, role: provisional, why: heuristic, dimension: design, tasks: [cantilever-beam]}
+    self_weight: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [cantilever-beam]}
+    motor_speed_assumed: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [conveyor-gear-ratio]}
+    reduction_kind: {type: categorical, role: provisional, why: heuristic, dimension: design, tasks: [conveyor-gear-ratio]}
+    interface_resistance: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [heat-sink]}
+    cooling_mode: {type: categorical, role: provisional, why: heuristic, dimension: design, tasks: [heat-sink]}
+    friction_method: {type: categorical, role: provisional, why: heuristic, dimension: method, tasks: [pipe-and-pump]}
+    minor_losses: {type: categorical, role: provisional, why: heuristic, dimension: assumptions, tasks: [pipe-and-pump]}
+    pump_type: {type: categorical, role: provisional, why: heuristic, dimension: design, tasks: [pipe-and-pump]}
+    bracket_form: {type: categorical, role: provisional, why: heuristic, dimension: design, tasks: [shelf-bracket]}

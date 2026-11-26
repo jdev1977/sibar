@@ -138,6 +138,9 @@ def read_values(record, spec):
         statuses[extractor] = status
     values = {}
     for name, var in spec.variables.items():
+        if var.tasks and record["task_id"] not in var.tasks:
+            values[name] = NA      # not asked of this task
+            continue
         status = statuses[var.extractor]
         if status in ("no-input", "error"):
             values[name] = UND
@@ -249,6 +252,25 @@ def load_records(paths):
     return records, notes
 
 
+def _version_fits(version, want):
+    """``want`` is a version, or ``<rubric version>@*``: any one tagger."""
+    if want.endswith("@*"):
+        return version.startswith(want[:-1]) and len(version) >= len(want)
+    return version == want
+
+
+def _check_one_tagger(records, spec):
+    """Refuse a table whose tags come from two tagger models."""
+    for name, want in spec.extractor_versions.items():
+        if not want.endswith("@*"):
+            continue
+        found = sorted({e["extractor_version"] for record in records
+                        for e in record["extractors"] if e["extractor"] == name})
+        if len(found) > 1:
+            raise Refused(f"{name}: records tagged at {' and '.join(found)}; "
+                          "tags of two taggers are never mixed")
+
+
 def _check_extractors(record, spec, required):
     listed = {e["extractor"]: e["extractor_version"] for e in record["extractors"]}
     rid = record["record_id"]
@@ -262,7 +284,7 @@ def _check_extractors(record, spec, required):
         if name not in listed:
             raise Refused(f"record {rid}: extractor {name} has not run on it; "
                           "re-run python -m extractors first")
-        if listed[name] != want:
+        if not _version_fits(listed[name], want):
             raise Refused(f"record {rid}: extractor {name} is at version "
                           f"{listed[name]}, the metrics read version {want}; "
                           "re-run python -m extractors first (versions are never mixed)")
@@ -277,6 +299,8 @@ def _outcome(record, spec):
     status = record["status"]
     if status in ("truncated", "refused"):
         return status
+    if spec.outcome is not None:
+        return _gated_outcome(record, spec)
     structure_extractor = _structure_extractor(spec)
     _check_extractors(record, spec, [structure_extractor])
     features = _features_by_extractor(record).get(structure_extractor, {})
@@ -292,6 +316,37 @@ def _outcome(record, spec):
     if structure is None:
         return "unread"
     return "no-artifact" if structure == "no-html" else "artifact"
+
+
+def _gated_outcome(record, spec):
+    """The outcome of a type with a rubric: the gate item says whether the
+    reply gives a solution, and ``needs`` whether it delivered anything."""
+    gate = spec.variables[spec.outcome.gate]
+    needs = spec.variables.get(spec.outcome.needs)
+    required = [gate.extractor] + ([needs.extractor] if needs else [])
+    _check_extractors(record, spec, required)
+    stored = _features_by_extractor(record)
+
+    def read(var):
+        features = stored.get(var.extractor, {})
+        status = features.get("status")
+        if status not in EXTRACTOR_STATUSES:
+            raise Refused(f"record {record['record_id']}: {var.extractor} has "
+                          f"status {status!r}")
+        return status, features.get(var.feature)
+
+    status, answer = read(gate)
+    if status in ("error", "no-input") or answer is None:
+        return "unread"
+    if answer in spec.outcome.no_solution:
+        return "no-artifact"
+    if needs:
+        status, value = read(needs)
+        if status == "error":
+            return "unread"
+        if status == "no-input" or value in spec.outcome.needs_no_artifact:
+            return "no-artifact"
+    return "artifact"
 
 
 def _structure_extractor(spec):
@@ -333,6 +388,7 @@ def select(records, spec, batches):
         if record["status"] == "failed":
             continue
         chosen.setdefault(cell_key(record), record)
+    _check_one_tagger([r for r in chosen.values() if r["status"] == "ok"], spec)
     settings = {}
     runs = []
     for key in sorted(chosen, key=lambda k: tuple("" if v is None else str(v) for v in k)):

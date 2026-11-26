@@ -1,0 +1,512 @@
+# What each math prompt takes out of the model's hands (T2.8): the choices
+# are open or closed per task and level as in analysis/website/dictated.yaml
+# (docs/metrics.md, "Open choices").
+#
+# Two kinds of entry:
+#   rubric.math.*   copied word for word from
+#                     rubrics/math.v1.dictated.yaml; change it there and
+#                     here together (tests/test_metrics_types.py compares)
+#   math.*          the extractor features, read from the "What each L2
+#                     dictates" table of prompts/math/leak-check.md and the
+#                     L2 texts
+#
+# L0 and L1 close nothing, with one exception: where a task's givens are in
+# SI units at every level, the unit system is not the model's to choose
+# (prompts/math/README.md).
+#
+# Changing an entry changes results: raise `metrics_version`.
+schema_version: 1
+project_type: math
+tasks:
+  entropy-explanation:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.math.entropy_framings
+      reason: direction
+      quote: Explain entropy as the number of ways energy can be shared out among
+        particles.
+      expect:
+        rubric.math.entropy_framings:
+          present:
+          - microstates
+      note: The brief names no framing to leave out, so only the presence of the
+        counting framing is judged. Whether disorder still appears is the share
+        to read beside it.
+    - closed:
+      - rubric.math.entropy_examples
+      reason: direction
+      quote: Build the whole explanation on one example
+      expect:
+        rubric.math.entropy_examples:
+          present:
+          - counting-model
+          absent:
+          - breaking
+          - heat-flow
+          - messy-room
+          - mixing
+          - other
+          - shuffled-objects
+    - closed:
+      - rubric.math.closing
+      reason: direction
+      quote: End with one question Maya can answer to test her understanding.
+      expect:
+        rubric.math.closing:
+          in:
+          - question
+    - closed:
+      - math.methods.methods
+      reason: content
+      quote: the number of ways energy can be shared out among particles
+    - closed:
+      - math.reply.words
+      - math.reply.headings
+      - math.reply.list_items
+      - math.reply.tables
+      reason: direction
+      quote: About 300 words of plain paragraphs
+      expect:
+        math.reply.words:
+          in:
+          - 150-399
+        math.reply.headings:
+          in:
+          - '0'
+    - closed:
+      - math.voice.address
+      reason: direction
+      quote: speaks to Maya as "you"
+      expect:
+        math.voice.address:
+          in:
+          - you
+          - both
+  hypothesis-test:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.math.test_used
+      - rubric.math.significance_level
+      reason: direction
+      quote: Use the exact Wilcoxon signed-rank test, two-sided, at the 1% significance
+        level.
+      expect:
+        rubric.math.test_used:
+          in:
+          - signed-rank
+        rubric.math.significance_level:
+          in:
+          - one-percent
+    - closed:
+      - rubric.math.normality_treatment
+      - rubric.math.assumptions_stated
+      reason: content
+      quote: The technician assumes only that the lengths are spread symmetrically
+        about their center.
+      note: The brief gives the one assumption the dictated test needs and names
+        no distribution. No value is expected.
+    - closed:
+      - rubric.math.answer_position
+      reason: direction
+      quote: Start with the decision in one plain sentence the technician can
+        act on, then give the working.
+      expect:
+        rubric.math.answer_position:
+          in:
+          - before-working
+    - closed:
+      - math.methods.methods
+      reason: direction
+      quote: Use the exact Wilcoxon signed-rank test
+      expect:
+        math.methods.methods:
+          present:
+          - wilcoxon
+    - closed:
+      - math.precision.result_sig_figs
+      - math.precision.result_decimals
+      - math.precision.result_basis
+      - math.precision.result_numbers
+      - math.precision.max_decimals
+      - math.precision.long_decimals
+      reason: direction
+      quote: Give the exact p-value as a fraction and as a decimal to 4 places.
+    - closed:
+      - math.units.unit_system
+      - math.units.concentration_notation
+      reason: content
+      quote: lengths in millimeters
+    associations:
+      L0:
+      - variables:
+        - rubric.math.test_used
+        quote: the mean of these measurements differs from 50
+        note: The question is about a mean and is two-sided at every level (docs/leak-check.md,
+          rule 9). Read the test as a choice among tests of a mean.
+  least-squares-fit:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.math.fit_route
+      reason: direction
+      quote: 'Work from centered sums: subtract the means of x and y first, then
+        form Sxx and Sxy.'
+      expect:
+        rubric.math.fit_route:
+          in:
+          - centered-sums
+    - closed:
+      - rubric.math.fit_extras
+      reason: content
+      quote:
+      - The slope and intercept, each with its standard error.
+      - The residual of every point, and R².
+      expect:
+        rubric.math.fit_extras:
+          present:
+          - goodness-of-fit
+          - residuals
+          - uncertainties
+    - closed:
+      - rubric.math.assumptions_stated
+      reason: content
+      quote: Each stretch reading has about the same uncertainty, and the loads
+        are known exactly.
+    - closed:
+      - math.units.unit_system
+      reason: content
+      quote: how far the spring stretched, in millimeters
+    - closed:
+      - math.methods.methods
+      reason: direction
+      quote:
+      - A 95% confidence interval for the slope.
+      - Work from centered sums
+      expect:
+        math.methods.methods:
+          present:
+          - centered-sums
+          - confidence-interval
+    - closed:
+      - math.reply.tables
+      reason: direction
+      quote: Show the sums in a table with one row per point.
+    - closed:
+      - math.precision.result_sig_figs
+      - math.precision.result_decimals
+      - math.precision.result_basis
+      - math.precision.result_numbers
+      - math.precision.max_decimals
+      - math.precision.long_decimals
+      reason: direction
+      quote: Give every result to 4 significant figures.
+      expect:
+        math.precision.result_sig_figs:
+          in:
+          - '4'
+  loan-amortization:
+    prompt_set_version: '1'
+    L2:
+    - closed:
+      - rubric.math.method_family
+      reason: direction
+      quote: Find the payment by building the balance month by month and choosing
+        the payment that brings it to zero
+      expect:
+        rubric.math.method_family:
+          in:
+          - stepwise
+    - closed:
+      - rubric.math.answer_check
+      reason: direction
+      quote: and say how you checked it
+      expect:
+        rubric.math.answer_check:
+          in:
+          - plausibility
+          - recomputed
+    - closed:
+      - rubric.math.answer_position
+      reason: direction
+      quote: Open with a two-sentence answer the buyer can read on its own
+      expect:
+        rubric.math.answer_position:
+          in:
+          - before-working
+    - closed:
+      - rubric.math.schedule_extent
+      reason: direction
+      quote: The full schedule, one row per month
+      expect:
+        rubric.math.schedule_extent:
+          in:
+          - full
+    - closed:
+      - rubric.math.assumptions_stated
+      reason: content
+      quote: Interest is charged each month at one twelfth of the annual rate
+    - closed:
+      - rubric.math.payment_rounding
+      reason: direction
+      quote: Each payment is rounded to the cent. The last payment absorbs the
+        rounding difference, so the balance ends at exactly zero.
+      expect:
+        rubric.math.payment_rounding:
+          in:
+          - last-payment-adjusted
+    - closed:
+      - math.currency.currency
+      reason: content
+      quote: a loan of $9000
+      expect:
+        math.currency.currency:
+          present:
+          - $
+    - closed:
+      - math.methods.methods
+      reason: direction
+      quote: Find the payment by building the balance month by month
+      expect:
+        math.methods.methods:
+          absent:
+          - annuity-formula
+      note: The annuity formula given as a check is counted against this too;
+        read compliance here as a lower bound.
+    - closed:
+      - math.precision.result_sig_figs
+      - math.precision.result_decimals
+      - math.precision.result_basis
+      - math.precision.result_numbers
+      - math.precision.max_decimals
+      - math.precision.long_decimals
+      reason: direction
+      quote: Each payment is rounded to the cent.
+      expect:
+        math.precision.result_decimals:
+          in:
+          - '2'
+    - closed:
+      - math.reply.tables
+      reason: direction
+      quote: The full schedule, one row per month
+  projectile-drag:
+    prompt_set_version: '1'
+    L0:
+    - closed:
+      - math.units.unit_system
+      reason: content
+      quote: 25 m/s
+    L1:
+    - closed:
+      - math.units.unit_system
+      reason: content
+      quote: 25 m/s
+    L2:
+    - closed:
+      - rubric.math.drag_model
+      reason: content
+      quote: Drag force proportional to the square of the speed
+      expect:
+        rubric.math.drag_model:
+          in:
+          - quadratic
+      note: 'Equal to the expected default (docs/leak-check.md, rule 14): no real
+        object at this speed follows another law. Compliance can be read; persistence
+        cannot. The drag law is measured at L0 and L1.'
+    - closed:
+      - rubric.math.assumptions_stated
+      - rubric.math.result_form
+      reason: content
+      quote: 'The projectile is a soccer ball kicked from flat ground:'
+      note: 'The brief gives the object and its constants, so one worked case
+        is what it asks for. No value is expected for result_form: the range with
+        no air, which the brief also asks for, may be read as a second case.'
+    - closed:
+      - rubric.math.method_family
+      - rubric.math.computation_medium
+      reason: direction
+      quote: Step the motion forward by hand with Heun's method
+      expect:
+        rubric.math.method_family:
+          in:
+          - stepwise
+        rubric.math.computation_medium:
+          in:
+          - worked-in-text
+    - closed:
+      - rubric.math.answer_check
+      reason: content
+      quote: The range the same kick would have with no air at all.
+      note: The brief asks for the value that a plausibility check would compare
+        with. No value is expected.
+    - closed:
+      - math.units.unit_system
+      reason: content
+      quote: 25 m/s
+    - closed:
+      - math.constants.g_value
+      - math.constants.drag_coefficient
+      - math.constants.air_density
+      - math.constants.projectile_mass
+      - math.constants.projectile_diameter
+      reason: content
+      quote:
+      - Mass 0.43 kg and diameter 0.22 m.
+      - g = 9.81 m/s²
+      expect:
+        math.constants.g_value:
+          in:
+          - '9.81'
+        math.constants.drag_coefficient:
+          in:
+          - '0.25'
+        math.constants.air_density:
+          in:
+          - '1.2'
+        math.constants.projectile_mass:
+          in:
+          - 0.43 kg
+        math.constants.projectile_diameter:
+          in:
+          - 0.22 m
+    - closed:
+      - math.methods.methods
+      - math.code.code_present
+      reason: direction
+      quote: Step the motion forward by hand with Heun's method
+      expect:
+        math.methods.methods:
+          present:
+          - heun
+        math.code.code_present:
+          in:
+          - 'false'
+    - closed:
+      - math.reply.tables
+      - math.reply.headings
+      - math.reply.list_items
+      reason: direction
+      quote:
+      - Show the steps as a table
+      - Write the explanation as plain paragraphs
+      expect:
+        math.reply.headings:
+          in:
+          - '0'
+    - closed:
+      - math.voice.address
+      reason: direction
+      quote: addressed to the student
+      expect:
+        math.voice.address:
+          in:
+          - you
+          - both
+    - closed:
+      - math.precision.result_sig_figs
+      - math.precision.result_decimals
+      - math.precision.result_basis
+      - math.precision.result_numbers
+      - math.precision.max_decimals
+      - math.precision.long_decimals
+      reason: direction
+      quote: Give every final answer to 3 significant figures.
+      expect:
+        math.precision.result_sig_figs:
+          in:
+          - '3'
+  titration-curve:
+    prompt_set_version: '1'
+    L0:
+    - closed:
+      - math.units.unit_system
+      reason: content
+      quote: 0.100 M
+    L1:
+    - closed:
+      - math.units.unit_system
+      reason: content
+      quote: 0.100 M
+    L2:
+    - closed:
+      - rubric.math.method_family
+      reason: direction
+      quote: Use one exact charge-balance equation for every point, solved numerically
+      expect:
+        rubric.math.method_family:
+          in:
+          - stepwise
+    - closed:
+      - rubric.math.curve_presentation
+      reason: direction
+      quote:
+      - Present the results as a table of volume and pH
+      - describe the shape of the curve in one short paragraph
+      expect:
+        rubric.math.curve_presentation:
+          present:
+          - table
+          - described
+      note: The brief does not rule out a drawn curve or code for one, so only
+        the table and the description are judged.
+    - closed:
+      - rubric.math.assumptions_stated
+      reason: content
+      quote: Treat activities as equal to concentrations, and the volumes as additive.
+    - closed:
+      - math.units.unit_system
+      reason: content
+      quote: 0.100 M
+    - closed:
+      - math.constants.ka_value
+      - math.constants.pka_value
+      - math.constants.kw_value
+      reason: content
+      quote: with Ka = 1.8 × 10^-5 for acetic acid and Kw = 1.0 × 10^-14
+      expect:
+        math.constants.ka_value:
+          in:
+          - '1.8e-05'
+        math.constants.kw_value:
+          in:
+          - 1e-14
+    - closed:
+      - math.methods.methods
+      reason: direction
+      quote: Use one exact charge-balance equation for every point
+      expect:
+        math.methods.methods:
+          present:
+          - charge-balance
+    - closed:
+      - math.reply.tables
+      reason: direction
+      quote: Present the results as a table of volume and pH
+    - closed:
+      - math.precision.result_sig_figs
+      - math.precision.result_decimals
+      - math.precision.result_basis
+      - math.precision.result_numbers
+      - math.precision.max_decimals
+      - math.precision.long_decimals
+      reason: direction
+      quote: with each pH to 2 decimal places
+      expect:
+        math.precision.result_decimals:
+          in:
+          - '2'
+    associations:
+      L0:
+      - variables:
+        - rubric.math.curve_presentation
+        quote: pH curve
+        note: '"Curve" leans toward a drawn curve at every level (docs/leak-check.md,
+          rule 8). Read the share of drawn and plot-code as the default for a
+          request that says "curve".'
+      - variables:
+        - math.code.plot_code
+        quote: pH curve
+        note: '"Curve" leans toward a drawn curve at every level (docs/leak-check.md,
+          rule 8).'
