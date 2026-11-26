@@ -25,7 +25,10 @@ with two data files:
   it can be said, the value a compliant output shows. A variable that depends
   on a closed one is closed with it.
 
-Present now: [website/](website/).
+Present now: [website/](website/), [pipeline/](pipeline/),
+[math/](math/) and [engineering/](engineering/). The last three also decide
+outcomes from the rubric and need tagged records
+([docs/metrics.md](../docs/metrics.md#types-with-a-rubric)).
 
 [tests/test_metrics_data.py](../tests/test_metrics_data.py) checks both files
 against the extractors and the prompts: every extracted feature is declared,
@@ -36,7 +39,8 @@ Filled by these tasks in [tasks.md](../tasks.md):
 
 - T1.5: the website data files (done)
 - T1.6: the metrics and the stability check, as this Python package (done)
-- T2.8 and later: data files for the other project types
+- T2.8: the data files of pipeline, math and engineering (done)
+- Later waves: data files for the other project types
 
 ## Before you run it
 
@@ -155,6 +159,9 @@ when the tables would mean something other than they say:
   not declared;
 - a record's `prompt_set_version` differs from the one in `dictated.yaml`, or
   its task is not in `dictated.yaml`;
+- for a type with a rubric, a record has not been tagged, was tagged at
+  another rubric version, or the records of the table come from two tagger
+  models;
 - a stored value does not fit its declared type, or a number is below its
   first bin edge;
 - one model's records in the batch group have more than one `settings` value;

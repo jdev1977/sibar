@@ -820,9 +820,10 @@ show.
      variables"). The output of `variable_declarations` can be pasted in as
      it is. The tagger also stores `status` (and `error`) for the extractor,
      as every extractor does; declare them under `common`.
-  2. The companion entries have to reach `analysis/<type>/dictated.yaml`,
-     by merging the files or by reading both. The entry format is the same
-     and the variable names are already the full ones.
+  2. Done in T2.8: the companion entries are copied into
+     `analysis/<type>/dictated.yaml` beside the extractors' entries, and a
+     test compares the two files. The gate decides outcomes and `applies_to`
+     is declared per variable ([metrics.md](metrics.md#types-with-a-rubric)).
 - **T2.10 (checker).** Conditional reference answers are graded against the
   choice a response states (a motor speed, a roughness). The rubric records
   the class of such a choice (`near-1500`), not its value; the value is the
