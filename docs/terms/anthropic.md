@@ -43,7 +43,10 @@ under "Reading" is interpretation.
 - **Attribution and disclosure.** No general duty to label published outputs as
   AI-generated was found. The Usage Policy forbids using the services to
   "Plagiarize or submit AI-assisted work without proper permission or
-  attribution", and to "mislead audiences about its origin". §G (Publicity) lets
+  attribution", and to "Impersonate real individuals or entities, or create
+  fake personas or accounts, to falsely attribute content or mislead audiences
+  about its origin, or to convince people they are interacting with a human
+  when they are not." §G (Publicity) lets
   Anthropic name the customer; nothing found limits the customer naming Claude.
 - **Retention.** "For Anthropic API users, we automatically delete inputs and
   outputs on our backend within 30 days of receipt or generation", with
@@ -61,12 +64,20 @@ under "Reading" is interpretation.
   ..., to access the Services through automated or non-human means, whether
   through a bot, script, or otherwise" (Consumer Terms §3). Also forbidden: "To
   crawl, scrape, or otherwise harvest data or information from our Services".
+- Training other models: §3 also forbids use "To develop any products or
+  services that compete with our Services, including to develop or train any
+  artificial intelligence or machine learning algorithms or models or resell
+  the Services." The Usage Policy, including its distillation rule, applies to
+  Claude.ai users too.
 - Outputs: "we assign to you all of our right, title, and interest—if any—in
   Outputs" (§4).
-- Training: Anthropic may use Materials for "training our models, unless you
-  opt out of training through your account settings" (§4). If training is
-  allowed, data may be kept de-identified "for up to 5 years" (consumer privacy
-  article). Deleted chats leave back-end storage "within 30 days".
+- Training on chats: Anthropic may use Materials for "training our models,
+  unless you opt out of training through your account settings" (§4). "Even if
+  you opt out, we will use Materials for model training when: (1) you provide
+  Feedback to us regarding any Materials, or (2) your Materials are flagged for
+  safety review". If training is allowed, data may be kept de-identified "for
+  up to 5 years" (consumer privacy article). Deleted chats leave back-end
+  storage "within 30 days".
 
 ## Reading (not legal advice)
 
@@ -81,4 +92,11 @@ under "Reading" is interpretation.
   competing product or training a model. Using Claude to tag or score other
   models' outputs (T2.5, T4) is not named in any restriction.
 - Typing L0 prompts by hand into Claude.ai fits the automation clause. Whether
-  chats are used for training depends on the account's setting at the time.
+  chats are used for training depends on the account's setting at the time,
+  and rating an answer (thumbs up or down) counts as Feedback even after
+  opting out.
+- §3 reads as a competition rule ("compete with our Services, including to
+  develop or train"). The text does not say whether running sibar's own tagger
+  or scoring (T2.5, T4) on Claude.ai outputs, or publishing those outputs, is
+  caught; neither builds a competing service or trains a model, but a public
+  dataset could be used by others to do so.

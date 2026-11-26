@@ -76,7 +76,10 @@ there is a conflict ..., the additional terms will control for that conflict."
 - Ownership: "Google won't claim ownership over that content."
 - Data: history auto-deletes after 18 months by default; chats seen by human
   reviewers "are retained for up to three years". Settings "control whether your
-  data is used to train generative AI models".
+  data is used to train generative AI models", but "Regardless of your
+  settings, Google uses your chats to respond to you and help protect Google,
+  our users, and the public, including with help from human reviewers." With
+  history off, chats are still "saved for around 2 months".
 
 ## Reading (not legal advice)
 
@@ -86,9 +89,19 @@ there is a conflict ..., the additional terms will control for that conflict."
   expect sharing ("anyone you share it with") and override on conflict; §5(e)
   appears aimed at third-party content (its §5(a) is about it). Neither text
   settles the point for a public dataset.
+- §5(e) also bears on storing: read literally, "build databases, or otherwise
+  create permanent copies" covers keeping outputs in `data/` or `runs/` even
+  before anything is published. The same ownership question decides it.
 - Using unpaid quota means outputs may be read by reviewers and used for
   training. Paid use avoids this; the global constraints currently forbid paid
   calls, so the tier is a decision for the Human.
 - Whether a research baseline is a "professional or business purpose" is not
   defined.
 - Comparing Gemini with other models is not restricted in the text read.
+- Scope differs by surface. The API rule is limited to models "that compete
+  with the Services"; the Google Terms rule for Gemini Apps has no such limit
+  ("to develop machine learning models or related AI technology"). It is listed
+  under "Don't abuse our services". The text does not say whether running
+  sibar's own tagger or scoring (T2.5, T4) on Gemini Apps outputs, or
+  publishing them where others may train on them, counts as developing "related
+  AI technology".

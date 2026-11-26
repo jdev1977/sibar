@@ -72,9 +72,9 @@ other automatic setups" (§3.5(3)).
 - DeepSeek is the most permissive on use: ownership is assigned and training
   other models is expressly allowed, so publishing a dataset raises no
   third-party-training concern.
-- It is also the only provider whose terms impose a duty on publication: every
-  published DeepSeek output must be marked as AI-generated and checked for
-  accuracy first. For a dataset of default outputs, "verify the authenticity and
+- Its terms also impose duties on publication, as OpenAI's Sharing &
+  Publication Policy does: every published DeepSeek output must be marked as
+  AI-generated and checked for accuracy first. For a dataset of default outputs, "verify the authenticity and
   accuracy" cannot mean correcting them (sibar stores them unedited); a clear
   notice that outputs are unverified AI text is the nearest fit, but the text
   does not say whether that suffices.
