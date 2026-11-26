@@ -407,24 +407,26 @@ uses a loop or a mask. Both items carry this rule, word for word (the
 guidance of `cleaning_steps`, and the csv-to-database note of
 `bad_input_handling`; a test checks the three copies):
 
-> Three things are cleaning steps and are never bad-input handling. They are
-> removing repeated rows, dropping or filling rows with a missing value
-> where the rows go to no separate place (with or without a count), and
-> converting the type of a whole column. Rows written to a separate place
-> are always bad-input handling (sets-aside), whatever they failed. Rows
-> removed, reported or repaired because they fail any other test or raise an
-> error are bad-input handling and never a cleaning step.
+> Rows written to a separate place are always bad-input handling
+> (sets-aside) and never a cleaning step, whatever they failed, repeats
+> included. Where the rows go to no separate place, three things are
+> cleaning steps and are never bad-input handling. They are removing
+> repeated rows, dropping or filling rows with a missing value (with or
+> without a count), and converting the type of a whole column. Rows removed,
+> reported or repaired because they fail any other test or raise an error
+> are bad-input handling and never a cleaning step.
 
 The exception is for csv-to-database only, the one task with both items. In
 the other tasks every record that is left out counts as bad-input handling.
-What the rule gives for five common cases:
+What the rule gives for some common cases:
 
 | Code | `cleaning_steps` | `bad_input_handling` |
 |---|---|---|
-| `df.drop_duplicates()` | `removes-duplicates` | nothing from this |
+| `df.drop_duplicates()`, the repeats kept nowhere | `removes-duplicates` | nothing from this |
 | `df.dropna()`, silent | `removes-incomplete-rows` | nothing from this |
 | `df.dropna()` with the number of dropped rows printed | `removes-incomplete-rows` | nothing from this: the rows go to no separate place |
 | A mask for a missing `order_id`, its rows written to `rejects.csv` | nothing from this | `sets-aside` |
+| Repeated rows written to `rejects.csv` or `duplicates.csv` | nothing from this: not `removes-duplicates` | `sets-aside` |
 | `if bad: continue`, where `bad` is a failed test other than a missing value or a repeat (a quantity of 0, an unparseable date) | nothing from this | `skips-silently` |
 | `if bad: continue`, where `bad` is a missing value | `removes-incomplete-rows` | nothing from this |
 

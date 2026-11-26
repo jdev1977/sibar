@@ -148,7 +148,8 @@ def test_the_cleaning_boundary_reads_the_same_in_all_three_places(rubrics):
     note of bad_input_handling give one rule, word for word."""
     pipeline = rubrics["pipeline"]
     rule = pipeline.item("cleaning_steps").guidance
-    assert rule.startswith("Three things are cleaning steps")
+    assert rule.startswith("Rows written to a separate place are always bad-input "
+                           "handling (sets-aside) and never a cleaning step")
     assert pipeline.item("bad_input_handling").task_notes["csv-to-database"] == rule
     text = (ROOT / "docs" / "rubrics.md").read_text(encoding="utf-8")
     assert rule in " ".join(text.replace("\n> ", " ").split())
