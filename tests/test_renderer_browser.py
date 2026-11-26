@@ -319,7 +319,7 @@ def test_no_connection_leaves_the_browser(tmp_path, listener):
         for vector in ("css", "fetch", "img", "popup", "leave"):
             assert f"http://{host}/{vector}" in result.blocked
         assert f"ws://{host}/socket" in result.blocked
-        assert result.popups >= 1
+        assert result.popups == 3  # two window.open calls and the form
 
 
 def test_the_browser_flags_alone_stop_the_network(tmp_path, listener):

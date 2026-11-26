@@ -345,10 +345,10 @@ split is complete; T2.8 decides which to build.
 ### L2 directions that rubric v1 does not measure
 
 Three things an L2 brief dictates have no rubric item, so the rubric gives
-no compliance figure for them. Each needs an owner outside the rubric; the
-owners below are proposals for the coordinator to confirm.
+no compliance figure for them. Each has an owner outside the rubric. The
+project owner accepted these three gaps and the owners below on 2026-11-26.
 
-| Task | L2 direction | Proposed owner | How it can be read |
+| Task | L2 direction | Owner | How it can be read |
 |---|---|---|---|
 | log-aggregation | Read the files one line at a time | T2.7 (sandbox), with T2.8 | The sandbox runs the output on a large fixture under its memory limit, which shows the behavior directly. The extractor can list the read calls as a second reading |
 | data-validation | Check every rule on every reading, so a rejected reading lists all its problems | T2.7 (sandbox) | The second sample reading of the brief breaks three rules. The rejects file the output writes shows whether all three are listed |
@@ -559,10 +559,10 @@ thin, the better fix is more rules or a tone item built on a countable fact
 (for instance, whether the copy makes a claim of being the best), added as
 website.v2.
 
-**Not scheduled.** T2.5 names the three Phase 2 types. Calibrating
-`website.v1` means tagging website outputs of the pilot (T1.7) as well, and
-30 more outputs for the Human. That is the Human's call; the rubric costs
-nothing until then.
+**Scheduled.** T2.5 names the three Phase 2 types; the project owner added
+`website.v1` to its calibration on 2026-11-26. That means tagging website
+outputs of the pilot (T1.7) as well, by the same sample, measure and bar as
+the other rubrics, and 30 more outputs for the Human.
 
 ## What a prompt dictates
 
@@ -639,7 +639,10 @@ item, and that every quote is found in wording A.
 
 T2.5 tags 100 outputs per type with three Claude models, compares each with
 the Human's tags on 30 of them, picks the cheapest model that meets the bar,
-and tags a sample with a non-Claude model. This section recommends how.
+and tags a sample with a non-Claude model. This section says how. The
+project owner accepted the agreement measure and the bar below on
+2026-11-26; the four types calibrated are pipeline, math, engineering and
+website.
 
 ### The sample
 
@@ -714,7 +717,8 @@ effect of a narrow set of answers. It is reported, not part of the bar: with
 
 ### The bar
 
-A tagger model passes for a type when all four hold on the Human's 30:
+Decided on 2026-11-26. A tagger model passes for a type when all four hold
+on the Human's 30:
 
 | # | Condition | Why this number |
 |---|---|---|
@@ -743,7 +747,7 @@ of that task first.
 
 ### Choosing, and what to do with a failing item
 
-1. Take the cheapest model that passes for all three types. A different
+1. Take the cheapest model that passes for every calibrated type. A different
    tagger per type is allowed but costs clarity; prefer one.
 2. If none passes, look at the items before the models. An item that every
    tagger fails against the Human, while the taggers agree with each other,
@@ -810,11 +814,12 @@ show.
   solution there; the gate item does.
 - **Metrics for these types (T1.6, T2.11).** Two things are needed before
   rubric variables can be counted by `analysis/`:
-  1. `features.yaml` has one dimension per extractor, and all tags of a type
-     come from one extractor, `rubric.<type>`. Rubric items carry their own
-     dimension (`variable_declarations` writes it), so `features.yaml` needs
-     a per-variable `dimension` that overrides the extractor's. Without it
-     every rubric item of a type falls into one dimension.
+  1. Done in T2.6: all tags of a type come from one extractor,
+     `rubric.<type>`, so `features.yaml` takes a per-variable `dimension`
+     that overrides the extractor's ([metrics.md](metrics.md), "The
+     variables"). The output of `variable_declarations` can be pasted in as
+     it is. The tagger also stores `status` (and `error`) for the extractor,
+     as every extractor does; declare them under `common`.
   2. The companion entries have to reach `analysis/<type>/dictated.yaml`,
      by merging the files or by reading both. The entry format is the same
      and the variable names are already the full ones.

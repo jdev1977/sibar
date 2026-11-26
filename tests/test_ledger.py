@@ -714,3 +714,88 @@ def test_the_command_runs_as_a_module(tmp_path):
     assert done.returncode == 0, done.stderr
     assert "b1" in done.stdout
     assert done.stderr == ""
+
+
+# Settling a reservation made by an earlier process (T2.6: a batch is
+# submitted by one run and its results are collected by a later one).
+
+def test_a_later_ledger_settles_an_open_reservation_from_the_file(tmp_path):
+    with open_ledger(tmp_path) as first:
+        reservation = reserve(first)
+    with open_ledger(tmp_path) as second:
+        assert second.spent_usd == WORST  # still counted at its worst case
+        reopened = second.reopen(reservation.call_id)
+        assert reopened == reservation
+        charge = second.settle(reopened, Usage(input=1000, output=100))
+        assert charge.cost_usd == Decimal("0.002")
+        assert second.spent_usd == Decimal("0.002")
+    assert [line["type"] for line in lines(tmp_path)] == ["reserve", "charge"]
+    assert read_ledger(tmp_path / "ledger.jsonl").ok
+
+
+def test_reopen_refuses_a_settled_unknown_or_foreign_call(tmp_path):
+    with open_ledger(tmp_path) as first:
+        settled = reserve(first)
+        first.settle(settled, Usage(input=1, output=1))
+    with open_ledger(tmp_path, batch="b2") as other:
+        foreign = reserve(other)
+    with open_ledger(tmp_path) as ledger:
+        for call_id, message in ((settled.call_id, "already settled"),
+                                 (str(uuid.uuid4()), "no reservation"),
+                                 (foreign.call_id, "batch")):
+            with pytest.raises(LedgerError, match=message):
+                ledger.reopen(call_id)
+
+
+def test_reopen_returns_the_open_reservation_made_by_the_same_ledger(tmp_path):
+    with open_ledger(tmp_path) as ledger:
+        reservation = reserve(ledger)
+        assert ledger.reopen(reservation.call_id) is reservation
+
+
+def test_reopen_says_which_refusal_it_is(tmp_path):
+    # A caller may pass over "already settled" and "never reserved" and
+    # must stop on anything else.
+    with open_ledger(tmp_path) as first:
+        settled = reserve(first)
+        first.settle(settled, Usage(input=1, output=1))
+    with open_ledger(tmp_path, batch="b2") as other:
+        foreign = reserve(other)
+    with open_ledger(tmp_path) as ledger:
+        with pytest.raises(ledger_module.AlreadySettled):
+            ledger.reopen(settled.call_id)
+        with pytest.raises(ledger_module.NotReserved):
+            ledger.reopen(str(uuid.uuid4()))
+        with pytest.raises(LedgerError) as caught:
+            ledger.reopen(foreign.call_id)
+        assert not isinstance(caught.value, (ledger_module.AlreadySettled,
+                                             ledger_module.NotReserved))
+
+
+def test_a_caller_may_choose_the_call_id(tmp_path):
+    # So the id can be written down before the reservation is made.
+    call_id = str(uuid.uuid4())
+    with open_ledger(tmp_path) as ledger:
+        reservation = ledger.reserve(model_id="m", record_id=str(uuid.uuid4()),
+                                     prompt_tokens=1000, max_output_tokens=1000,
+                                     call_id=call_id)
+        assert reservation.call_id == call_id
+        with pytest.raises(LedgerError, match="already"):
+            ledger.reserve(model_id="m", record_id=str(uuid.uuid4()),
+                           prompt_tokens=1000, max_output_tokens=1000,
+                           call_id=call_id)
+        with pytest.raises(LedgerError, match="call_id"):
+            ledger.reserve(model_id="m", record_id=str(uuid.uuid4()),
+                           prompt_tokens=1000, max_output_tokens=1000,
+                           call_id="NOT-A-UUID")
+    assert [line["call_id"] for line in lines(tmp_path)] == [call_id]
+
+
+def test_the_lock_and_money_helpers_are_public(tmp_path):
+    handle = ledger_module.lock_file(tmp_path / "x.lock")
+    try:
+        with pytest.raises(LedgerError):
+            ledger_module.lock_file(tmp_path / "x.lock")
+    finally:
+        ledger_module.unlock_file(handle)
+    assert ledger_module.usd_text(Decimal("1.2500")) == "1.25"

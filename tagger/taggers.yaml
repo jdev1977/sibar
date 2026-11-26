@@ -1,0 +1,74 @@
+# Tagging models (T2.6). Loaded and checked by tagger/models.py.
+#
+# A tagger reads model outputs and answers the rubric items; it is not a model
+# under test, so this list is kept apart from models.yaml and the pilot. A
+# tagger that is also in models.yaml takes its prices and limits from there
+# (one source for each price). A tagger that is not gives them under `model`,
+# from the provider's own pages, read on date_checked. Nothing here was
+# confirmed by a live API call: no keys exist yet.
+#
+# Prices are the standard (not batch) rates in USD per 1M tokens. The ledger
+# reserves and charges every tagging request at these rates (docs/ledger.md:
+# batch discounts are ignored), so its figures are the most a run can cost.
+# `batch_discount` is what the provider's batch API charges as a share of
+# those rates; it is used only to print the expected bill.
+#
+# T2.5 calibrates three Claude taggers (Haiku, Sonnet, Opus) and tags a sample
+# with a non-Claude tagger (an OpenAI model here) for the bias check.
+
+schema_version: 1
+
+# Set to true only by the person running the project, after checking this
+# file. A paid tagging run is refused until then.
+confirmed_by_human: false
+
+# Default output limit sent with every tagging request (max_tokens), covering
+# thinking. The ledger reserves it in full for every request.
+max_tokens: 16000
+
+batch_discount:
+  anthropic:
+    factor: "0.5"
+    source: https://platform.claude.com/docs/en/about-claude/pricing
+    date_checked: 2026-11-26
+    note: '"All usage is charged at 50 percent of the standard API prices."'
+  openai:
+    factor: "0.5"
+    source: https://developers.openai.com/api/docs/pricing
+    date_checked: 2026-11-26
+    note: >-
+      The batch rates listed for gpt-6-luna and gpt-6.2-sol are half the
+      standard rates in both prompt-length tiers; the batch guide says 50%.
+
+taggers:
+  - id: claude-haiku-5-5        # prices and limits from models.yaml
+    provider: anthropic
+
+  - id: claude-sonnet-5-5
+    provider: anthropic
+    model:
+      display_name: Claude Sonnet 5.5
+      input_price_per_mtok_usd: 2.00
+      output_price_per_mtok_usd: 10.00
+      max_output_tokens: 128000
+      api_key_env: ANTHROPIC_API_KEY
+      sources:
+        - https://platform.claude.com/docs/en/models/sonnet-5-5/overview
+        - https://platform.claude.com/docs/en/about-claude/pricing
+      date_checked: 2026-11-26
+      notes:
+        price: >-
+          One rate over the whole 1M context window (long context pricing:
+          only Haiku 5.5 is priced by prompt length).
+        thinking: >-
+          Adaptive thinking is on by default; default effort high. Setting
+          temperature, top_p or top_k returns a 400 error.
+
+  - id: claude-opus-5-5         # prices and limits from models.yaml
+    provider: anthropic
+
+  - id: gpt-6-luna              # non-Claude tagger for the bias check
+    provider: openai
+
+  - id: gpt-6.2-sol
+    provider: openai

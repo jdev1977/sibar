@@ -421,3 +421,42 @@ def test_t_quantiles_beyond_the_table():
     for df, value in T975.items():            # the method agrees with the table
         assert abs(_t_cdf_upper_half(value, df) - 0.475) < 0.0002, df
     assert t975(12) == 2.179 and t975(20) == 2.086 and t975(5) == 2.571
+
+
+# A per-variable dimension (T2.6): every tag of a rubric comes from one
+# extractor, rubric.<type>, but each item has its own dimension.
+
+def _rubric_spec_dir(tmp_path, declared):
+    import yaml
+    features = {
+        "schema_version": 1, "project_type": "pipeline", "metrics_version": "1",
+        "extractor_versions": {"rubric.pipeline": "1@claude-haiku-5-5"},
+        "dimensions": {"rubric.pipeline": "rubric"},
+        "common": {"status": {"type": "categorical", "role": "diagnostic",
+                              "why": "health"}},
+        "features": declared,
+    }
+    (tmp_path / "features.yaml").write_text(yaml.safe_dump(features), encoding="utf-8")
+    (tmp_path / "dictated.yaml").write_text(
+        yaml.safe_dump({"project_type": "pipeline", "tasks": {}}), encoding="utf-8")
+    return tmp_path
+
+
+def test_a_variable_may_declare_its_own_dimension(tmp_path):
+    from tagger.rubric import load_checked, variable_declarations
+    rubric = load_checked("pipeline")
+    spec = load_spec("pipeline", _rubric_spec_dir(tmp_path, variable_declarations(rubric)))
+    assert spec.variables["rubric.pipeline.opening"].dimension == "tone"
+    assert spec.variables["rubric.pipeline.scheduling"].dimension == "operation"
+    # Without its own dimension a variable keeps its extractor's.
+    assert spec.variables["rubric.pipeline.status"].dimension == "rubric"
+    assert {v.dimension for v in spec.variables.values()} == \
+        set(rubric.dimensions) | {"rubric"}
+
+
+def test_a_variable_dimension_must_be_a_name(tmp_path):
+    from analysis.spec import SpecError
+    declared = {"rubric.pipeline": {"opening": {
+        "type": "categorical", "role": "provisional", "dimension": ""}}}
+    with pytest.raises(SpecError, match="dimension"):
+        load_spec("pipeline", _rubric_spec_dir(tmp_path, declared))

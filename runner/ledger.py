@@ -60,6 +60,14 @@ class LedgerError(ValueError):
     """The ledger cannot do what was asked; no call may be sent."""
 
 
+class AlreadySettled(LedgerError):
+    """``reopen``: the call has its charge already."""
+
+
+class NotReserved(LedgerError):
+    """``reopen``: the ledger holds no reservation for the call."""
+
+
 class BudgetExceeded(LedgerError):
     """The next call could take spending past a cap. The run must stop."""
 
@@ -155,10 +163,13 @@ def _sum(amounts):
         return sum(amounts, Decimal(0))
 
 
-def _text(amount):
+def usd_text(amount):
     """A Decimal as plain digits, without an exponent or trailing zeros."""
     with _exact():
         return format(amount.normalize(), "f")
+
+
+_text = usd_text  # the name older callers import
 
 
 def _cap(value, name):
@@ -300,11 +311,13 @@ def totals(entries):
 # --- One process at a time -------------------------------------------------------
 
 
-def _lock(path):
+def lock_file(path):
     """Take an exclusive lock on the file at ``path``; return its descriptor.
 
     The operating system drops the lock when the process ends, however it ends,
-    so a crash leaves nothing to clean up. The file itself stays.
+    so a crash leaves nothing to clean up. The file itself stays. Raises
+    :class:`LedgerError` if another holder has it. Release with
+    :func:`unlock_file`.
     """
     handle = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
     try:
@@ -321,7 +334,8 @@ def _lock(path):
     return handle
 
 
-def _unlock(handle):
+def unlock_file(handle):
+    """Release a lock taken by :func:`lock_file`."""
     try:
         if os.name == "nt":
             import msvcrt
@@ -329,6 +343,9 @@ def _unlock(handle):
             msvcrt.locking(handle, msvcrt.LK_UNLCK, 1)
     finally:
         os.close(handle)
+
+
+_lock, _unlock = lock_file, unlock_file  # the names older callers import
 
 
 # --- The ledger ------------------------------------------------------------------
@@ -367,6 +384,7 @@ class Ledger:
         self.repaired_tail = None
         self._mutex = threading.Lock()
         self._open = {}  # call_id -> Reservation made by this object
+        self._unsettled = {}  # call_id -> reserve entry with no charge, from the file
         self._broken = False
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._handle = _lock(self.path.with_name(self.path.name + ".lock"))
@@ -390,8 +408,13 @@ class Ledger:
             # whose reservation then counts instead. (That is less than the
             # charge only if the call cost more than was reserved.)
             self.repaired_tail = repair_tail(self.path)
+        counted = _calls(found.entries)
+        # Reservations with no charge yet, so that a later run can settle
+        # them (reopen): a batch's results can arrive after its run ended.
+        self._unsettled = {call_id: entry for call_id, entry in counted.items()
+                           if entry["type"] == "reserve"}
         return {call_id: (entry["batch_id"], Decimal(entry["cost_usd"]))
-                for call_id, entry in _calls(found.entries).items()}
+                for call_id, entry in counted.items()}
 
     def close(self):
         """Release the file. Unsettled calls stay charged at their worst case."""
@@ -481,8 +504,12 @@ class Ledger:
         self._calls[call.call_id] = (call.batch_id, cost)
 
     def reserve(self, *, model_id, record_id, prompt_tokens,
-                max_output_tokens=None):
+                max_output_tokens=None, call_id=None):
         """Allow one call, or raise; send nothing unless this returns.
+
+        ``call_id`` (a lower-case UUID not in the ledger) lets the caller write
+        the id down before the reservation exists, so that a crash between
+        the two leaves nothing it cannot find; a new one is made if None.
 
         ``prompt_tokens`` is a high estimate (see
         :func:`estimate_prompt_tokens`). ``max_output_tokens`` is the output
@@ -507,16 +534,55 @@ class Ledger:
             if not (isinstance(record_id, str) and _UUID.fullmatch(record_id)):
                 raise LedgerError(
                     f"record_id: must be a lower-case UUID, not {record_id!r}")
+            if call_id is None:
+                call_id = str(uuid.uuid4())
+            elif not (isinstance(call_id, str) and _UUID.fullmatch(call_id)):
+                raise LedgerError(
+                    f"call_id: must be a lower-case UUID, not {call_id!r}")
+            elif call_id in self._calls:
+                raise LedgerError(f"call {call_id} is already in the ledger")
             worst = call_cost(model, prompt_tokens, max_output_tokens)
             for scope, cap, spent in self._caps():
                 if _sum((spent, worst)) > cap:
                     raise BudgetExceeded(scope, self.batch_id, cap, spent, worst)
             reservation = Reservation(
-                str(uuid.uuid4()), self.batch_id, record_id, model.provider,
+                call_id, self.batch_id, record_id, model.provider,
                 model.id, prompt_tokens, max_output_tokens, worst)
             self._write("reserve", reservation,
                         (prompt_tokens, max_output_tokens, None), worst, True)
             self._open[reservation.call_id] = reservation
+            return reservation
+
+    def reopen(self, call_id):
+        """The open :class:`Reservation` of ``call_id``, so it can be settled.
+
+        For a call reserved by an earlier run of this batch whose result
+        arrives later, such as a request in a provider's batch job. The
+        reservation is rebuilt from its ``reserve`` line. Raises
+        :class:`AlreadySettled` if the call has its charge,
+        :class:`NotReserved` if the ledger has no such call, and
+        :class:`LedgerError` if it belongs to another batch or the ledger
+        cannot be used.
+        """
+        with self._mutex:
+            self._require_usable()
+            if call_id in self._open:
+                return self._open[call_id]
+            entry = self._unsettled.get(call_id)
+            if entry is None:
+                if call_id in self._calls:
+                    raise AlreadySettled(f"call {call_id} is already settled")
+                raise NotReserved(f"call {call_id}: no reservation in the ledger")
+            if entry["batch_id"] != self.batch_id:
+                raise LedgerError(f"call {call_id} belongs to batch "
+                                  f"{entry['batch_id']!r}, not {self.batch_id!r}")
+            tokens = entry["tokens"]
+            reservation = Reservation(
+                call_id, entry["batch_id"], entry["record_id"], entry["provider"],
+                entry["model_id"], tokens["input"], tokens["output"],
+                Decimal(entry["cost_usd"]))
+            del self._unsettled[call_id]
+            self._open[call_id] = reservation
             return reservation
 
     def settle(self, reservation, usage, *, request_id=None):
