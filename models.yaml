@@ -19,7 +19,7 @@
 schema_version: 1
 
 # Set to true only by the person running the project, after checking this file.
-confirmed_by_human: false
+confirmed_by_human: true
 
 # Pilot (Phase 1, three models): the main models of Anthropic, OpenAI and
 # Google. Main models are what most users get by default, and these three
