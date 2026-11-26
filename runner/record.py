@@ -555,6 +555,7 @@ def build_record(
     """
     if isinstance(timestamp, datetime.datetime):
         timestamp = format_timestamp(timestamp)
+    features = list(features)  # once: it may be a generator, and is read twice
     record = {
         "schema_version": SCHEMA_VERSION,
         "record_id": record_id if record_id is not None else str(uuid.uuid4()),
@@ -587,7 +588,7 @@ def build_record(
         "checks": list(checks),
         "extractors": (_extractors_of(features) if extractors is None
                        else list(extractors)),
-        "features": list(features),
+        "features": features,
     }
     record = copy.deepcopy(record)
     _raise_if_invalid(record)
@@ -595,11 +596,14 @@ def build_record(
 
 
 def _extractors_of(features):
-    """The extractors named in feature entries, first appearance first."""
+    """The extractors named in feature entries, first appearance first.
+
+    Entries without a text extractor name are skipped; validation reports them.
+    """
     listed = {}
     for entry in features:
-        if isinstance(entry, dict):
-            listed.setdefault(entry.get("extractor"), entry.get("extractor_version"))
+        if isinstance(entry, dict) and isinstance(entry.get("extractor"), str):
+            listed.setdefault(entry["extractor"], entry.get("extractor_version"))
     return [{"extractor": name, "extractor_version": version}
             for name, version in listed.items()]
 

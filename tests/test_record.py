@@ -439,6 +439,23 @@ def test_build_record_lists_extractors_from_features():
     assert record["extractors"] == [{"extractor": "website-css", "extractor_version": "3"}]
 
 
+def test_build_record_keeps_features_given_as_a_generator():
+    entries = [
+        {"name": "fonts", "value": [], "extractor": "website-css", "extractor_version": "3"},
+        {"name": "icons", "value": 0, "extractor": "website-icons", "extractor_version": "1"},
+    ]
+    record = minimal(features=(entry for entry in entries))
+    assert record["features"] == entries
+    assert [e["extractor"] for e in record["extractors"]] == ["website-css", "website-icons"]
+
+
+@pytest.mark.parametrize("name", [["a", "b"], {"x": 1}, 7, None])
+def test_build_record_reports_bad_extractor_name_instead_of_crashing(name):
+    feature = {"name": "fonts", "value": [], "extractor": name, "extractor_version": "1"}
+    with pytest.raises(RecordError, match=r"features\[0\]\.extractor:"):
+        minimal(features=[feature])
+
+
 def test_build_record_copies_its_inputs():
     settings = {"max_tokens": 10}
     record = minimal(settings=settings)
