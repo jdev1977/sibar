@@ -24,10 +24,18 @@ The measures are those of docs/rubrics.md, "Calibration (T2.5)":
 - Gwet's AC1 per single-select item, K being the number of answers either
   side gave, as in the worked examples of docs/rubrics.md;
 - minority agreement, over single-select items, where A's answer is not that
-  item's most common A answer; the ``cannot-tell`` rate of B where A gave a
-  value; the four conditions of the bar;
+  item's most common A answer (only where A answered the item: an item after
+  a gate at which A stopped has no A answer); the ``cannot-tell`` rate of B
+  where A gave a value; the four conditions of the bar;
 - with ``--family``: the agreement gap and the direction per answer between
   outputs written by that provider's models and the others.
+
+**Tagger errors.** An output whose tagging ended in ``status: error`` has no
+answer at all. docs/rubrics.md scores ``cannot-tell`` because it is an answer
+of the tagger; an error is not one, so such an output is left out of every
+measure and counted beside them (in A, in B, and left out). An item stored
+as ``null`` in a ``status: partial`` tagging stays a ``cannot-tell``: that is
+how the metrics read it too.
 """
 
 import json
@@ -67,6 +75,7 @@ class Tagged:
     values: dict                         # item -> stored value (reached items only)
     level: Optional[str] = None
     provider: Optional[str] = None       # of the model that wrote the output
+    error: bool = False                  # the tagging ended in status: error
 
 
 # --- reading ---------------------------------------------------------------------
@@ -87,13 +96,16 @@ def load_tagged_records(path, rubric):
         if rubric.extractor not in listed:
             continue
         versions.add(listed[rubric.extractor])
-        values = {f["name"]: f["value"] for f in record["features"]
-                  if f["extractor"] == rubric.extractor
-                  and f["name"] not in (STATUS, ERROR)}
+        stored = {f["name"]: f["value"] for f in record["features"]
+                  if f["extractor"] == rubric.extractor}
+        values = {k: v for k, v in stored.items() if k not in (STATUS, ERROR)}
+        failed = stored.get(STATUS) == "error"  # no answer: not a cannot-tell
+        if not failed:
+            values.setdefault(rubric.gate_item, None)
         asked = tuple(i.id for i in rubric.items_for(record["task_id"], record["level"]))
-        values.setdefault(rubric.gate_item, None)  # an error: nothing could be read
         out[record["record_id"]] = Tagged(record["task_id"], asked, values,
-                                          record["level"], record["provider"])
+                                          record["level"], record["provider"],
+                                          error=failed)
     if len(versions) > 1:
         raise AgreementError(f"{path}: tags of several versions ({sorted(versions)}); "
                              "compare one tagger and rubric version at a time")
@@ -229,8 +241,11 @@ class Judgement:
 
 
 def judgements(rubric, side_a, side_b):
-    """Every scored (output, item) pair, and the record ids compared."""
-    common = sorted(set(side_a) & set(side_b))
+    """Every scored (output, item) pair, and the record ids compared. An
+    output either side failed to tag (``status: error``) is left out: an
+    error is not an answer (see :func:`errors`)."""
+    common = sorted(rid for rid in set(side_a) & set(side_b)
+                    if not side_a[rid].error and not side_b[rid].error)
     out = []
     for rid in common:
         a, b = side_a[rid], side_b[rid]
@@ -303,12 +318,24 @@ def _by_record(items):
     return groups
 
 
+def errors(side_a, side_b):
+    """Outputs in both taggings that either side failed to tag."""
+    common = set(side_a) & set(side_b)
+    return {"a": sum(side_a[rid].error for rid in common),
+            "b": sum(side_b[rid].error for rid in common),
+            "left_out": sum(side_a[rid].error or side_b[rid].error for rid in common)}
+
+
 def minority(rubric, items):
-    """Agreement where A's answer is not the item's most common A answer."""
+    """Agreement where A's answer is not the item's most common A answer.
+
+    Only judgements where A gave an answer to the item count: where A stopped
+    at the gate, A has no answer to the items after it (B going on there is
+    scored 0 in A(i), but it is not a minority answer of A's)."""
     chosen = []
     by_item = {}
     for j in items:
-        if not rubric.item(j.item).multi:
+        if not rubric.item(j.item).multi and j.cat_a != STOPPED:
             by_item.setdefault(j.item, []).append(j)
     for item_id, group in by_item.items():
         counts = Counter(str(j.cat_a) for j in group)
@@ -320,8 +347,11 @@ def minority(rubric, items):
 def compare(rubric, side_a, side_b, *, reps=2000, seed=0):
     """Every measure of the module text, as a dict."""
     items, common = judgements(rubric, side_a, side_b)
+    failed = errors(side_a, side_b)
     if not items:
-        raise AgreementError("the two taggings have no output in common")
+        raise AgreementError("the two taggings have no output in common" + (
+            f" that both tagged without an error ({failed['left_out']} left out)"
+            if failed["left_out"] else ""))
     per_item = {}
     for item in rubric.items:
         group = [j for j in items if j.item == item.id]
@@ -339,7 +369,7 @@ def compare(rubric, side_a, side_b, *, reps=2000, seed=0):
     small = [j for j in items if per_item[j.item]["n"] < BAR["item_min_n"]]
     minority_a, minority_n = minority(rubric, items)
     result = {
-        "rubric": rubric.name, "outputs": len(common),
+        "rubric": rubric.name, "outputs": len(common), "errors": failed,
         "only_a": len(set(side_a) - set(side_b)), "only_b": len(set(side_b) - set(side_a)),
         "judgements": len(items), "agreement": pooled(items),
         "interval": [low, high], "items": per_item,
@@ -436,9 +466,12 @@ def _f(value):
 
 
 def report(result, fam=None):
-    lines = [f"Rubric {result['rubric']}: {result['outputs']} outputs in common "
+    failed = result["errors"]
+    lines = [f"Rubric {result['rubric']}: {result['outputs']} outputs compared "
              f"({result['only_a']} only in A, {result['only_b']} only in B), "
              f"{result['judgements']} judgements.",
+             f"Left out for a tagger error (status: error, no answer): "
+             f"{failed['left_out']} outputs ({failed['a']} in A, {failed['b']} in B).",
              f"Rubric agreement A = {_f(result['agreement'])} (95% interval "
              f"{_f(result['interval'][0])} to {_f(result['interval'][1])}).", "",
              f"{'item':28} {'n':>4} {'A(i)':>6} {'AC1':>6} {'ct-rate':>7}"]

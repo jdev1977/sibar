@@ -109,6 +109,51 @@ def test_the_bar_and_minority_agreement():
     assert {c["condition"][0]: c["passed"] for c in result["bar"]}["4"] is False
 
 
+def test_judgements_where_a_stopped_at_the_gate_are_not_minority_judgements():
+    # A stops at the gate on 5 of 30 outputs where B goes on. Those 5 gate
+    # answers are A's minority answers; the items after the gate have no A
+    # answer, so they are not minority judgements (docs/rubrics.md, bar 3).
+    a, b = {}, {}
+    for i in range(30):
+        b[f"r{i}"] = tagged(base_values())
+        a[f"r{i}"] = (Tagged("csv-to-database", tuple(CSV), {"response_mode": "declines"})
+                      if i < 5 else tagged(base_values()))
+    result = compare(R, a, b, reps=50)
+    assert result["minority"] == {"agreement": 0.0, "n": 5}
+
+
+def test_tagger_errors_are_left_out_and_counted_not_scored_as_cannot_tell():
+    a = {f"r{i}": tagged(base_values()) for i in range(4)}
+    b = dict(a)
+    b["r1"] = Tagged("csv-to-database", tuple(CSV), {}, "L0", error=True)
+    b["r2"] = Tagged("csv-to-database", tuple(CSV), {}, "L0", error=True)
+    a["r3"] = Tagged("csv-to-database", tuple(CSV), {}, "L0", error=True)
+    result = compare(R, a, b, reps=50)
+    assert result["outputs"] == 1 and result["agreement"] == 1.0
+    assert result["errors"] == {"a": 1, "b": 2, "left_out": 3}
+    assert result["items"]["response_mode"]["cannot_tell_rate"] == 0.0
+    assert "tagger error" in agreement.report(result)
+    # No output left to compare is refused.
+    with pytest.raises(AgreementError):
+        compare(R, {"r1": a["r3"]}, {"r1": a["r0"]}, reps=10)
+
+
+def test_a_tagged_file_marks_outputs_whose_tagging_ended_in_an_error(tmp_path):
+    good, bad = record(), record()
+    items = [i.id for i in R.items_for("csv-to-database", "L0")]
+    values = {i: ([R.item(i).option_ids[0]] if R.item(i).multi
+                  else R.item(i).option_ids[0]) for i in items}
+    values.update(response_mode="answers", status="ok")
+    path = tmp_path / "tagged.jsonl"
+    write_records(path, [
+        with_features(good, "rubric.pipeline", "1@claude-haiku-5-5", values),
+        with_features(bad, "rubric.pipeline", "1@claude-haiku-5-5",
+                      {"status": "error", "error": "no usable answer after retry"})])
+    loaded = agreement.load_tagged_records(path, R)
+    assert not loaded[good["record_id"]].error and loaded[bad["record_id"]].error
+    assert loaded[bad["record_id"]].values == {}
+
+
 def test_the_cross_family_check_flags_a_direction():
     a, b, writers = {}, {}, {}
     item = R.item("opening")
