@@ -521,7 +521,9 @@ position:
 It is one bundled factor (mood, verb, length and, at L2, list against prose);
 it is not the effect of any one of them ([leak-check.md](leak-check.md)). It
 is reported per level and not compared across levels as if it were one
-treatment, because the bundle is wider at L2.
+treatment, because the bundle is wider at L2. When the lower end of the task
+interval of S_w for a dimension is above 0, that wording pair is read again
+for a hint that sits in one wording only.
 
 **Prompt sensitivity** is the shift between two levels of the same task and
 wording, A with A and B with B:
@@ -538,7 +540,9 @@ choice. So the result that is read is the **excess**:
 
 The yardstick is the mean of the two wording shifts, not the larger: the
 larger of two noisy values is too large on average, the mean is not. E needs
-all three shifts.
+all three shifts. E is cautious on purpose: S already compares like wording
+with like, and the wording shift is taken off all the same, so a level
+effect has to exceed what a change of phrasing does before it counts.
 
 **Direction moved a dimension** between two levels when the lower end of the
 task interval of E for the dimension is above 0. Per variable, E is shown
