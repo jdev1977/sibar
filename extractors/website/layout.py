@@ -10,7 +10,7 @@ from extractors.website.css import selector_parts, significant
 from extractors.website.site import get_site
 from extractors.website.values import to_px
 
-NAME, VERSION = "website.layout", "4"
+NAME, VERSION = "website.layout", "5"
 MAX_SECTIONS = 30
 MAX_UNWRAP = 6
 MIN_CARDS = 3

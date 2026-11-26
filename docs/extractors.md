@@ -220,7 +220,8 @@ or more: pale tints (a cream background, `indigo-50`) name a hue in
 Read: hex (3, 4, 6, 8 digits), the 148 CSS named colours (as words only in
 colour properties, or as a custom property's whole value), `rgb() rgba()
 hsl() hsla() hwb() oklab() oklch()` in legacy and modern syntax, and
-`var()` followed to custom properties (four levels). A custom property takes
+`var()` followed to custom properties (alias chains of any length). A custom
+property takes
 its value from `:root`, `html`, `body` or `@theme` outside `@media`, else from
 any other selector that does not mention dark; on a page that starts dark
 (`forced_dark`), values on `.dark`, `html.dark` or `[data-theme="dark"]`
@@ -228,17 +229,32 @@ win, for CSS rules and for Tailwind theme values alike. Counted as
 `unparsed_colors`: `lab() lch() color() color-mix() light-dark()` and
 `var()` with no value or fallback.
 
-Following `var()` is bounded so hostile stylesheets stay linear: each custom
-property is expanded once (its own top-level `var()`s substituted) and its
-colours read once, then reused; a value that expands past 200 component
-values, or past 300 characters when substituted as text inside a colour
-function, is treated as unreadable; at most 50 colours are taken from one
-property; a cycle reads as unknown.
+Following `var()` is bounded so that a hostile stylesheet costs time in
+proportion to its size:
+
+- each custom property is expanded once (its own top-level `var()`s
+  substituted) and its colours read once, then reused;
+- a value that expands past 400 component values is unreadable. Values inside
+  functions and blocks count too, so a huge gradient behind a variable is not
+  one value (a six-layer mesh gradient is about 140, a five-layer shadow
+  about 90);
+- as text inside a colour function (`hsl(var(--primary))`) the limit is 300
+  characters; at most 50 colours are taken from one property;
+- every use is charged to a budget of 300,000 per page and extractor: one for
+  each component value spliced in and each character substituted. A page that
+  spends it gets its remaining `var()`s left unresolved (they count as
+  unreadable, as above). The hand-made fixtures spend under 200.
+
+What a property resolves to depends on the stylesheet only, not on which rule
+uses it first: a property that reaches a cycle of `var()`s is unreadable, and
+so is every property that reaches it. Only a page that spends the budget is
+cut off at a point that depends on its rule order (the same page still gives
+the same features every time).
 
 ## The website extractors
 
 Versions: palette, fonts, layout, corners-shadows, gradients and dark-mode
-`4`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
+`5`; stock phrases `2+rules.2`; the others `1`. "No input" lists when the
 extractor returns `status: no-input`.
 
 ### website.palette

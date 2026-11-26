@@ -11,7 +11,7 @@ from extractors.website.values import (
     Resolver, color_nodes, substitute_vars, visible,
 )
 
-NAME, VERSION = "website.gradients", "4"
+NAME, VERSION = "website.gradients", "5"
 GRADIENTS = {"linear-gradient": "linear", "radial-gradient": "radial",
              "conic-gradient": "conic", "repeating-linear-gradient": "linear",
              "repeating-radial-gradient": "radial",

@@ -932,6 +932,144 @@ def test_var_resolution_is_bounded(name):
     assert all(values["status"] == "ok" for _, values in results.values())
 
 
+# --- Fix round 4 ------------------------------------------------------------------
+
+
+def _stops(count):
+    return ",".join("red %d%%" % (n % 100) for n in range(count))
+
+
+SPLICE_BOMBS = {
+    # A huge gradient behind an alias that repeats it 99 times, used by many
+    # rules: rules x references x inner size if only top-level values count.
+    "alias-of-huge": ":root{--big:linear-gradient(%s);--a:%s}" % (
+        _stops(1000), " ".join(["var(--big)"] * 99)) + "".join(
+        ".a%d{background:var(--a);box-shadow:var(--a);font-family:var(--a)}" % i
+        for i in range(2000)),
+    # One huge function used directly by many rules.
+    "huge-shared": ":root{--big:linear-gradient(%s)}" % _stops(3000) + "".join(
+        ".a%d{background:var(--big);box-shadow:var(--big)}" % i
+        for i in range(5000)),
+    # The same just under the size cap: every use is a full walk, so the
+    # page budget has to stop it.
+    "large-shared": ":root{--g:linear-gradient(%s);--a:var(--g),var(--g)}"
+    % _stops(30) + "".join(
+        ".a%d{background:var(--a);box-shadow:var(--a);color:rgb(var(--a))}" % i
+        for i in range(12000)),
+    # Aliases that each add to the one before, and nesting in functions.
+    "growing-chain": ":root{--c0:red;" + "".join(
+        "--c%d:var(--c%d) f(var(--c%d)) 1px;" % (n, n - 1, n - 1)
+        for n in range(1, 20000)) + "}" + "".join(
+        ".a%d{background:var(--c%d);color:var(--c%d)}" % (n, n, n)
+        for n in range(1, 20000, 7)),
+    # Many different colour-function texts, each resolved as text.
+    "text-uses": ":root{--h:%s}" % ("1 " * 140) + "".join(
+        ".a%d{color:hsl(var(--h) var(--h) %d)}" % (i, i) for i in range(20000)),
+}
+
+
+@pytest.mark.parametrize("name", sorted(SPLICE_BOMBS))
+def test_var_splicing_is_bounded_per_page(name):
+    page = ("<style>%s</style><body><p>x</p></body>" % SPLICE_BOMBS[name]).encode()
+    start = time.perf_counter()
+    results = run_extractors(WEBSITE, Inputs([InputFile("index.html", page)]))
+    assert time.perf_counter() - start < 10
+    assert all(values["status"] == "ok" for _, values in results.values())
+
+
+def _resolver(css):
+    from extractors.website.css import parse_css
+    from extractors.website.values import Resolver
+    return Resolver(parse_css(css, "x.css").declarations)
+
+
+def _texts(resolver, names):
+    from extractors.website.css import serialize
+    out = {}
+    for name in names:
+        nodes = resolver.expanded(name)
+        out[name] = None if nodes is None else serialize(nodes)
+    return out
+
+
+@pytest.mark.parametrize("css, expected", [
+    # An alias chain deeper than any depth limit resolves from either end.
+    (":root{--c0:var(--c1);--c1:var(--c2);--c2:var(--c3);--c3:var(--c4);"
+     "--c4:var(--c5);--c5:var(--c6);--c6:var(--c7);--c7:#ff0000}",
+     {"--c%d" % n: "#ff0000" for n in range(8)}),
+    # Everything that reaches a cycle is unreadable, whichever is asked first.
+    (":root{--a:var(--b);--b:red var(--a);--x:1px var(--y);--y:var(--r);"
+     "--r:var(--y) var(--x);--u:blue var(--a);--ok:2px var(--nope)}",
+     {"--a": None, "--b": None, "--x": None, "--y": None, "--r": None,
+      "--u": None, "--ok": "2px var(--nope)"}),
+])
+def test_var_expansion_does_not_depend_on_the_order_of_use(css, expected):
+    import itertools
+    names = sorted(expected)
+    orders = (itertools.permutations(names) if len(names) <= 7
+              else [names, names[::-1], names[3:] + names[:3]])
+    for order in orders:
+        assert _texts(_resolver(css), order) == expected
+
+
+def test_colours_through_nested_vars_do_not_depend_on_the_order_of_use():
+    from extractors.website.values import color_nodes
+    css = (":root{" + "".join("--n%d:f(var(--n%d));" % (n, n + 1) for n in range(8))
+           + "--n8:#ff0000;--p:g(var(--q));--q:g(var(--p)) #00ff00;"
+           "--s:h(var(--p)) #0000ff}"
+           ".a{color:var(--n0)}.b{color:var(--n5)}.c{color:var(--p)}"
+           ".d{color:var(--q)}.e{color:var(--s)}")
+    from extractors.website.css import parse_css
+    uses = [d for d in parse_css(css, "x.css").declarations if d.prop == "color"]
+    seen = set()
+    for order in (uses, uses[::-1], uses[2:] + uses[:2]):
+        resolver = _resolver(css)
+        read = {d.selector: color_nodes(d.value, d.prop, resolver) for d in order}
+        seen.add(json.dumps(read, sort_keys=True))
+        assert read[".a"] == read[".b"] == ([("#ff0000", 1.0)], 0)
+        assert read[".c"] == read[".d"] == read[".e"] == ([], 1)
+    assert len(seen) == 1
+
+
+def test_palette_is_the_same_whatever_the_rule_order():
+    tokens = (":root{--c0:var(--c1);--c1:var(--c2);--c2:var(--c3);--c3:var(--c4);"
+              "--c4:var(--c5);--c5:var(--c6);--c6:#e11d48}")
+    rules = [".a{color:var(--c0)}", ".b{background:var(--c4)}",
+             ".c{border-color:var(--c6)}"]
+    results = {json.dumps(only("palette", "<style>%s%s</style><p>x</p>" % (
+        tokens, "".join(order))), sort_keys=True)
+        for order in (rules, rules[::-1])}
+    assert len(results) == 1
+    assert "#e11d48" in json.loads(results.pop())["colors"]
+
+
+def test_ordinary_design_tokens_still_resolve():
+    # A six-layer mesh gradient, a five-layer shadow and aliases of both.
+    mesh = ",".join(
+        "radial-gradient(at %d%% %d%%, hsla(%d,100%%,74%%,1) 0px, transparent 50%%)"
+        % (x, y, h) for x, y, h in ((40, 20, 28), (80, 0, 189), (0, 50, 355),
+                                    (80, 50, 340), (0, 100, 22), (80, 100, 242)))
+    shadow = ",".join("0 %dpx %dpx rgba(15, 23, 42, 0.0%d)" % (n, 2 * n, n)
+                      for n in (1, 2, 4, 8, 16))
+    page = ("<style>:root{--mesh:%s;--hero-bg:var(--mesh);--shadow-xl:%s;"
+            "--card-shadow:var(--shadow-xl);--radius:12px;--brand:#4f46e5;"
+            "--font:'Inter',sans-serif;--body-font:var(--font)}"
+            "body{font-family:var(--body-font)}.hero{background:var(--hero-bg)}"
+            ".card{box-shadow:var(--card-shadow);border-radius:var(--radius);"
+            "color:var(--brand)}</style><body><p>x</p></body>" % (mesh, shadow))
+    results = run_extractors(WEBSITE, Inputs([InputFile("index.html",
+                                                        page.encode())]))
+    by = {full.split(".", 1)[1]: values for full, (_, values) in results.items()}
+    assert by["gradients"]["gradient_count"] == 6
+    assert by["gradients"]["gradient_types"] == ["radial"]
+    assert by["gradients"]["gradient_targets"] == ["hero"]
+    assert by["corners-shadows"]["shadow_count"] == 1
+    assert by["corners-shadows"]["radii"] == ["12px"]
+    assert by["fonts"]["primary_font"] == "inter"
+    assert "#4f46e5" in by["palette"]["colors"]
+    assert by["palette"]["unparsed_colors"] == 0
+
+
 def test_wrapper_with_its_own_heading_is_not_unwrapped():
     # N3: a wrapper whose direct children include an h2 is a section itself.
     page = ("<body><div><h2>Pricing</h2><div class='grid'><div><h3>Free</h3>"

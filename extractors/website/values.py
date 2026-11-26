@@ -2,12 +2,14 @@
 shared by the website extractors."""
 
 import re
+from itertools import islice
 
 import tinycss2
 
 from extractors.website import colors
 from extractors.website.css import (
-    is_dark_page_selector, is_page_selector, serialize, significant, walk,
+    MAX_VALUE_DEPTH, is_dark_page_selector, is_page_selector, serialize,
+    significant, walk,
 )
 
 # Properties whose plain words (``red``, ``navy``) are colours.
@@ -22,16 +24,65 @@ COLOR_PROPERTIES = frozenset({
     "scrollbar-color", "text-emphasis-color", "flood-color", "lighting-color",
     "-webkit-text-fill-color", "-webkit-text-stroke-color", "-webkit-text-stroke",
 })
-MAX_VAR_DEPTH = 4
-# Bounds on following var(): a custom property whose value, with its own
-# var()s substituted, passes MAX_EXPANDED nodes (or MAX_TEXT characters as
-# text) is treated as unreadable; each property is expanded once and its
-# colours read once (memoised), so fan-out (--a: var(--b) var(--b) ...) and
-# huge values cost linear time.
-MAX_EXPANDED = 200
+MAX_VAR_DEPTH = 4  # rounds of var() substitution in colour-function text
+# Bounds on following var(), so that a hostile stylesheet costs time in
+# proportion to its size and no more:
+# - a custom property whose value, with its top-level var()s substituted,
+#   holds more than MAX_EXPANDED component values is unreadable. Every value
+#   counts, also those inside functions and blocks, so nesting hides nothing;
+# - as text inside a colour function the limit is MAX_TEXT characters;
+# - at most MAX_VAR_COLORS colours are taken from one property;
+# - each property is expanded once and its colours read once (memoised);
+# - every use of a property is charged against one budget per page,
+#   MAX_PAGE_WORK: a component value spliced in or a character substituted
+#   costs one unit. When the budget is spent, the var()s that follow are left
+#   unresolved. Ordinary pages use a small part of it.
+MAX_EXPANDED = 400
 MAX_TEXT = 300
 MAX_VAR_COLORS = 50
+MAX_PAGE_WORK = 300_000
 FONT_SIZE_PX = 16  # rem and em are read as 16px
+
+_MISSING, _PENDING, _CYCLE = object(), object(), object()
+
+
+def _var_target(node):
+    """The custom property a ``var()`` node names (lower case), else None."""
+    if node.type != "function" or node.lower_name != "var":
+        return None
+    for argument in node.arguments:
+        if argument.type in ("whitespace", "comment"):
+            continue
+        return argument.value.lower() if argument.type == "ident" else None
+    return None
+
+
+def _size(node, limit):
+    """Component values in ``node``, itself included, counted to ``limit``."""
+    return sum(1 for _ in islice(walk((node,)), max(limit, 1)))
+
+
+def _scan(nodes):
+    """:func:`walk` that does not enter colour functions (they are read
+    whole)."""
+    stack = [iter(nodes or ())]
+    while stack:
+        node = next(stack[-1], None)
+        if node is None:
+            stack.pop()
+            continue
+        yield node
+        if node.type == "function":
+            if (node.lower_name in colors.COLOR_FUNCTIONS
+                    or node.lower_name in colors.UNREAD_COLOR_FUNCTIONS):
+                continue
+            inner = node.arguments
+        elif node.type in ("() block", "[] block", "{} block"):
+            inner = node.content
+        else:
+            inner = None
+        if inner and len(stack) <= MAX_VALUE_DEPTH:
+            stack.append(iter(inner))
 
 
 class Resolver:
@@ -42,6 +93,12 @@ class Resolver:
     ``@media`` whose selector does not mention dark. With ``dark`` (a page
     forced into its dark theme), declarations on dark selectors of the page
     (``.dark``, ``html.dark``, ``[data-theme="dark"]``) win over both.
+
+    What a name resolves to depends on the stylesheet alone, never on which
+    rule asked first: alias chains are followed to any length (without
+    recursion), and a property that reaches a cycle is unreadable. The one
+    exception is a page that spends :data:`MAX_PAGE_WORK`: from then on
+    nothing more resolves (the same page still gives the same result).
     """
 
     def __init__(self, declarations, dark=False):
@@ -57,39 +114,86 @@ class Resolver:
             elif "dark" not in declaration.selector.lower():
                 other[declaration.prop] = declaration
         self.values = {**other, **page, **forced}
-        self._expanded, self._text, self._colors = {}, {}, {}
+        self._expanded, self._sizes, self._text, self._colors = {}, {}, {}, {}
+        self._resolved = {}
+        self.budget = MAX_PAGE_WORK
+
+    def spend(self, units):
+        """Charge ``units`` of work to the page; False once the budget is
+        spent (and then for every later call)."""
+        if units >= self.budget:
+            self.budget = 0
+            return False
+        self.budget -= max(units, 1)
+        return True
 
     def lookup(self, name):
         declaration = self.values.get(name.lower() if name.startswith("--")
                                       else name)
         return declaration.value if declaration is not None else None
 
-    def expanded(self, name, depth=0):
-        """The value of ``name`` with its top-level ``var()``s substituted,
-        or None if unknown, cyclic or over :data:`MAX_EXPANDED` nodes."""
+    def expanded(self, name):
+        """The value of ``name`` with its top-level ``var()``s substituted
+        (a ``var()`` naming an unreadable property is kept as it is). None if
+        the property is unknown, reaches a cycle of top-level ``var()``s, or
+        holds more than :data:`MAX_EXPANDED` component values."""
         key = name.lower()
-        if key in self._expanded:
-            return self._expanded[key]
-        self._expanded[key] = None  # in progress: a cycle reads as unknown
-        value = self.lookup(key)
-        result = None
-        if value is not None:
-            result = []
-            for node in value:
-                inner = None
-                if (node.type == "function" and node.lower_name == "var"
-                        and depth < MAX_VAR_DEPTH):
-                    args = significant(node.arguments)
-                    if args and args[0].type == "ident":
-                        inner = self.expanded(args[0].value, depth + 1)
-                if inner is None:
-                    result.append(node)
-                else:
-                    result += inner
-                if len(result) > MAX_EXPANDED:
-                    result = None
-                    break
-        self._expanded[key] = result
+        if key not in self._expanded:
+            self._expand(key)
+        state = self._expanded[key]
+        return None if state is _CYCLE else state
+
+    def size(self, name):
+        """Component values in :meth:`expanded`, nested ones included."""
+        return self._sizes.get(name.lower(), 0)
+
+    def _expand(self, start):
+        # Depth first without recursion: a chain of 100,000 aliases is fine.
+        # A name is _PENDING exactly while it is an ancestor of the one in
+        # hand, so meeting a _PENDING name is meeting a cycle.
+        memo, stack = self._expanded, [start]
+        while stack:
+            key = stack[-1]
+            state = memo.get(key, _MISSING)
+            if state is not _MISSING and state is not _PENDING:
+                stack.pop()
+                continue
+            declaration = self.values.get(key)
+            if declaration is None:
+                memo[key] = None
+                stack.pop()
+                continue
+            if state is _MISSING:
+                memo[key] = _PENDING
+                todo = [target for target in dict.fromkeys(
+                    map(_var_target, declaration.value))
+                    if target and target not in memo]
+                if todo:
+                    stack.extend(todo)
+                    continue
+            stack.pop()
+            memo[key] = self._splice(key, declaration.value)
+
+    def _splice(self, key, value):
+        memo = self._expanded
+        targets = [_var_target(node) for node in value]
+        if any(memo.get(target) is _PENDING or memo.get(target) is _CYCLE
+               for target in targets if target):
+            return _CYCLE
+        result, size = [], 0
+        for node, target in zip(value, targets):
+            inner = memo.get(target) if target else None
+            if inner is None:
+                result.append(node)
+                size += _size(node, MAX_EXPANDED + 1 - size)
+            else:
+                size += self._sizes[target]
+                if not self.spend(self._sizes[target]):
+                    return None
+                result += inner
+            if size > MAX_EXPANDED:
+                return None
+        self._sizes[key] = size
         return result
 
     def text(self, name):
@@ -97,25 +201,63 @@ class Resolver:
         key = name.lower()
         if key not in self._text:
             nodes = self.expanded(key)
-            text = serialize(nodes) if nodes is not None else ""
+            text = ""
+            if nodes is not None and self.spend(self.size(key)):
+                text = serialize(nodes)
             self._text[key] = text if text and len(text) <= MAX_TEXT else None
         return self._text[key]
 
-    def colors_of(self, name, prop, depth):
-        """``color_nodes`` of a property's value, read once per property."""
+    def colors_of(self, name, prop):
+        """``color_nodes`` of a property's value, read once per property;
+        None if the property is unreadable or reaches a cycle through the
+        ``var()``s inside its value."""
         words = prop in COLOR_PROPERTIES or prop.startswith("--")
-        key = (name.lower(), words)
-        if key not in self._colors:
+        start = (name.lower(), words)
+        if start not in self._colors:
+            self._read_colors(start, prop)
+        state = self._colors[start]
+        if state is None or state is _CYCLE or not self.spend(1 + len(state[0])):
+            return None
+        return state
+
+    def _read_colors(self, start, prop):
+        # As _expand: the properties named inside a value are read first, so
+        # color_nodes below finds them memoised and never recurses deeper.
+        memo, words, stack = self._colors, start[1], [start[0]]
+        while stack:
+            name = stack[-1]
+            key = (name, words)
+            state = memo.get(key, _MISSING)
+            if state is not _MISSING and state is not _PENDING:
+                stack.pop()
+                continue
             nodes = self.expanded(name)
             if nodes is None:
-                self._colors[key] = None
+                memo[key] = None
+                stack.pop()
+                continue
+            inside = list(dict.fromkeys(
+                target for target in map(_var_target, _scan(nodes)) if target))
+            if state is _MISSING:
+                if not self.spend(self.size(name)):
+                    memo[key] = None
+                    stack.pop()
+                    continue
+                memo[key] = _PENDING
+                todo = [target for target in inside if (target, words) not in memo]
+                if todo:
+                    stack.extend(todo)
+                    continue
+            stack.pop()
+            if any(memo.get((target, words)) is _PENDING
+                   or memo.get((target, words)) is _CYCLE for target in inside):
+                memo[key] = _CYCLE
             else:
-                found, unread = color_nodes(nodes, prop, self, depth + 1)
-                self._colors[key] = (found[:MAX_VAR_COLORS], unread)
-        return self._colors[key]
+                found, unread = color_nodes(nodes, prop, self)
+                memo[key] = (found[:MAX_VAR_COLORS], unread)
 
 
-def color_nodes(nodes, prop, resolver=None, depth=0):
+def color_nodes(nodes, prop, resolver=None):
     """``(hex, alpha)`` of each colour in ``nodes``, in order; and the count
     of colour values that could not be read (``var()`` that does not
     resolve, ``lab()``, ``color()``...)."""
@@ -123,7 +265,7 @@ def color_nodes(nodes, prop, resolver=None, depth=0):
     words_are_colors = prop in COLOR_PROPERTIES or (
         prop.startswith("--") and len(significant(nodes)) == 1)
     skip = set()
-    for node in walk(nodes):
+    for node in _scan(nodes):
         if id(node) in skip:
             continue
         kind = node.type
@@ -141,43 +283,50 @@ def color_nodes(nodes, prop, resolver=None, depth=0):
                 parsed = colors.parse_function(node)
                 if parsed is None and resolver:
                     # hsl(var(--primary)) with --primary: 221 83% 53% (shadcn)
-                    text = node.serialize()
-                    if "var(" in text and len(text) <= MAX_TEXT:
+                    text = serialize_within(node, MAX_TEXT)
+                    if "var(" in text:
                         hex_color = parse_color_text(resolve_text(text, resolver))
                         parsed = (hex_color, 1.0) if hex_color else None
                 if parsed:
                     found.append(parsed)
                 else:
                     unread += 1
-                skip.update(id(n) for n in walk(node.arguments))
             elif name in colors.UNREAD_COLOR_FUNCTIONS:
                 unread += 1
-                skip.update(id(n) for n in walk(node.arguments))
             elif name == "var":
-                args = significant(node.arguments)
-                target = args[0].value if args and args[0].type == "ident" else ""
-                read = (resolver.colors_of(target, prop, depth)
-                        if resolver and target and depth < MAX_VAR_DEPTH else None)
+                target = _var_target(node)
+                read = (resolver.colors_of(target, prop)
+                        if resolver and target else None)
                 if read is not None:
                     found += read[0]
                     unread += read[1]
                     skip.update(id(n) for n in walk(node.arguments))
-                elif not any(a.type == "literal" and a.value == "," for a in args):
+                elif not any(a.type == "literal" and a.value == ","
+                             for a in node.arguments):
                     unread += 1
     return found, unread
 
 
-def substitute_vars(nodes, resolver, depth=0):
+def serialize_within(node, limit):
+    """The text of ``node`` if it is at most ``limit`` characters, else ""
+    (decided from its size first: a huge function is not serialised)."""
+    if _size(node, limit + 1) > limit:
+        return ""
+    text = node.serialize()
+    return text if len(text) <= limit else ""
+
+
+def substitute_vars(nodes, resolver):
     """``nodes`` with each top-level ``var(--name)`` replaced by the value it
-    resolves to (followed :data:`MAX_VAR_DEPTH` levels); an unresolved
-    ``var()`` is kept, so callers can tell it was not read."""
+    resolves to (aliases followed all the way); an unresolved ``var()`` is
+    kept, so callers can tell it was not read. Each replacement is charged
+    to the page budget of the resolver."""
     result = []
     for node in nodes or ():
-        if node.type == "function" and node.lower_name == "var" and resolver:
-            args = significant(node.arguments)
-            value = (resolver.expanded(args[0].value)
-                     if args and args[0].type == "ident" else None)
-            if value is not None:
+        target = _var_target(node) if resolver else None
+        if target:
+            value = resolver.expanded(target)
+            if value is not None and resolver.spend(resolver.size(target)):
                 result += value
                 continue
         result.append(node)
@@ -191,18 +340,29 @@ def resolve_text(text, resolver):
     """``text`` with each ``var(--name)`` replaced by the text of its value
     (four rounds at most, so a cycle stops). Text longer than
     :data:`MAX_TEXT`, before or after a round, is returned as it is: it is
-    not a colour."""
+    not a colour. Each distinct text is resolved once per page and charged
+    to the page budget."""
+    if "var(" not in text or len(text) > MAX_TEXT:
+        return text
+    cached = resolver._resolved.get(text)
+    if cached is not None:
+        return cached
+
     def value(match):
         return resolver.text(match.group(1)) or match.group(0)
 
+    result = text
     for _ in range(MAX_VAR_DEPTH):
-        if "var(" not in text or len(text) > MAX_TEXT:
+        if "var(" not in result or len(result) > MAX_TEXT:
             break
-        changed = _VAR_TEXT.sub(value, text)
-        if changed == text:
+        if not resolver.spend(len(result)):
+            return text
+        changed = _VAR_TEXT.sub(value, result)
+        if changed == result:
             break
-        text = changed
-    return text
+        result = changed
+    resolver._resolved[text] = result
+    return result
 
 
 def visible(found):

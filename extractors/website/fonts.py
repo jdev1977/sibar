@@ -10,7 +10,7 @@ from extractors.website.css import selector_parts, significant
 from extractors.website.site import get_site
 from extractors.website.values import Resolver, substitute_vars
 
-NAME, VERSION = "website.fonts", "4"
+NAME, VERSION = "website.fonts", "5"
 GENERIC = frozenset({"serif", "sans-serif", "monospace", "cursive", "fantasy",
                      "system-ui", "ui-sans-serif", "ui-serif", "ui-monospace",
                      "ui-rounded", "math", "emoji", "fangsong"})
