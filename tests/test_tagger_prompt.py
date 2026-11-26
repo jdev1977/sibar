@@ -194,7 +194,8 @@ def test_the_key_changes_with_anything_that_changes_the_request(tmp_path):
     old = prompt_module.TEMPLATE_VERSION
     try:
         prompt_module.TEMPLATE_VERSION = "999"
-        keys["template"] = cache_key("anthropic", request.params, request.output_sha256)
+        keys["template"] = cache_key("anthropic", request.params, request.output_sha256,
+                                     rubric().name)
     finally:
         prompt_module.TEMPLATE_VERSION = old
     assert base not in keys.values()
@@ -202,6 +203,34 @@ def test_the_key_changes_with_anything_that_changes_the_request(tmp_path):
     # The level is never sent; where it asks the same items, the request and
     # so the key are the same.
     assert build_request(rubric(), tagger(), dict(rec, level="L2")).key == base
+
+
+def test_the_key_changes_with_the_rubric_version_alone():
+    # A new rubric version with the same text sends the same request, but
+    # its tags are stored at another version: they must not share a key.
+    request = build_request(rubric(), tagger(), record())
+    same = cache_key("anthropic", request.params, request.output_sha256, "pipeline.v1")
+    assert same == request.key
+    assert cache_key("anthropic", request.params, request.output_sha256,
+                     "pipeline.v2") != same
+
+
+def test_the_key_changes_with_the_answer_processing_version_alone():
+    # What is cached is the stored features, made by tagger/answers.py: a
+    # change there must not reuse features made the old way.
+    import tagger.answers as answers_module
+    import tagger.prompt as prompt_module
+    rec = record()
+    request = build_request(rubric(), tagger(), rec)
+    old = answers_module.ANSWERS_VERSION
+    try:
+        answers_module.ANSWERS_VERSION = old + "-changed"
+        changed = build_request(rubric(), tagger(), rec)
+    finally:
+        answers_module.ANSWERS_VERSION = old
+    assert changed.params == request.params and changed.key != request.key
+    assert prompt_module.cache_key("anthropic", request.params, request.output_sha256,
+                                   rubric().name) == request.key
 
 
 # --- checking answers ------------------------------------------------------------------

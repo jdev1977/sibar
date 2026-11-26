@@ -30,10 +30,16 @@ matter and cause no retry.
 import json
 from dataclasses import dataclass, field
 
-from tagger.prompt import ERROR, STATUS
 from tagger.rubric import CANNOT_TELL, NONE, NOT_APPLICABLE, RubricError
 
 MAX_ATTEMPTS = 2  # the first request and one retry
+# The version of what this module makes of a reply: the checks, the retry
+# rule and the stored values. It is part of the cache key (tagger/prompt.py),
+# because the cache holds stored features: raise it whenever a change here
+# could store different features for the same reply.
+ANSWERS_VERSION = "1"
+# Values the tagger stores beside the items, as every extractor stores them.
+STATUS, ERROR = "status", "error"
 
 
 @dataclass

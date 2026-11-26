@@ -27,8 +27,11 @@ nor that a list has no repeats; ``tagger/answers.py`` checks every answer.
 
 The cache key is the SHA-256 of the whole request (template version,
 provider and every request parameter, so the rubric text, the model, the
-output limit, the option order and the response all count) and the
-response's own hash. Any change to what would be sent gives a new key.
+output limit, the option order and the response all count), the response's
+own hash, and two things that are not sent but decide what is stored: the
+rubric name with its version, and ``tagger.answers.ANSWERS_VERSION``. Any
+change to what would be sent, or to how the reply becomes stored features,
+gives a new key.
 """
 
 import hashlib
@@ -37,13 +40,13 @@ from dataclasses import dataclass
 from typing import Tuple
 
 from runner.ledger import estimate_prompt_tokens
+from tagger import answers
+from tagger.answers import ERROR, STATUS  # noqa: F401 (also used by agreement)
 from tagger.rubric import CANNOT_TELL, NONE, NOT_APPLICABLE, presentation_order
 
 TEMPLATE_VERSION = "1"
 SCHEMA_NAME = "rubric_answers"
 EVIDENCE_WORDS = 25
-# Values the tagger stores beside the items, as every extractor stores them.
-STATUS, ERROR = "status", "error"
 
 
 class PromptError(ValueError):
@@ -214,9 +217,13 @@ def request_params(tagger, system, user, schema, effort=None):
     raise PromptError(f"no request format for provider {tagger.provider!r}")
 
 
-def cache_key(provider, params, output_sha256):
+def cache_key(provider, params, output_sha256, rubric_name):
+    """The cache key: everything sent, plus what decides the stored features
+    without being sent (the rubric version they are stored at, and the
+    version of the answer processing in ``tagger/answers.py``)."""
     return hashlib.sha256(canonical({
-        "template": TEMPLATE_VERSION, "provider": provider, "params": params,
+        "template": TEMPLATE_VERSION, "answers": answers.ANSWERS_VERSION,
+        "rubric": rubric_name, "provider": provider, "params": params,
         "output_sha256": output_sha256}).encode("ascii")).hexdigest()
 
 
@@ -243,6 +250,7 @@ def build_request(rubric, tagger, record, effort=None):
     digest = sha256_text(response)
     return TagRequest(
         record_id=record_id, task=task, items=tuple(item.id for item in items),
-        output_sha256=digest, key=cache_key(tagger.provider, params, digest),
+        output_sha256=digest,
+        key=cache_key(tagger.provider, params, digest, rubric.name),
         params=params,
         prompt_tokens=estimate_prompt_tokens(system, user, canonical(schema)))
