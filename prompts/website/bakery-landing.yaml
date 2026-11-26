@@ -1,0 +1,52 @@
+# Website task: a bakery's website.
+# Kind: a small local business telling neighbors what it sells, when it is
+# open and how to order. Marketing copy, opening hours and a price list.
+# See prompts/website/README.md for the set, the rules and the version rule.
+schema_version: 1
+project_type: website
+task_id: bakery-landing
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Make a website for a bakery.
+    B: Can you build a bakery website?
+  L1:
+    A: Make a website for a neighborhood sourdough bakery that takes weekend pre-orders.
+    B: Can you build a website for a local sourdough bakery? It takes pre-orders for the weekend from people in the neighborhood.
+  # L2 direction: stark, newsprint-like graphic look (black on off-white, one
+  # signal-orange accent, condensed sans-serif headings, monospace prices,
+  # square corners, thin rules, no shadows or gradients) and dry, plain copy.
+  # Points away from the expected bakery default: warm cream and brown tones,
+  # a script or display serif, rounded cards with soft shadows, cheerful copy.
+  L2:
+    A: |
+      Make a website for Second Rise Bakery, a sourdough bakery on Tanner Street in Wrenmoor that takes pre-orders for weekend pickup.
+
+      Business details:
+      - Owners: Priya Halvorsen and Dev Okafor, who opened the bakery in 2019.
+      - Opening hours: Wednesday to Friday 7am to 2pm; Saturday and Sunday 8am to 1pm; closed Monday and Tuesday.
+      - Pre-orders for Saturday and Sunday close at 6pm on Thursday. Customers pay when they pick up.
+      - Contact: orders@example.com, 555-0147.
+
+      Products and prices:
+      - Country sourdough loaf, $9
+      - Seeded rye, $10
+      - Olive and rosemary loaf, $11
+      - Cardamom morning bun, $4.50
+      - Sourdough focaccia slab, $8
+
+      Required sections: a short introduction, the full product list with prices, how pre-ordering works, a pre-order form (name, email, pickup day, items and quantities), opening hours, and contact details.
+
+      Tone: plain and matter-of-fact. Short sentences, no exclamation marks, no puns.
+
+      Visual direction: a stark, newsprint-like look. Black text on an off-white background, with signal orange as the only accent. Condensed sans-serif headings, and a monospace face for prices and hours. Square corners, thin black rules between sections, no shadows and no gradients.
+    B: |
+      Can you build a website for our bakery? We're Second Rise Bakery, a sourdough bakery on Tanner Street in Wrenmoor. Priya Halvorsen and Dev Okafor opened it in 2019, and we take pre-orders for weekend pickup.
+
+      We're open Wednesday to Friday from 7am to 2pm, and on Saturday and Sunday from 8am to 1pm. We're closed on Monday and Tuesday. Pre-orders for Saturday and Sunday close at 6pm on Thursday, and people pay when they pick up. They can reach us at orders@example.com or on 555-0147.
+
+      This is what we sell: a country sourdough loaf for $9, seeded rye for $10, an olive and rosemary loaf for $11, a cardamom morning bun for $4.50, and a sourdough focaccia slab for $8.
+
+      The site needs a short introduction, the full product list with prices, an explanation of how pre-ordering works, a pre-order form that asks for name, email, pickup day, and items with quantities, our opening hours, and our contact details.
+
+      Please keep the writing plain and matter-of-fact: short sentences, with no exclamation marks and no puns. For the look, we want something stark and newsprint-like: black text on an off-white background, and signal orange as the one accent. Headings in a condensed sans-serif, prices and hours in a monospace face. Square corners, thin black rules between sections, and no shadows or gradients.

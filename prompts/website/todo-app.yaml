@@ -1,0 +1,56 @@
+# Website task: a to-do list app.
+# Kind: an interactive tool rather than a page to read. State, input,
+# sorting and filtering, and keeping data between visits.
+# See prompts/website/README.md for the set, the rules and the version rule.
+schema_version: 1
+project_type: website
+task_id: todo-app
+prompt_set_version: "1"
+prompts:
+  L0:
+    A: Make a to-do list web app.
+    B: Can you build a to-do list app that runs in a web browser?
+  L1:
+    A: Make a to-do list web app that helps a university student keep track of assignments and deadlines.
+    B: Can you build a to-do list app that runs in a web browser? It's meant to help a university student stay on top of their coursework and when each piece is due.
+  # L2 direction: Bauhaus-inspired (off-white ground, blocks of primary red,
+  # yellow and blue, thick black outlines, one primary colour per course,
+  # heavy geometric sans-serif headings, square checkboxes, no rounded
+  # corners, shadows or gradients), short direct interface text.
+  # Points away from the expected to-do default: white or slate with one
+  # indigo or blue accent, a neutral sans, rounded inputs and pill buttons,
+  # soft shadows, emoji, a dark-mode toggle.
+  L2:
+    A: |
+      Make a to-do list web app called Term Planner for a university student who needs to keep track of assignments and deadlines.
+
+      Each task has a title, a course, a type (reading, problem set, essay, lab report or exam) and a due date. The student's four courses are HIST 210, CHEM 101, STAT 230 and LIT 305.
+
+      Features:
+      - Add, edit and delete tasks, and mark them as done.
+      - List tasks by due date, soonest first, and flag overdue ones.
+      - Filter the list by course.
+      - Show at the top how many tasks are due in the next 7 days.
+      - Keep tasks on this device after the page is reloaded. No accounts or sign-in.
+
+      Start with these example tasks:
+      - "Read chapters 3 and 4", HIST 210, reading, due March 2
+      - "Problem set 5", STAT 230, problem set, due March 4
+      - "Lab report draft", CHEM 101, lab report, due March 8
+      - "Essay outline on the course novel", LIT 305, essay, due March 10
+      - "Midterm exam", CHEM 101, exam, due March 15
+      - "Problem set 6", STAT 230, problem set, due March 18
+
+      Interface text: short and direct.
+
+      Visual direction: Bauhaus-inspired. An off-white background with blocks of primary red, yellow and blue, and thick black outlines. Give each course one color: red for HIST 210, yellow for CHEM 101, blue for STAT 230 and black for LIT 305. Headings in a heavy geometric sans-serif. Square checkboxes, no rounded corners, no shadows and no gradients.
+    B: |
+      Can you build a to-do list app that runs in a web browser? I'm a university student and I need it to keep track of my assignments and deadlines. Call it Term Planner.
+
+      Every task should have a title, a course, a type (reading, problem set, essay, lab report or exam) and a due date. My four courses are HIST 210, CHEM 101, STAT 230 and LIT 305.
+
+      I want to be able to add, edit and delete tasks and mark them as done. The list should be in due-date order with the soonest first, and overdue tasks should be flagged. I'd also like to filter by course, and to see at the top how many tasks are due in the next 7 days. Tasks should still be there on this device after I reload the page, without any accounts or sign-in.
+
+      Please start it off with these example tasks: "Read chapters 3 and 4" for HIST 210 (reading, due March 2), "Problem set 5" for STAT 230 (problem set, due March 4), "Lab report draft" for CHEM 101 (lab report, due March 8), "Essay outline on the course novel" for LIT 305 (essay, due March 10), "Midterm exam" for CHEM 101 (exam, due March 15) and "Problem set 6" for STAT 230 (problem set, due March 18).
+
+      Keep the interface text short and direct. As for the look, take the Bauhaus as the inspiration: primary red, yellow and blue in blocks on an off-white background, with thick black outlines. Each course has its own color, so HIST 210 is red, CHEM 101 yellow, STAT 230 blue and LIT 305 black. For headings, a heavy geometric sans-serif. Checkboxes should be square, and I don't want rounded corners, shadows or gradients anywhere.
