@@ -154,6 +154,37 @@ def test_undetermined_states_and_masks(spec):
     assert run.value("website.layout.landmarks") is None     # missing: undetermined
 
 
+def test_real_extractor_output_converts(spec):
+    """Features from the real website extractors on fixture pages convert
+    without refusal; the Bootstrap page is masked."""
+    from pathlib import Path
+
+    from extractors.base import Inputs, run_extractors
+    from extractors.registry import extractors_for
+    from runner.record import with_features
+    fixtures = Path(__file__).resolve().parent / "fixtures" / "website"
+    records = []
+    for index, page in enumerate(("tailwind-landing", "bootstrap", "negative",
+                                  "react-components"), start=1):
+        record = make(spec, run_index=index, extract=False)
+        results = run_extractors(extractors_for("website"),
+                                 Inputs.from_directory(fixtures / page))
+        for name, (version, values) in results.items():
+            record = with_features(record, name, version, values)
+        records.append(record)
+    runs = select(records, spec, ["b1"]).runs
+    assert all(run.usable for run in runs)
+    by_index = {run.run_index: run for run in runs}
+    assert by_index[1].value("website.libraries.css_framework") == "tailwindcss"
+    assert by_index[1].value(CORNER) is not None and not by_index[1].masked
+    assert by_index[2].masked and by_index[2].value(CORNER) is None
+    assert by_index[2].value("website.libraries.css_framework") not in (None, "none",
+                                                                        "tailwindcss")
+    for run in runs:
+        typed = [run.value(n) for n, v in spec.variables.items() if v.role != "diagnostic"]
+        assert any(value is not None for value in typed)
+
+
 # --- end to end ----------------------------------------------------------------------
 
 
