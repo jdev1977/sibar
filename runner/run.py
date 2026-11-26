@@ -17,8 +17,9 @@ from collections import Counter
 from decimal import Decimal
 from pathlib import Path
 
+# The ledger's operating-system file lock also guards the record file.
 from runner.ledger import (
-    DEFAULT_PATH, ROOT, Ledger, LedgerError, _text, call_cost,
+    DEFAULT_PATH, ROOT, Ledger, LedgerError, _lock, _text, _unlock, call_cost,
     estimate_prompt_tokens, read_ledger,
 )
 from runner.loop import DEFAULT_RERUN, Runner, RunError, pending_cells, plan_cells
@@ -75,6 +76,11 @@ def build_parser():
                         help="attempts per cell, including the first")
     parser.add_argument("--rpm", action="append", default=[], metavar="PROVIDER=N",
                         help=f"requests per minute for a provider (default {DEFAULT_RPM})")
+    parser.add_argument("--read-timeout", type=float, default=900.0, metavar="SECONDS",
+                        help="give up on a response silent this long (default 900)")
+    parser.add_argument("--total-timeout", type=float, default=3600.0,
+                        metavar="SECONDS",
+                        help="give up on a response taking longer (default 3600)")
     parser.add_argument("--models-file", default=str(ROOT / "models.yaml"),
                         help="the model list (default models.yaml)")
     return parser
@@ -204,7 +210,7 @@ def _dry_run(cells, todo, done, args, model_list, environ, ledger_path, out):
     return EXIT_OK
 
 
-def _paid(cells, todo, done, args, model_list, environ, ledger_path, transport, out):
+def _paid(cells, args, model_list, environ, ledger_path, transport, out):
     if not model_list.confirmed_by_human:
         raise Refusal(f"{args.models_file} has confirmed_by_human: false. A person "
                       "must check the model list and set it to true before a paid run.")
@@ -225,24 +231,37 @@ def _paid(cells, todo, done, args, model_list, environ, ledger_path, transport, 
         known = ", ".join(batches[:10]) or "none"
         out(f"warning: batch {args.batch_id!r} is new to the ledger and starts "
             f"from $0. Batches already in it: {known}.")
-    out(f"{done} of {len(cells)} cells already done; {len(todo)} to run.")
     if transport is None:
         from runner.transport import UrllibTransport
-        transport = UrllibTransport()
-    with Ledger(ledger_path, batch_id=args.batch_id, batch_cap_usd=args.batch_cap,
-                total_cap_usd=args.total_cap, models=model_list) as ledger:
-        if ledger.repaired_tail:
-            out(f"{ledger_path}: removed an unfinished last line left by an "
-                "interrupted run")
-        runner = Runner(
-            batch_id=args.batch_id, records_path=args.out, ledger=ledger,
-            transport=transport, keys=keys, retry=retry,
-            rpm=_rpm(args.rpm, {c.model.provider for c in cells}),
-            workers=args.workers, rerun_statuses=_rerun_statuses(args.rerun),
-            out=out, anthropic_workspace_id=(environ.get("ANTHROPIC_WORKSPACE_ID")
-                                             or "").strip() or None)
-        summary = runner.run(todo)
-        spent, total = ledger.spent_usd, ledger.total_spent_usd
+        transport = UrllibTransport(read_timeout=args.read_timeout,
+                                    total_timeout=args.total_timeout)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        records_lock = _lock(args.out.with_name(args.out.name + ".lock"))
+    except LedgerError:
+        raise Refusal(f"{args.out}: the record file is in use by another run") from None
+    try:
+        with Ledger(ledger_path, batch_id=args.batch_id,
+                    batch_cap_usd=args.batch_cap, total_cap_usd=args.total_cap,
+                    models=model_list) as ledger:
+            if ledger.repaired_tail:
+                out(f"{ledger_path}: removed an unfinished last line left by an "
+                    "interrupted run")
+            rerun = _rerun_statuses(args.rerun)
+            todo, done = pending_cells(cells, args.out, args.batch_id, rerun,
+                                       repair=True, out=out)
+            out(f"{done} of {len(cells)} cells already done; {len(todo)} to run.")
+            runner = Runner(
+                batch_id=args.batch_id, records_path=args.out, ledger=ledger,
+                transport=transport, keys=keys, retry=retry,
+                rpm=_rpm(args.rpm, {c.model.provider for c in cells}),
+                workers=args.workers, rerun_statuses=rerun, out=out,
+                anthropic_workspace_id=(environ.get("ANTHROPIC_WORKSPACE_ID")
+                                        or "").strip() or None)
+            summary = runner.run(todo)
+            spent, total = ledger.spent_usd, ledger.total_spent_usd
+    finally:
+        _unlock(records_lock)
     finished = ", ".join(f"{status} {number}" for status, number in
                          sorted(summary.finished.items())) or "none"
     out(f"Finished {sum(summary.finished.values())} of {summary.cells} cells: "
@@ -272,6 +291,10 @@ def main(argv=None, *, transport=None, environ=None, out=print):
                           "(it names a folder), starting with a letter or digit")
         if args.workers < 1:
             raise Refusal("--workers must be at least 1")
+        for option, value in (("--read-timeout", args.read_timeout),
+                              ("--total-timeout", args.total_timeout)):
+            if not 0 < value < float("inf"):
+                raise Refusal(f"{option} must be a number of seconds above 0")
         try:
             RetryPolicy(max_attempts=args.max_attempts)
         except ValueError as error:
@@ -291,15 +314,15 @@ def main(argv=None, *, transport=None, environ=None, out=print):
         ledger_path = Path(args.ledger) if args.ledger else DEFAULT_PATH
         out(f"Ledger: {ledger_path}{'' if args.ledger else ' (default)'}")
         out(f"Records: {args.out}")
-        todo, done = pending_cells(cells, args.out, args.batch_id,
-                                   _rerun_statuses(args.rerun),
-                                   repair=args.paid, out=out)
         if args.dry_run:
+            todo, done = pending_cells(cells, args.out, args.batch_id,
+                                       _rerun_statuses(args.rerun),
+                                       repair=False, out=out)
             return _dry_run(cells, todo, done, args, model_list, environ,
                             ledger_path, out)
-        return _paid(cells, todo, done, args, model_list, environ, ledger_path,
-                     transport, out)
-    except (Refusal, RunError, ModelsError, PromptError, LedgerError) as error:
+        return _paid(cells, args, model_list, environ, ledger_path, transport, out)
+    except (Refusal, RunError, ModelsError, PromptError, LedgerError,
+            OSError) as error:
         out(f"refused: {error}")
         return EXIT_REFUSED
     except KeyboardInterrupt:

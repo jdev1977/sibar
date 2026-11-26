@@ -430,6 +430,36 @@ def test_a_missing_key_is_refused_before_any_call(tmp_path):
     assert harness.transport.requests == []
 
 
+# --- Interrupts -----------------------------------------------------------------------
+
+
+def test_an_interrupt_lets_the_call_in_flight_finish_and_stops_the_run(
+        tmp_path, monkeypatch):
+    import threading
+    release = threading.Event()
+
+    def handler(request, number):
+        release.wait(5)
+        return anthropic_stream(model="claude-haiku-5-5")
+    original = Runner._join
+    calls = []
+
+    def join(threads):
+        calls.append(1)
+        if len(calls) == 1:
+            release.set()
+            raise KeyboardInterrupt
+        original(threads)
+    monkeypatch.setattr(Runner, "_join", staticmethod(join))
+    harness = Harness(tmp_path, handler)
+    summary = harness.run(one_prompt_cells([MODELS.get("claude-haiku-5-5")], runs=3))
+    assert summary.stopped == "interrupted"
+    assert len(harness.transport.requests) == 1
+    assert [r["status"] for r in harness.records_found()] == ["ok"]
+    assert summary.not_started == 2
+    assert [e["type"] for e in harness.ledger_entries()] == ["reserve", "charge"]
+
+
 # --- Workers --------------------------------------------------------------------------
 
 

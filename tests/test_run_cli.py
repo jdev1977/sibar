@@ -157,6 +157,8 @@ def test_a_key_with_spaces_or_line_breaks_is_refused_without_showing_it(
     (["--rpm", "anthropic=-3"], "anthropic"),
     (["--workers", "0"], "workers"),
     (["--max-attempts", "0"], "max_attempts"),
+    (["--read-timeout", "0"], "--read-timeout"),
+    (["--total-timeout", "inf"], "--total-timeout"),
 ])
 def test_bad_options_are_refused(tmp_path, confirmed, env, args, message):
     code, output = run(paid(tmp_path, confirmed, *args), environ=env)
@@ -198,6 +200,18 @@ def test_a_second_run_of_the_batch_skips_done_cells_and_does_not_warn(
     assert "new to the ledger" not in output
     assert "8 of 8 cells already done" in output
     assert transport.requests == []
+
+
+def test_a_record_file_in_use_by_another_run_is_refused(tmp_path, confirmed, env):
+    from runner.ledger import _lock, _unlock
+    out = tmp_path / "out" / "records.jsonl"
+    out.parent.mkdir(parents=True)
+    handle = _lock(out.with_name(out.name + ".lock"))
+    try:
+        code, output = run(paid(tmp_path, confirmed), FakeTransport(no_network), env)
+    finally:
+        _unlock(handle)
+    assert code == 2 and "in use by another run" in output
 
 
 def test_the_budget_stop_has_its_own_exit_code(tmp_path, confirmed, env):

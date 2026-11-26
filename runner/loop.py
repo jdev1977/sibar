@@ -170,7 +170,8 @@ class Runner:
         self._anthropic_workspace_id = anthropic_workspace_id
         self._scrub = Scrubber(value for value in self.keys.values() if value)
         self._stop_event = threading.Event()
-        self._sleep = sleep or self._stop_event.wait
+        self._sleep = sleep or self._wait
+        self._crash = None
         self._rng = rng or random.Random()
         self._out = out
         self._lock = threading.Lock()  # summary, stops, queue, output
@@ -246,40 +247,59 @@ class Runner:
                 raise RunError(str(error)) from None
         self.summary.cells = len(cells)
         self._queue = iter(cells)
+        # Work happens in threads even with one worker: on Windows a blocking
+        # read cannot be interrupted, but the main thread, waiting in short
+        # slices, still sees Ctrl-C. The first Ctrl-C lets calls in flight
+        # finish and be recorded; a second abandons them (the ledger then
+        # counts them at their worst case).
+        threads = [threading.Thread(target=self._work, daemon=True)
+                   for _ in range(self.workers)]
+        for thread in threads:
+            thread.start()
         try:
-            if self.workers == 1:
-                self._work()
-            else:
-                threads = [threading.Thread(target=self._work, daemon=True)
-                           for _ in range(self.workers)]
-                for thread in threads:
-                    thread.start()
-                for thread in threads:
-                    while thread.is_alive():
-                        thread.join(0.5)
+            self._join(threads)
         except KeyboardInterrupt:
-            self._halt("interrupted", "interrupted by the user; calls in flight "
-                       "count at their worst case unless they were settled")
-            if self.workers > 1:
-                self.say("waiting for calls in flight to finish "
-                         "(interrupt again to abandon them)")
-                for thread in threads:
-                    thread.join()
+            self._halt("interrupted", "interrupted by the user")
+            self.say("waiting for calls in flight to finish and be recorded "
+                     "(interrupt again to abandon them)")
+            self._join(threads)
+        if self._crash is not None:
+            raise self._crash
         with self._lock:
-            self.summary.not_started = sum(1 for _ in self._queue)
+            self.summary.not_started += sum(1 for _ in self._queue)
         return self.summary
 
-    def _work(self):
+    @staticmethod
+    def _join(threads):
+        for thread in threads:
+            while thread.is_alive():
+                thread.join(0.25)
+
+    def _wait(self, seconds):
+        """Sleep, in short slices, unless the run is stopping."""
+        deadline = time.monotonic() + seconds
         while not self._stop_event.is_set():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            self._stop_event.wait(min(remaining, 0.5))
+
+    def _work(self):
+        try:
+            while not self._stop_event.is_set():
+                with self._lock:
+                    cell = next(self._queue, None)
+                if cell is None:
+                    return
+                try:
+                    self._run_cell(cell)
+                except Exception as error:  # a bug: stop rather than spend on it
+                    self._halt("error", f"{type(error).__name__}: {error}")
+                    return
+        except BaseException as error:  # not an Exception: re-raised in run()
             with self._lock:
-                cell = next(self._queue, None)
-            if cell is None:
-                return
-            try:
-                self._run_cell(cell)
-            except Exception as error:  # a bug: stop rather than spend on it
-                self._halt("error", f"{type(error).__name__}: {error}")
-                return
+                self._crash = self._crash or error
+            self._stop_event.set()
 
     def _run_cell(self, cell):
         attempts, last = 0, None
