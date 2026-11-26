@@ -37,6 +37,13 @@ PIECES = {
     "key-lines": "password ", "yaml": "- a: [", "pronouns": "you we ",
     "reader": "r = csv.reader(f)\n", "superscript": "⁻", "volts": "12 V ",
     "convert": "convert ", "markup": "<svg ",
+    "on-jobs": "on:\njobs:\n", "pipeline-brace": "pipeline {\n",
+    "key-token": "key token ", "for-open": "for line in open(",
+    "open-method": "for x in a.b(c).", "open-nested": "open(a(",
+    "config-name": "/config-", "save": ".save(", "image-chain": "Image.open(",
+    "image-assign": "from PIL import Image\na = a.resize(",
+    "in-memory": "a = b ", "acid": "Ka (", "acid-of": "Ka of ", "fraction": "1/",
+    "mixed-fraction": "1 1/", "safety-n": "safety factor, n", "exif": "(exif = ",
 }
 
 

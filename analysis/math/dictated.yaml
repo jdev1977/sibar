@@ -10,9 +10,9 @@
 #                     dictates" table of prompts/math/leak-check.md and the
 #                     L2 texts
 #
-# L0 and L1 close nothing, with one exception: where a task's givens are in
-# SI units at every level, the unit system is not the model's to choose
-# (prompts/math/README.md).
+# L0 and L1 close nothing, with one exception: the givens of projectile-drag
+# and titration-curve are in SI units at every level, so their unit system is
+# not the model's to choose (prompts/math/README.md).
 #
 # Changing an entry changes results: raise `metrics_version`.
 schema_version: 1

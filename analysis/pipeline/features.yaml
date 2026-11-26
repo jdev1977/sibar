@@ -15,7 +15,7 @@
 # `provisional` until outputs have been reviewed (T2.11).
 schema_version: 1
 project_type: pipeline
-metrics_version: "1"
+metrics_version: "2"
 
 outcome:
   gate: rubric.pipeline.response_mode
@@ -33,9 +33,9 @@ extractor_versions:
   pipeline.libraries: "1"
   pipeline.logging: "1"
   pipeline.config: "1"
-  pipeline.operations: "1"
-  pipeline.images: "1"
-  pipeline.ci: "1"
+  pipeline.operations: "2"
+  pipeline.images: "2"
+  pipeline.ci: "2"
   rubric.pipeline: "1@*"
 
 # The dimension each extractor's variables are summarised under.
@@ -117,9 +117,9 @@ features:
 
   pipeline.images:
     image_libraries: {type: set, role: primary, empty: not-applicable, task_driven: true}
-    orientation_handling: {type: categorical, role: primary, not_applicable: [no-image-code], task_driven: true}
+    orientation_handling: {type: categorical, role: provisional, why: heuristic, not_applicable: [no-image-code], task_driven: true}
     orientation_calls: {type: set, role: secondary, why: detail, see: orientation_handling, empty: not-applicable, depends_on: [pipeline.images.orientation_handling]}
-    metadata_handling: {type: categorical, role: primary, not_applicable: [no-image-code], task_driven: true}
+    metadata_handling: {type: categorical, role: provisional, why: heuristic, not_applicable: [no-image-code], task_driven: true}
     metadata_calls: {type: set, role: secondary, why: detail, see: metadata_handling, empty: not-applicable, depends_on: [pipeline.images.metadata_handling]}
 
   pipeline.ci:

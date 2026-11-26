@@ -15,7 +15,7 @@
 # `provisional` until outputs have been reviewed (T2.11).
 schema_version: 1
 project_type: engineering
-metrics_version: "1"
+metrics_version: "2"
 
 outcome:
   gate: rubric.engineering.response_mode
@@ -23,12 +23,12 @@ outcome:
 
 extractor_versions:
   engineering.reply: "1"
-  engineering.units: "1"
-  engineering.safety: "1"
+  engineering.units: "2"
+  engineering.safety: "2"
   engineering.standards: "1"
   engineering.checks: "1"
   engineering.materials: "1"
-  engineering.quantities: "1"
+  engineering.quantities: "2"
   engineering.cad: "1"
   rubric.engineering: "1@*"
 

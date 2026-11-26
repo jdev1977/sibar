@@ -599,8 +599,10 @@ accessible markup (counted only as the component).
 Code: [extractors/common/](../extractors/common/),
 [extractors/pipeline/](../extractors/pipeline/),
 [extractors/math/](../extractors/math/),
-[extractors/engineering/](../extractors/engineering/). All are at version
-`1`. Which choice goes to an extractor and which to the model-read rubric is
+[extractors/engineering/](../extractors/engineering/). Versions are `1`,
+except `2` for `pipeline.operations`, `pipeline.images`, `pipeline.ci`,
+`math.precision`, `math.units`, `math.constants`, `engineering.units`,
+`engineering.safety` and `engineering.quantities` (review round 1). Which choice goes to an extractor and which to the model-read rubric is
 set in [rubrics.md](rubrics.md), "The split with the extractors".
 
 ### What is read
@@ -705,12 +707,12 @@ pipeline.
 
 | Feature | Type | Normalisation | Blind spots |
 |---|---|---|---|
-| `retry_present` | boolean | a retry library, or `retry`, `backoff`, `max_attempts` or a loop over attempts in the code, strings and comments aside | a retry under other words; whether it waits is the rubric's `retry_policy` |
+| `retry_present` | boolean | a retry library, or `retry`, `backoff`, `max_attempts` or a loop over attempts in the code, strings and comments aside. `urllib3` counts only where its `Retry` object is made | a retry under other words; whether it waits is the rubric's `retry_policy` |
 | `retry_libraries` | set | `tenacity`, `backoff`, `urllib3`, `p-retry` and others, by import | |
-| `file_reading` | categorical | `whole-file`, `streaming`, `both`, `none`, or `null` where a file is opened and no known read follows. Loading a configuration file does not count; `json.load` does | this is the second reading of "one line at a time"; the first is the sandbox's. A rules file read whole beside a streamed log gives `both` |
+| `file_reading` | categorical | `whole-file`, `streaming`, `both`, `none`, or `null` where a file is opened and no known read follows. Streaming: a loop over a file, `open(...)`, `fileinput` or `sys.stdin`, chunks, or a streaming call. A loop over content already read whole (`read().splitlines()`) is not streaming. Loading a configuration file (by its name, its handle or the variable it fills: `config`, `settings`, `cfg`, `conf`, `rules`, `schema`) counts for neither, and `Image.open` is not a text file | this is the second reading of "one line at a time"; the first is the sandbox's. A data file named like a configuration file is not counted; a loop over a parameter is seen only when its variable is named `line` |
 | `read_calls` | set | the calls behind it: `read`, `readlines`, `read-text`, `table-read`, `json-load`, `list-of-rows`, `read-file`, `line-loop`, `readline`, `chunked`, `stream-api` | a loop over a parameter is seen only when its variable is named `line` |
-| `output_formats` | set | writing calls: `csv`, `json`, `jsonl`, `parquet`, `database`, `excel`, `html`, `plot`, `image`, `printed` | files written as plain text with a suffix chosen at run time; `json.dumps` for a log line counts as `json` |
-| `parallel_work` | set | `process-pool`, `thread-pool`, `asyncio`, `promise-all`, `worker-threads`, `goroutines`, `rayon`, `shell-parallel` | parallelism inside a library |
+| `output_formats` | set | writing calls: `csv`, `json`, `jsonl`, `parquet`, `database`, `excel`, `html`, `plot`, `image`, `printed`. In Python with an image library, `image` is a `save` of an object made from an image call (or with a usual name such as `img`) | files written as plain text with a suffix chosen at run time; `json.dumps` for a log line counts as `json`; an image passed in under an unusual name and no type annotation |
+| `parallel_work` | set | `process-pool`, `thread-pool`, `asyncio` (`gather`, `TaskGroup`, `create_task`, `as_completed`, `wait`; `asyncio.run` alone is not parallel work), `promise-all`, `worker-threads`, `goroutines`, `rayon`, `shell-parallel` | parallelism inside a library |
 
 ### pipeline.images
 
@@ -720,9 +722,9 @@ ImageMagick command.
 | Feature | Type | Normalisation | Blind spots |
 |---|---|---|---|
 | `image_libraries` | set | `pillow`, `opencv`, `sharp`, `imagemagick`, `go-imaging` and others | |
-| `orientation_handling` | categorical | `present` or `absent` | a library that turns images by default shows no keyword (OpenCV's reader, for one) |
+| `orientation_handling` | categorical | `present` or `absent`; `provisional` | a library that turns images by default shows no keyword (OpenCV's reader, for one) |
 | `orientation_calls` | set | `exif-transpose`, `auto-orient`, `orientation-tag`, `sharp-rotate` | |
-| `metadata_handling` | categorical | `strips`, `keeps`, `both`, `unmentioned` | Pillow and sharp drop metadata on saving with no word in the code: `unmentioned` is not "kept". The files the output writes show what happened (T2.7) |
+| `metadata_handling` | categorical | `strips`, `keeps`, `both`, `unmentioned`; `provisional`. `exif` counts only as a keyword argument of a call, or a `["exif"]` entry being set: `exif = img.getexif()` reads and decides nothing | Pillow and sharp drop metadata on saving with no word in the code: `unmentioned` is not "kept". The files the output writes show what happened (T2.7) |
 | `metadata_calls` | set | `empty-exif`, `strip-option`, `remove-function`, `pixel-copy`, `delete-exif`, `keeps-exif`, `with-metadata` | removing one tag (the orientation) reads as nothing |
 
 ### pipeline.ci
@@ -795,7 +797,7 @@ about a titration). Values outside a plausible range are ignored.
 | `air_density` | `1.225` | `ρ =`, "air density ..." |
 | `projectile_mass` | `0.145 kg` | "mass ...", `m =`, with kg or g |
 | `projectile_diameter` | `0.074 m` | "diameter ...", `d =`, with m, cm or mm |
-| `ka_value`, `pka_value`, `kw_value` | `1.8e-05`, `4.74`, `1e-14` | `K_a =`, `pK_a =`, `K_w =` |
+| `ka_value`, `pka_value`, `kw_value` | `1.8e-05`, `4.74`, `1e-14` | `K_a`, `Kₐ`, `pK_a`, `K_w`, followed by `=`, `:`, "is" or "of", with a bracket or "of/for ..." between if need be; `10^-14` alone is a value |
 
 Blind spots: a value given only in code or only in a table without a symbol
 or name beside it; a radius given instead of a diameter reads as
@@ -804,13 +806,18 @@ or name beside it; a radius given instead of a diameter reads as
 ### engineering.units, engineering.safety, engineering.standards
 
 The engineering extractors read the whole reply, code and comments included.
+Quantities are the exception: they are read from the working, the code's
+comments and the code outside its strings, so that a plot label or its closing
+quote is no dimension. A fraction is read whole (`1 1/2 in` is 1.5 in), and
+`2g` closed up is twice gravity and is not read (so two grams written `2g` are
+missed).
 
 | Feature | Type | Normalisation | Blind spots |
 |---|---|---|---|
 | `unit_system` | categorical | `metric`, `us-customary` (4 in 5 or more of the units found), `both`, `none`. Units count only after a number or alone in brackets; `in` only before punctuation or a word of size. Time, speed of rotation and electrical units count for neither | dimensions given only as variable names (`width_mm`) |
 | `metric_mentions`, `us_mentions` | number | | |
 | `unit_symbols` | set | | |
-| `safety_factor` | categorical | the value stated beside "safety factor", "factor of safety", "design factor", FoS or SF: a number from 1 to 20, `several`, `range`, `none` (never mentioned), `null` (mentioned, no value read). Values that read as results are skipped: "achieved", "gives", "about", "≈", part of a sum or an inequality, or two decimals not ending in 0 or 5 | a round achieved value stated plainly reads as the chosen one; a factor given only as "n = 2" |
+| `safety_factor` | categorical | the value stated beside "safety factor", "factor of safety", "design factor", FoS, SF or FS (also after `>=` or `≥`, and as ", n = 2"): a number from 1 to 20, `several`, `range`, `none` (never mentioned), `null` (mentioned, no value read). Values that read as results are skipped: "achieved", "gives", "about", "≈", part of a sum or an inequality, "so FS ≥ 1.3", or two decimals not ending in 0 or 5 | a round achieved value stated plainly reads as the chosen one; a factor given only as "n = 2" |
 | `safety_factor_mentioned` | boolean | | |
 | `safety_factor_values` | set | | |
 | `standard_bodies` | set | `ISO`, `DIN`, `EN`, `BS`, `ASTM`, `ASME`, `ANSI`, `AGMA`, `AISC`, `Eurocode`, `NEMA` and others | textbooks and catalogues are the rubric's `formula_source` |

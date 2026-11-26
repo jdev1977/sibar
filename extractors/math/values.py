@@ -188,7 +188,7 @@ def methods(inputs):
 
 _VALUE = r"(?=[\d.-])"
 _PROJECTILE = re.compile(r"\bdrag\b|\bair resistance\b|\bprojectile\b", re.IGNORECASE)
-_TITRATION = re.compile(r"\btitrat|\bK_?\{?a\}?(?![a-z])|\bpK_?\{?a\}?(?![a-z])")
+_TITRATION = re.compile(r"\b(?i:titrat)|\bK_?\{?a\}?(?![a-z])|\bpK_?\{?a\}?(?![a-z])")
 _IS = r"(?:=|≈|\bof\b|\bis\b|:|\|)"
 
 
@@ -200,6 +200,17 @@ def _symbol(symbol):
 def _named(name):
     """``name ... value`` with no other digit between."""
     return rf"(?:{name})[^\n\d]{{0,50}}?{_VALUE}"
+
+
+def _acid(symbol):
+    """An equilibrium constant, however the sentence reaches its value:
+    ``Ka =``, ``Ka (acetic acid) =``, ``Ka of acetic acid is``, ``Ka for ...:``."""
+    return (rf"(?<![A-Za-z_\\])(?:{symbol})(?![A-Za-z])\)?"
+            r"(?: ?\([^)\n]{0,40}\))?(?: (?:of|for) [^\n=:≈]{0,50}?)?"
+            rf" ?(?:=|≈|:|\||\bis\b|\bof\b) ?{_VALUE}")
+
+
+_POWER_OF_TEN = re.compile(r"10 ?\^ ?[{(]?(-\d{1,3})")
 
 
 # feature -> (relevance, patterns, lowest, highest, units to SI factor)
@@ -218,10 +229,11 @@ _CONSTANTS = {
         _named(r"\b[Dd]iameter\b"), _symbol(r"[dD]")], 1e-4, 1.0,
         {"m": 1, "cm": 1e-2, "mm": 1e-3}),
     "ka_value": (_TITRATION, [
-        _symbol(r"K_?\{?a\}?"), _named(r"(?i:acid dissociation constant)(?: \$?K_?\{?a\}?\$?)?")],
+        _acid(r"K_?\{?a\}?"),
+        _named(r"(?i:acid dissociation constant)(?: \$?K_?\{?a\}?\$?)?")],
         1e-8, 1e-2, None),
-    "pka_value": (_TITRATION, [_symbol(r"pK_?\{?a\}?")], 2.0, 7.0, None),
-    "kw_value": (_TITRATION, [_symbol(r"K_?\{?w\}?")], 1e-16, 1e-12, None),
+    "pka_value": (_TITRATION, [_acid(r"pK_?\{?a\}?")], 2.0, 7.0, None),
+    "kw_value": (_TITRATION, [_acid(r"K_?\{?w\}?")], 1e-16, 1e-12, None),
 }
 _CONSTANTS = {name: (relevant, [re.compile(p) for p in patterns], low, high, factors)
               for name, (relevant, patterns, low, high, factors) in _CONSTANTS.items()}
@@ -235,7 +247,8 @@ def _constant(text, patterns, low, high, factors):
             match = NUMBER.match(text, hit.end())
             if not match:
                 continue
-            value = parse(match).value
+            power = _POWER_OF_TEN.match(text, hit.end())    # Kw = 10^-14
+            value = float(f"1e{power[1]}") if power else parse(match).value
             unit = ""
             if factors:
                 after = _UNIT.match(text, match.end())
@@ -252,7 +265,7 @@ def constants(inputs):
     doc = get_doc(inputs)
     if not doc.has_text:
         return dict(NO_INPUT)
-    text = normalise(doc.text).replace("$", "")
+    text = normalise(doc.text.replace("ₐ", "_a")).replace("$", "")
     values = {}
     for name, (relevant, patterns, low, high, factors) in _CONSTANTS.items():
         if not relevant.search(text):
@@ -303,12 +316,12 @@ def code_features(inputs):
 
 
 EXTRACTORS = (
-    Extractor("math.precision", "1", "math", precision,
+    Extractor("math.precision", "2", "math", precision,
               "significant figures and decimals of the results"),
-    Extractor("math.units", "1", "math", unit_features,
+    Extractor("math.units", "2", "math", unit_features,
               "unit system and the writing of compound units"),
     Extractor("math.methods", "1", "math", methods, "named methods as keywords"),
-    Extractor("math.constants", "1", "math", constants,
+    Extractor("math.constants", "2", "math", constants,
               "the values of constants the answer assumes"),
     Extractor("math.code", "1", "math", code_features,
               "code and plotting code present"),

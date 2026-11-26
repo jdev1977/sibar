@@ -28,8 +28,11 @@ _BY_PATH = (
     ("bitbucket", re.compile(r"(?:^|/)bitbucket-pipelines\.yml$")),
     ("jenkins", re.compile(r"(?:^|/)jenkinsfile$")),
 )
-_JENKINS = re.compile(r"^pipeline ?\{[\s\S]{0,4000}?\bagent\b", re.M)
-_GITHUB_TEXT = re.compile(r"^on:[\s\S]{0,20000}?^jobs:[\s\S]{0,20000}?\bruns-on:", re.M)
+# Marks that follow one another, each found by its own search. One pattern with
+# a gap between them would retry every pairing: cubic time for three marks.
+_JENKINS = (re.compile(r"^pipeline ?\{", re.M), re.compile(r"\bagent\b"))
+_GITHUB_TEXT = (re.compile(r"^on:", re.M), re.compile(r"^jobs:", re.M),
+                re.compile(r"\bruns-on:"))
 _TRIGGERS = {
     "push": "push", "pull_request": "pull-request",
     "pull_request_target": "pull-request", "schedule": "schedule",
@@ -106,6 +109,17 @@ def _service_of(document):
     if "language" in document and "script" in document:
         return "travis"
     return None
+
+
+def _in_order(patterns, text):
+    """Whether each pattern is found after the one before it: linear."""
+    position = 0
+    for pattern in patterns:
+        found = pattern.search(text, position)
+        if not found:
+            return False
+        position = found.end()
+    return True
 
 
 def _text(value):
@@ -224,12 +238,12 @@ def ci(inputs):
         path = source.path.lower()
         service = next((name for name, p in _BY_PATH if p.search(path)), None)
         if source.language == "groovy":
-            if service or _JENKINS.search(source.text):
+            if service or _in_order(_JENKINS, source.text):
                 found.append(("jenkins", None, source.text))
             continue
         document = _load(source.text)
         if document is None:
-            if not service and _GITHUB_TEXT.search(source.text[:MAX_YAML]):
+            if not service and _in_order(_GITHUB_TEXT, source.text[:MAX_YAML]):
                 service = "github-actions"
             unread = unread or not service
         elif not service:
@@ -258,5 +272,5 @@ def ci(inputs):
     return result(doc, values)
 
 
-EXTRACTOR = Extractor("pipeline.ci", "1", "pipeline", ci,
+EXTRACTOR = Extractor("pipeline.ci", "2", "pipeline", ci,
                       "build service, triggers, test matrix and tools of a CI file")

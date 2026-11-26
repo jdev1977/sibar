@@ -10,8 +10,9 @@
 #                     dictates" table of prompts/engineering/leak-check.md and the
 #                     L2 texts
 #
-# L0 and L1 close nothing, with one exception: where a task's givens are in
-# SI units at every level, the unit system is not the model's to choose
+# L0 and L1 close nothing, with one exception: the givens of cantilever-beam,
+# conveyor-gear-ratio, heat-sink and pipe-and-pump are in SI units at every
+# level, so their unit system is not the model's to choose
 # (prompts/engineering/README.md).
 #
 # Changing an entry changes results: raise `metrics_version`.
@@ -584,3 +585,9 @@ tasks:
         - engineering.cad.cad_format
         quote: CAD file
         note: A CAD file is asked for at every level; the format is left open.
+      L2:
+      - variables:
+        - engineering.cad.cad_format
+        quote: a laser cutter that takes only flat outlines
+        note: A real need written as a need; it pulls toward a flat drawing format
+          and names none.

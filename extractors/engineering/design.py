@@ -10,6 +10,7 @@ from extractors.common.numbers import NUMBER, canonical, normalise, parse
 from extractors.common.response import NO_INPUT, get_doc, result
 
 MAX_HITS = 500
+_CODE = code.PROGRAMMING | code.SCRIPTING | {"openscad"}
 
 
 def _text(inputs):
@@ -47,8 +48,27 @@ def _one(values, none="not-stated"):
 # --- units --------------------------------------------------------------------
 
 
+def _read_quantities(doc):
+    """Quantities of the working, and of code outside its strings: the text of
+    a plot label is not a dimension, and its closing quote is not inches."""
+    found = units.quantities(normalise(doc.working).replace("$", ""))
+    for source in doc.files:
+        if source.language not in _CODE:
+            continue
+        parts = code.split("c" if source.language == "openscad" else source.language,
+                           source.text)
+        outside = "\n".join((parts.bare, *parts.comments))
+        found += units.quantities(normalise(outside), quotes=False)
+    return found
+
+
+def _found_quantities(inputs):
+    return inputs.cached("t2.8.quantities",
+                         lambda: _read_quantities(get_doc(inputs)))
+
+
 def _units(inputs, doc, text):
-    found = units.quantities(text)
+    found = _found_quantities(inputs)
     system, metric, us = units.unit_system(found)
     return {"unit_system": system, "metric_mentions": metric, "us_mentions": us,
             "unit_symbols": sorted({unit for _, unit in found})[:100]}
@@ -57,23 +77,26 @@ def _units(inputs, doc, text):
 # --- safety factor ------------------------------------------------------------
 
 _TERM = (r"(?:(?i:safety factors?|factors? of safety|design factors?)|"
-         r"(?<![A-Za-z])(?:FoS|FOS|SF)(?![A-Za-z]))")
+         r"(?<![A-Za-z])(?:FoS|FOS|SF|FS)(?![A-Za-z]))")
 _MENTION = re.compile(_TERM)
 # term, then perhaps a symbol in brackets, a joining word or mark, the number
 _AFTER = re.compile(
-    _TERM + r"(?: ?\([^()\n]{0,20}\))?(?: n(?:_\{?\w{1,6}\}?)?)?"
+    _TERM + r"(?: ?\([^()\n]{0,20}\))?(?:,? n(?:_\{?\w{1,6}\}?)?)?"
     # "of about 4.2" and "≈ 2.1" report what a design came to, not what it
     # was designed to, and are left unread
-    r"(?: ?(?:of at least|of|=|:|\||is|at least)){0,2}"
+    r"(?: ?(?:of at least|of|>=|≥|=|:|\||is|at least)){0,2}"
     r"(?: n(?:_\{?\w{1,6}\}?)? ?=)? ?(?=\d)")
 _BEFORE = re.compile(
     r"(?<![\d.])(\d{1,2}(?:\.\d{1,2})?)(?: ?×|:1|-fold| times)? (?i:safety factor|"
     r"factor of safety)")
 _RANGE = re.compile(r" ?(?:-|–|—|to) ?(?=\d)")
 _COMPUTED = re.compile(r"\b(?:actual|achieved|resulting|calculated|computed|"
-                       r"provide[sd]?|giv(?:es|ing|en)|yield(?:s|ing)|obtained)\b",
+                       r"provide[sd]?|gives|giving|yield(?:s|ing)|obtained)\b",
                        re.IGNORECASE)
 # part of a sum, or set against a limit: "SF = 1.8 > 1.5"
+# "so FS >= 1.3" concludes; "FS >= 1.3 is required" sets out
+_CONCLUDED = re.compile(r"\b(?:so|thus|hence|therefore)\b", re.IGNORECASE)
+_AT_LEAST = re.compile(r">=|≥")
 _EXPRESSION = re.compile(r" ?[/×*÷<>≥≤]")
 
 
@@ -91,7 +114,8 @@ def _safety(inputs, doc, text):
         before = text[max(start, hit.start() - 40, 0):hit.start()]
         computed = _COMPUTED.search(before)
         after = _AFTER.match(text, hit.start())
-        if not after or computed:
+        if not after or computed \
+                or _AT_LEAST.search(after[0]) and _CONCLUDED.search(before):
             continue
         match = NUMBER.match(text, after.end())
         if not match or _EXPRESSION.match(text, match.end()):
@@ -299,7 +323,7 @@ def _quantities(inputs, doc, text):
     else:
         values["water_temperature_c"] = "not-relevant"
     values["quantities"] = sorted(
-        {f"{value} {unit}" for value, unit in units.quantities(text)
+        {f"{value} {unit}" for value, unit in _found_quantities(inputs)
          if value is not None})[:200]
     return values
 
@@ -351,9 +375,10 @@ def _cad(inputs, doc, text):
             "cad_parameters": sorted(parameters)[:100]}
 
 
+_VERSIONS = {"units": "2", "safety": "2", "quantities": "2"}
 EXTRACTORS = tuple(
-    Extractor(f"engineering.{name}", "1", "engineering", _extractor_values(build),
-              summary)
+    Extractor(f"engineering.{name}", _VERSIONS.get(name, "1"), "engineering",
+              _extractor_values(build), summary)
     for name, build, summary in (
         ("units", _units, "unit system of the quantities"),
         ("safety", _safety, "the safety factor and its value"),

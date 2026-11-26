@@ -26,10 +26,10 @@ extractor_versions:
   math.notation: "1"
   math.voice: "1"
   math.currency: "1"
-  math.precision: "1"
-  math.units: "1"
+  math.precision: "2"
+  math.units: "2"
   math.methods: "1"
-  math.constants: "1"
+  math.constants: "2"
   math.code: "1"
   rubric.math: "1@*"
 

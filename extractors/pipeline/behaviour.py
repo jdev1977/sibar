@@ -6,7 +6,9 @@ import re
 
 from extractors.base import Extractor
 from extractors.common.response import NO_INPUT, get_doc, result
+from extractors.pipeline.images import saves_an_image
 from extractors.pipeline.libraries import read_imports
+from extractors.pipeline.reading import reading
 from extractors.pipeline.source import get_output
 
 # --- logging ----------------------------------------------------------------
@@ -155,103 +157,14 @@ _RETRY = re.compile(
     r"\b(?:for|while)\b[^\n]{0,80}attempt", re.IGNORECASE)
 _RETRY_LIBRARIES = {
     "tenacity": "tenacity", "backoff": "backoff", "retrying": "retrying",
-    "retry": "retry", "urllib3": "urllib3", "p-retry": "p-retry",
+    "retry": "retry", "p-retry": "p-retry",
     "axios-retry": "axios-retry", "async-retry": "async-retry",
     "github.com/cenkalti/backoff": "cenkalti-backoff",
     "github.com/avast/retry-go": "retry-go",
     "github.com/hashicorp/go-retryablehttp": "go-retryablehttp",
 }
-
-_OPEN = (
-    # with open(...) as name
-    re.compile(r"\b(?:\w{0,20}open\w{0,20}|[\w.]{0,60}\.open)\("
-               r"(?P<args>(?:[^()\n]|\([^()\n]{0,100}\)){0,200})\) as (?P<name>\w{1,60})"),
-    # name = open(...)
-    re.compile(r"\b(?P<name>\w{1,60}) ?= ?(?:[\w.]{0,40}\.)?open\w{0,10}\("
-               r"(?P<args>(?:[^()\n]|\([^()\n]{0,100}\)){0,200})\)(?![.\w])"),
-)
-_MODE = r"""["'][rbt+]{0,3}[wax][bt+]{0,3}["']"""
-_WRITE_MODE = re.compile(rf"(?:,|mode ?=) ?{_MODE}")
-# path.open("w"): the first argument of the method is the mode
-_METHOD_MODE = re.compile(
-    rf"(?<!gzip)(?<!bz2)(?<!lzma)(?<!io)(?<!codecs)\.open\( ?{_MODE}")
-_CONFIG_LOAD = re.compile(
-    r"\b(?:tomllib\.load|tomli\.load|toml\.load|yaml\.(?:safe_load|load|full_load)|"
-    r"\w{0,20}(?:config|parser)\w{0,10}\.read_file)\( ?(\w{1,60})")
-_MAX_HANDLES = 50
-
-_WHOLE = (
-    ("readlines", re.compile(r"\.readlines\(\s?\)")),
-    ("read-text", re.compile(r"\.read_(?:text|bytes)\(")),
-    ("read", re.compile(r"\bopen\((?:[^()\n]|\([^()\n]{0,100}\)){0,200}\)\.read\(\s?\)")),
-    ("list-of-rows", re.compile(r"\blist\(\s?csv\.(?:Dict)?[Rr]eader\(")),
-    ("json-load", re.compile(r"\bjson\.load\(")),
-    ("read-file", re.compile(
-        r"\breadFile(?:Sync)?\(|\b(?:os|ioutil)\.ReadFile\(|\bio(?:util)?\.ReadAll\(|"
-        r"\.ReadAll\(\)|\bFile\.read\(|\.read_to_string\(|\breadLines\(|"
-        r"(?<![\w.])read\.csv2?\(")),
-)
-_TABLE_READ = re.compile(
-    r"\b(?:pd|pandas|pl|polars)\.read_(?:csv|json|table|excel|parquet|fwf|ndjson)\(")
-_STREAM = (
-    ("line-loop", re.compile(
-        r"\bfor (?:raw_?)?line(?:_?\w{0,20})? in (?:enumerate\( ?)?"
-        r"(?!lines\b)\w{1,60}(?![\w.(\[])|"
-        r"\bfor \w{1,20}, (?:raw_?)?line\w{0,20} in enumerate\( ?(?!lines\b)\w{1,60}"
-        r"(?![\w.(\[])|\bfor \w{1,60} in (?:enumerate\( ?)?csv\.(?:Dict)?[Rr]eader\(")),
-    ("readline", re.compile(r"\.readline\(|\bReadString\(|\.each_line\b|\bforeach\(")),
-    ("chunked", re.compile(
-        r"\bchunksize ?=|\biter\( ?lambda\b|\.read\( ?(?:\d{1,10}|\w{0,20}(?:SIZE|size|"
-        r"CHUNK|chunk)\w{0,20}) ?\)|\.scan_(?:csv|ndjson|parquet)\(")),
-    ("stream-api", re.compile(
-        r"\bcreateReadStream\(|\breadline\.createInterface\(|\bbufio\.New(?:Scanner|"
-        r"Reader)\(|\bBufReader::new\(")),
-)
-
-
-def _reading(code):
-    """``(style, calls)``: whether files are read whole or piece by piece."""
-    whole = {name for name, pattern in _WHOLE if pattern.search(code)}
-    stream = {name for name, pattern in _STREAM if pattern.search(code)}
-    for match in _TABLE_READ.finditer(code):
-        arguments = code[match.end():match.end() + 300].split("\n")[0]
-        if "chunksize" not in arguments:
-            whole.add("table-read")
-    configs = {m[1] for m in _CONFIG_LOAD.finditer(code)}
-    handles = []
-    for pattern in _OPEN:
-        for match in pattern.finditer(code):
-            name = match["name"]
-            if not _WRITE_MODE.search(match["args"]) and name not in configs \
-                    and name not in handles:
-                handles.append(name)
-    readers = []
-    for name in handles[:_MAX_HANDLES]:
-        escaped = re.escape(name)
-        if re.search(rf"(?<![\w.]){escaped}\.read\(\s?\)", code):
-            whole.add("read")
-        if re.search(rf"\b(?:for [\w, ]{{1,60}} in (?:enumerate\( ?)?|yield from )"
-                     rf"{escaped}(?![\w.(\[])", code):
-            stream.add("line-loop")
-        readers += re.findall(
-            rf"\b(\w{{1,60}}) ?= ?csv\.(?:Dict)?[Rr]eader\( ?{escaped}\b", code)[:5]
-    for name in readers[:_MAX_HANDLES]:
-        if re.search(rf"\bfor [\w, ]{{1,60}} in (?:enumerate\( ?)?{re.escape(name)}"
-                     rf"(?![\w.(\[])", code):
-            stream.add("line-loop")
-    for name in handles[:_MAX_HANDLES] + readers[:_MAX_HANDLES]:
-        if re.search(rf"\blist\( ?{re.escape(name)} ?\)", code):
-            whole.add("list-of-rows")
-    if whole and stream:
-        style = "both"
-    elif whole:
-        style = "whole-file"
-    elif stream:
-        style = "streaming"
-    else:
-        style = None if handles else "none"
-    return style, sorted(whole | stream)
-
+# urllib3 retries only where its Retry object is made; importing it is not enough
+_URLLIB3_RETRY = re.compile(r"(?<![\w])Retry\(")
 
 # (format, searched in code with strings?, pattern)
 _OUTPUTS = (
@@ -270,19 +183,18 @@ _OUTPUTS = (
     ("excel", False, r"\.to_excel\(|\bExcelWriter\(|\bWorkbook\("),
     ("html", False, r"\.to_html\("),
     ("plot", False, r"\bsavefig\(|\.write_image\(|\bggsave\("),
-    ("image", False, r"\b(?:image|img|im|photo|picture|resized|thumb|thumbnail|canvas|"
-                     r"background|out|output|result|rgb)\w{0,20}(?:\.convert\([^()\n]{0,60}\))?"
-                     r"\.save\(|\.toFile\(|\bcv2\.imwrite\(|\bimaging\.Save\(|"
+    ("image", False, r"\.toFile\(|\bcv2\.imwrite\(|\bimaging\.Save\(|"
                      r"\b(?:jpeg|png)\.Encode\("),
 )
 _OUTPUTS = tuple((name, strings, re.compile(pattern))
                  for name, strings, pattern in _OUTPUTS)
+_PYTHON_IMAGES = {"pillow", "opencv-python", "wand", "pyvips", "scikit-image"}
 _PARALLEL = tuple((name, re.compile(pattern)) for name, pattern in (
     ("process-pool", r"\bProcessPoolExecutor\b|\bmultiprocessing\b|(?<![\w.])Pool\(|"
                      r"\bParallel\(n_jobs|\bmclapply\(|\bchild_process\.fork\(|\bcluster\.fork\("),
     ("thread-pool", r"\bThreadPoolExecutor\b|\bThreadPool\(|\bthreading\.Thread\(|"
                     r"\bThread\.new\b"),
-    ("asyncio", r"\basyncio\.(?:gather|run|TaskGroup|create_task)\b"),
+    ("asyncio", r"\basyncio\.(?:gather|TaskGroup|create_task|as_completed|wait)\b"),
     ("promise-all", r"\bPromise\.(?:all|allSettled)\("),
     ("worker-threads", r"\bnew Worker\(|\bPiscina\b"),
     ("goroutines", r"\bgo func\b|\bsync\.WaitGroup\b|\berrgroup\."),
@@ -298,9 +210,14 @@ def operations(inputs):
     code, bare = output.text("code"), output.text("bare")
     retry_libraries = {name for key, name in _RETRY_LIBRARIES.items()
                        if key in _libraries_used(inputs)}
-    style, calls = _reading(code)
+    if (_URLLIB3_RETRY.search(bare)
+            and _libraries_used(inputs) & {"urllib3", "requests"}):
+        retry_libraries.add("urllib3")
+    style, calls = reading(code)
     formats = {name for name, strings, pattern in _OUTPUTS
                if pattern.search(code if strings else bare)}
+    if _libraries_used(inputs) & _PYTHON_IMAGES and saves_an_image(bare):
+        formats.add("image")
     if any(c.language in _PRINT and c.language != "shell"
            and _PRINT[c.language].search(c.parts.bare) for c in output.main):
         formats.add("printed")
@@ -320,6 +237,6 @@ EXTRACTORS = (
               "logging library or print"),
     Extractor("pipeline.config", "1", "pipeline", config,
               "configuration sources and where a key is read from"),
-    Extractor("pipeline.operations", "1", "pipeline", operations,
+    Extractor("pipeline.operations", "2", "pipeline", operations,
               "retries, file reading, output formats, parallel work"),
 )

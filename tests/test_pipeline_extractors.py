@@ -201,7 +201,7 @@ def test_where_a_key_is_read_from(source, expected):
      "streaming"),
     ("body = response.read()\n", "none"),
     ("with open('a') as f:\n    consume(f)\n", None),
-    ("with open('r.json') as f:\n    rules = json.load(f)\n"
+    ("with open('d.json') as f:\n    data = json.load(f)\n"
      "with open('a') as g:\n    for line in g:\n        pass\n", "both"),
 ])
 def test_how_files_are_read(source, expected):

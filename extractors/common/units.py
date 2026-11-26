@@ -2,7 +2,9 @@
 
 Only a unit written right after a number, or alone in brackets (a table
 heading), is read. ``in`` is also an English word, so it counts only where a
-sentence cannot go on with it: before punctuation or a word of size.
+sentence cannot go on with it: before punctuation or a word of size. A
+fraction is read whole (``1/8 in``, ``1 1/2 in``). ``2g`` written closed up
+is twice the acceleration of gravity, not two grams, and is not read.
 """
 
 import re
@@ -33,10 +35,24 @@ _QUOTE_FOLLOWS = re.compile(
 _SPLIT = re.compile(r"[·⋅*/\- .]+(?!\d)")
 _POWERS = re.compile(r"\^[({]?-?\d[)}]?")
 MAX_QUANTITIES = 20_000
+# the "1 1/" before the "2" of a fraction
+_FRACTION = re.compile(r"(?:(?<![\d./])(\d{1,3})[ \-])?(?<![\d./])(\d{1,3})/\Z")
 
 
-def quantities(text):
-    """``(value or None, unit)`` for each quantity in normalised ``text``."""
+def _value(text, match):
+    """The number of a match, as the whole fraction it may end."""
+    number = parse(match)
+    start = match.start()
+    fraction = _FRACTION.search(text[max(start - 9, 0):start])
+    if fraction and number.mantissa.isdigit() \
+            and int(fraction[2]) < int(number.mantissa):
+        return int(fraction[1] or 0) + int(fraction[2]) / number.value
+    return number.value
+
+
+def quantities(text, quotes=True):
+    """``(value or None, unit)`` for each quantity in normalised ``text``.
+    ``quotes`` False for code, where ``"`` ends a string and is not inches."""
     found = []
     for match in NUMBER.finditer(text):
         after = _AFTER.match(text, match.end())
@@ -44,6 +60,8 @@ def quantities(text):
             continue
         end = after.end()
         if after["quote"]:
+            if not quotes:
+                continue
             start = match.start()
             if start and text[start - 1] in "\"'" or not _QUOTE_FOLLOWS.match(text, end):
                 continue
@@ -52,7 +70,10 @@ def quantities(text):
             unit = after["unit"]
             if unit == "in" and not _INCH_FOLLOWS.match(text, end):
                 continue
-        found.append((canonical(parse(match).value), unit.replace(" ", " ")))
+            if unit == "g" and match["mantissa"] == "2" \
+                    and after.start("unit") == match.end():
+                continue
+        found.append((canonical(_value(text, match)), unit))
         if len(found) >= MAX_QUANTITIES:
             return found
     for match in _BRACKETED.finditer(text):
