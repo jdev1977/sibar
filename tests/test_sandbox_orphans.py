@@ -1,11 +1,17 @@
-"""No sandboxed process outlives the process that started it.
+"""Processes the sandbox code starts do not outlive their creator, and the
+sweep ends leftovers of the runtime only.
 
 Each kill test starts a creator: a bounded helper process (this repository's
-own code) that opens a box, starts a suspended child in it the way the
-sandbox does, says the child's id and waits (at most 60 s). The test holds the
-child, kills the creator at that moment, as a crash would, and checks that the
-child ends with it. Whatever happens, the test ends the child itself and a
-new box removes what the creator left (its profile and working folder).
+own code) that opens a box and starts a suspended child, then says the
+child's id and waits (at most 60 s). It starts the child in one of two ways:
+through ``win32.start`` as the token test does (with a job, as
+``win32.start`` now requires), or through ``Box.run``, stopped just before its
+job check. The test holds the child, kills the creator at that moment as a
+crash would, and checks that the child ends with it. Whatever happens, the
+test ends the child itself and a new box removes what the creator left (its
+profile and working folder). Before the fix, the token test's call (no job)
+left the child alive here; that call is now refused
+(``test_no_process_is_started_outside_a_job``).
 """
 
 import ctypes
@@ -188,3 +194,70 @@ def test_sweep_ends_leftover_processes_of_the_runtime_and_nothing_else(tmp_path)
     assert _inside(r"C:\x\RUNTIME\python.exe", runtime_folder)
     assert not _inside(r"C:\x\runtime.new\python.exe", runtime_folder)
     assert not _inside(r"C:\x\runtime", runtime_folder)
+
+
+def test_sweep_ends_nothing_through_a_junction_or_a_bad_runtime(tmp_path, monkeypatch):
+    """Two roots sharing one runtime through a junction (on the runtime
+    folder, or above it) could end each other's runs: the sweep refuses to
+    end anything then. Every folder and junction here is this test's own."""
+    import _winapi
+    import shutil
+
+    from sandbox import runtime, win32
+    from sandbox.box import sweep
+    from sandbox.job import JobObject
+
+    real = tmp_path / "a"
+    (real / "runtime").mkdir(parents=True)
+    shutil.copyfile(PYTHON, real / "runtime" / "python.exe")
+    shared = tmp_path / "b"
+    shared.mkdir()
+    _winapi.CreateJunction(str(real / "runtime"), str(shared / "runtime"))
+    above = tmp_path / "c"
+    _winapi.CreateJunction(str(real), str(above))
+    unset = tmp_path / "d"
+    (unset / "runtime").mkdir(parents=True)
+    job = JobObject()  # holds the bystander, so it cannot outlive this test
+    stdin = win32.null_input()
+    bystander = None
+    try:
+        # Suspended, so it never runs (its DLLs are not beside it).
+        bystander = win32.start([str(real / "runtime" / "python.exe"), "-c", "pass"],
+                                tmp_path, dict(os.environ), job=job.handle,
+                                stdin=stdin, stdout=stdin, stderr=stdin)
+        # Without the manifest the runtime check refuses on its own.
+        removed, problems = sweep(unset)
+        assert "not as setup left it" in " ".join(problems), problems
+        # Let the runtime check pass, so only the link refusals stand.
+        monkeypatch.setattr(runtime, "check", lambda root: {})
+        for root, reason in ((shared, "junction"), (above, "through a link")):
+            removed, problems = sweep(root)
+            assert not [r for r in removed if r.startswith("process")]
+            assert reason in " ".join(problems), problems
+            assert not win32.wait(bystander.handle, 0), "a process was ended"
+        # Control: the same sweep by the real folder ends the bystander.
+        removed, problems = sweep(real)
+        assert win32.wait(bystander.handle, 5000)
+        assert f"process {bystander.pid} (python.exe)" in removed
+    finally:
+        job.close()
+        if bystander is not None:
+            bystander.close()
+        win32.close(stdin)
+        for link in (shared / "runtime", above):
+            os.rmdir(link)  # the junction only, never its target
+
+
+def test_drive_and_share_roots_are_too_broad(monkeypatch):
+    from sandbox import runtime
+    from sandbox.box import _too_broad, runtime_folder_problem
+
+    for folder in ("C:\\", "C:\\runtime", "\\\\server\\share\\", "\\\\server\\share\\runtime",
+                   "runtime", "x\\runtime", "\\runtime"):
+        assert _too_broad(folder), folder
+    for folder in ("C:\\x\\runtime", "\\\\server\\share\\x\\runtime"):
+        assert _too_broad(folder) is None, folder
+    # A runtime folder that is really a drive root is refused; nothing is
+    # listed or ended (only the check runs).
+    monkeypatch.setattr(os.path, "realpath", lambda path, **_: "C:\\")
+    assert runtime_folder_problem(runtime.default_root())

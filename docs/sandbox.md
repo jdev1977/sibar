@@ -46,7 +46,8 @@ with it) and anything runs left behind. Deleting `.sandbox` by hand does the
 same. `python -m sandbox status` shows the runtime and any leftovers;
 `python -m sandbox clean` removes leftovers (a crashed run's AppContainer
 profile or working folder, and any process still running a program from the
-runtime folder; the next run would remove them anyway).
+runtime folder, once the runtime check passes; the next run would remove
+them anyway).
 
 ## Use
 
@@ -229,9 +230,14 @@ off gets through, so the test would fail if the boundary went.
   closes the job, which kills the process. (A test that started suspended
   children outside a job once left one, `python.exe -c pass`, alive after
   its run was killed; tests now make theirs in a job too.) As a backstop,
-  every new box and `python -m sandbox clean` end any process whose program
-  is inside the runtime folder (with the root's lock held no box is open, so
-  any such process is a leftover); nothing else is touched.
+  every new box and `python -m sandbox clean` end any process (other than
+  their own) whose program is inside the runtime folder (with the root's lock
+  held no box is open, so any such process is a leftover); nothing else is
+  touched. They end processes only after the runtime check passes and the
+  runtime folder is shown to be exactly itself: no junction, link or mount
+  point on it or above it (so two roots cannot share a runtime and end each
+  other's runs), and not a drive or share root or right below one.
+  Otherwise nothing is ended and the problem is reported.
 - **Watching**: the clock, bytes written, the folder and the free space.
 
 ### Threat model

@@ -69,12 +69,22 @@ class Child:
         return out, b""
 
     def close(self):
-        for stream in (self.stdin, self.stdout):
+        for name in ("stdin", "stdout"):
+            stream = getattr(self, name, None)
             if stream is not None:
-                stream.close()
-        self._process.close()
+                try:
+                    stream.close()
+                except OSError:
+                    pass
+        process = getattr(self, "_process", None)
+        if process is not None:
+            process.close()
 
-    __del__ = close
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass  # at interpreter exit, modules may already be gone
 
 
 def start(code, job):

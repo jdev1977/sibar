@@ -848,8 +848,8 @@ PROCESS_TERMINATE, PROCESS_QUERY_LIMITED, SYNCHRONIZE = 0x0001, 0x1000, 0x001000
 
 def processes():
     """``(handle, pid, image path)`` for each process that this process may
-    query, end and wait for. The handle keeps the id from being reused while
-    it is open; the caller closes every one (:func:`close`)."""
+    query and wait for. The handle has no other right; while it is open the
+    id cannot be reused. The caller closes every one (:func:`close`)."""
     a = api()
     count = 4096
     while True:
@@ -862,16 +862,35 @@ def processes():
         count *= 2
     found = []
     buffer = ctypes.create_unicode_buffer(32768)
-    for pid in ids[:used.value // ctypes.sizeof(wintypes.DWORD)]:
-        if not pid:
-            continue
-        handle = a.OpenProcess(PROCESS_QUERY_LIMITED | PROCESS_TERMINATE | SYNCHRONIZE,
-                               False, pid)
-        if not handle:
-            continue  # not this user's, or already gone
-        size = wintypes.DWORD(len(buffer))
-        if a.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
-            found.append((handle, pid, buffer.value))
-        else:
+    try:
+        for pid in ids[:used.value // ctypes.sizeof(wintypes.DWORD)]:
+            if not pid:
+                continue
+            handle = a.OpenProcess(PROCESS_QUERY_LIMITED | SYNCHRONIZE, False, pid)
+            if not handle:
+                continue  # not this user's, or already gone
+            size = wintypes.DWORD(len(buffer))
+            if a.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+                found.append((handle, pid, buffer.value))
+            else:
+                a.CloseHandle(handle)
+    except BaseException:
+        for handle, _, _ in found:
             a.CloseHandle(handle)
+        raise
     return found
+
+
+def end_process(pid, code):
+    """Terminate process ``pid``. The caller holds a handle on it (from
+    :func:`processes`), so the id is still that process. WinError if Windows
+    refuses."""
+    a = api()
+    handle = a.OpenProcess(PROCESS_TERMINATE, False, pid)
+    if not handle:
+        raise WinError("OpenProcess(terminate)")
+    try:
+        if not a.TerminateProcess(handle, code):
+            raise WinError("TerminateProcess")
+    finally:
+        a.CloseHandle(handle)
