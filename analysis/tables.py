@@ -433,6 +433,7 @@ def fingerprint(grid, model, level):
         reps[task] = representative(runs_t, variables, dimension_of)
     return {"model": model, "level": level, "dates": _dates(runs),
             "model_id_returned": snapshots, "settings": sorted({r.settings for r in runs}),
+            "reported_serving": sorted({r.served for r in runs}),
             "flags": flags, "outcomes": outcomes, "health": health,
             "partly_read_dimensions": _partly_read_dimensions(spec, health),
             "variables": rows, "representative_outputs": reps}

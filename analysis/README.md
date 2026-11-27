@@ -88,7 +88,7 @@ Per model, `levels.<level>` has:
 
 | Key | Content |
 |---|---|
-| `fingerprint` | `dates`, `model_id_returned`, `settings`, `flags` (`incomplete outcomes`, `mixed snapshots`), `outcomes`, `health`, `partly_read_dimensions`, `variables` (one row per primary, provisional and secondary variable), `representative_outputs` (per task) |
+| `fingerprint` | `dates`, `model_id_returned`, `settings`, `reported_serving`, `flags` (`incomplete outcomes`, `mixed snapshots`), `outcomes`, `health`, `partly_read_dimensions`, `variables` (one row per primary, provisional and secondary variable), `representative_outputs` (per task) |
 | `convergence` | per variable, per dimension and overall, each with the per-task values, mean, task interval and T |
 | `wording_sensitivity` | as convergence; a dimension whose task interval lies above 0 carries the flag `read the wording pair again` |
 | `directed` | `entries`: every closed variable per task (listed or dependent, with the variable that closed it), its per-task shares, compliance where an expected value is given, and for primary and provisional variables convergence, wording shift, shift and excess from L0; `pooled`: compliance and persistence per variable over the tasks where they can be read |
@@ -164,7 +164,11 @@ when the tables would mean something other than they say:
   models;
 - a stored value does not fit its declared type, or a number is below its
   first bin edge;
-- one model's records in the batch group have more than one `settings` value;
+- one model's records in the batch group have more than one `settings` value
+  (values under `reported_*`, which the runner copies from each response's
+  own account of its serving, such as `reported_service_tier`, are left out
+  of this comparison: they are listed in the fingerprint as
+  `reported_serving`, with a note when they differ);
 - a record file has a bad line, or a record appears in two files.
 
 Records that are not `source: controlled` on `surface: api` are left out
