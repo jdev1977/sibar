@@ -239,10 +239,19 @@ IMPORTS = ("numpy", "scipy", "scipy.optimize", "scipy.stats", "sympy", "pandas",
            "zoneinfo", "sqlite3", "ssl", "ctypes")
 
 
+# Wall-clock seconds the self-test may take. It loads every package at once,
+# straight after setup wrote the files, which on a busy machine takes many
+# times as long as a run is allowed (``Limits.seconds``).
+SELF_TEST_SECONDS = 600
+# Printed by Python at every start in the sandbox, which Windows will not tell
+# where the runtime really is. It does no harm and is never what went wrong.
+STARTUP_WARNING = "Failed to find real location of "
+
+
 def self_test(root):
     """Import every package in a sandbox and draw a plot; return None if that
     worked, else what went wrong."""
-    from sandbox.box import Box
+    from sandbox.box import Box, Limits
 
     code = ("import importlib, zoneinfo\n"
             f"for name in {IMPORTS!r}:\n"
@@ -251,7 +260,7 @@ def self_test(root):
             "import matplotlib.pyplot as plt\n"
             "plt.plot([0, 1]); plt.savefig('plot.png')\n"
             "print('imported', len(" + repr(IMPORTS) + "))\n")
-    with Box(root) as box:
+    with Box(root, limits=Limits(seconds=SELF_TEST_SECONDS)) as box:
         result = box.run([box.python(), "-c", code])
         if result.exit_code == 0 and result.stdout.startswith(b"imported"):
             # Keep the font list matplotlib made, so runs need not make it
@@ -261,8 +270,23 @@ def self_test(root):
             for made in (box.home / ".matplotlib").glob("fontlist-*.json"):
                 shutil.copyfile(made, cache / made.name)
             return None
-    return (result.stderr.decode("utf-8", "replace").strip().splitlines() or
-            [f"exit code {result.exit_code}"])[-1][:500]
+    return _self_test_problem(result)
+
+
+def _self_test_problem(result):
+    """Why the self-test run ``result`` did not pass."""
+    if result.cause == "timeout":
+        return (f"the self-test hit its time limit after {result.seconds:.0f} s, "
+                f"having used {result.cpu_seconds:.1f} s of CPU. With little CPU "
+                "used, the machine was probably short of memory or busy: close "
+                "other programs and run setup again")
+    lines = [line for line in result.stderr.decode("utf-8", "replace").splitlines()
+             if line.strip() and not line.startswith(STARTUP_WARNING)]
+    if result.cause:
+        ended = f"the self-test was ended by the {result.cause} limit"
+    else:
+        ended = f"exit code {result.exit_code}"
+    return (f"{ended}: {lines[-1].strip()}" if lines else ended)[:500]
 
 
 def font_cache(root):

@@ -27,7 +27,10 @@ set `SIBAR_SANDBOX_ROOT` to put the sandbox elsewhere). It:
 3. adds the shims (`sandbox/shim`), compiles everything (the sandbox cannot
    write there) and writes `sandbox-runtime.json`;
 4. sets the folder's permissions (below) and ends with a self-test: every
-   package is imported, and a plot drawn, in a real sandbox.
+   package is imported, and a plot drawn, in a real sandbox. It has 600
+   seconds, far more than a run, because loading freshly written files can be
+   slow. If it fails, the runtime stays in place but is unproven: run setup
+   again until it passes.
 
 It takes a few minutes and about 600 MB. Run it again whenever
 `sandbox/requirements.txt` or `sandbox/shim` changes: every run checks the
@@ -91,6 +94,17 @@ other work they can be starved until the wall-clock limit ends them: the
 run then ends in `timeout` or, if it was the survey, in `error` with
 "ended by timeout" in the reason. `error` results are run again on the
 next `--records` run.
+
+A `timeout` result is not run again by itself, and it may be the machine's
+fault: with under 1 GB of memory free, loading the larger packages alone has
+passed the 60 seconds a run gets, with under 1 second of CPU used. Before
+counting timeouts as failures, close memory-heavy programs, look at the
+check's `detail.entry` (`seconds`, `cpu_seconds`), and run a doubtful record
+again with `--record-id ID --force`, adding `--seconds` for a longer limit.
+Little CPU does not prove it: a program that sleeps or waits looks the same.
+`--seconds` does not lengthen the survey of the files, which always has 60
+seconds. Records run with another limit are not comparable with the rest, and
+each check records its limits in `detail.settings`.
 
 ## What happens to an output
 
