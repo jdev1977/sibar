@@ -3,6 +3,7 @@
     python -m tagger tag ...         tag run records with a tagging model
     python -m tagger agreement ...   agreement of two taggings (docs/rubrics.md)
     python -m tagger template ...    a blank human tag file and reading sheets
+    python -m tagger sample ...      the calibration sample (T2.5)
 
 See ``tagger/README.md``.
 """
@@ -10,7 +11,7 @@ See ``tagger/README.md``.
 import argparse
 import sys
 
-from tagger import agreement, run
+from tagger import agreement, run, sample
 
 
 def build_parser():
@@ -23,6 +24,8 @@ def build_parser():
         "agreement", help="agreement between two taggings"))
     agreement.add_template_arguments(commands.add_parser(
         "template", help="a blank human tag file for a sample of records"))
+    sample.add_sample_arguments(commands.add_parser(
+        "sample", help="the calibration sample: a stratified subset record file"))
     return parser
 
 
@@ -32,6 +35,8 @@ def main(argv=None, **kwargs):
         return run.run_tag(args, **kwargs)
     if args.command == "agreement":
         return agreement.run_agreement(args, out=kwargs.get("out", print))
+    if args.command == "sample":
+        return sample.run_sample(args, out=kwargs.get("out", print))
     return agreement.run_template(args, out=kwargs.get("out", print))
 
 

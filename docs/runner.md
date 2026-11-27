@@ -15,9 +15,14 @@ run, with **no system prompt and default settings**, and writes one
 
 ```
 python -m runner.run --prompts PATH... --batch-id ID --dry-run
-python -m runner.run --prompts PATH... --batch-id ID --paid \
-    --batch-cap USD --total-cap USD [--ledger PATH]
+python -m runner.run --prompts PATH... --batch-id ID --paid --batch-cap USD --total-cap USD [--ledger PATH]
 ```
+
+Commands in these docs are written `python -m ...`, one command per line, and
+run from the repository root. On the Windows machine, in PowerShell, write
+`.venv\Scripts\python` for `python` (the project's virtual environment, with
+the pinned packages; or activate it first with `.venv\Scripts\Activate.ps1`).
+Paths with forward slashes work as they are.
 
 `--dry-run` lists every cell still to run with its worst-case cost, compares
 the total with the caps and reports missing keys. It sends nothing and writes
@@ -62,13 +67,9 @@ more than reserved, an internal error); 130 interrupted.
 each." Once the keys are set (T0.3) and `confirmed_by_human` is true:
 
 ```
-python -m runner.run --prompts tests/fixtures/prompts/example/tiny-task.yaml \
-    --levels L0 --wordings A --runs 1 --models all --max-attempts 2 \
-    --batch-id t0.5-live-check --dry-run
+python -m runner.run --prompts tests/fixtures/prompts/example/tiny-task.yaml --levels L0 --wordings A --runs 1 --models all --max-attempts 2 --batch-id t0.5-live-check --dry-run
 
-python -m runner.run --prompts tests/fixtures/prompts/example/tiny-task.yaml \
-    --levels L0 --wordings A --runs 1 --models all --max-attempts 2 \
-    --batch-id t0.5-live-check --paid --batch-cap 15 --total-cap 15
+python -m runner.run --prompts tests/fixtures/prompts/example/tiny-task.yaml --levels L0 --wordings A --runs 1 --models all --max-attempts 2 --batch-id t0.5-live-check --paid --batch-cap 15 --total-cap 15
 
 python -m runner.record --files data/runs/t0.5-live-check/records.jsonl
 python -m runner.ledger
@@ -89,6 +90,25 @@ retry spends the same headroom again, and worst-case charges (overstated
 when the provider would not actually bill a failed request) stay in the
 ledger for good: after a few failed attempts, raise the batch cap or start a
 new batch id, and keep the total cap as the overall limit.
+
+## The pilot (T1.7)
+
+540 generations: the six website prompts, three levels, two wordings, five
+runs, on the three pilot models of models.yaml (`pilot:`). **`--models`
+defaults to `all` (every model in models.yaml), so the pilot must say
+`--models pilot`.** Dry-run first, read the cell count (540) and the worst
+case, and choose the caps from it (the Human approves the spend):
+
+```
+python -m runner.run --prompts prompts/website --models pilot --runs 5 --batch-id pilot-1 --dry-run
+
+python -m runner.run --prompts prompts/website --models pilot --runs 5 --batch-id pilot-1 --paid --batch-cap USD --total-cap USD
+```
+
+Levels and wordings default to all (`L0,L1,L2`, `A,B`). Re-running the same
+command resumes: done cells are skipped (see [Resuming](#resuming)). Then
+`python -m extractors --records data/runs/pilot-1/records.jsonl` and
+[analysis/README.md](../analysis/README.md).
 
 ## What is sent
 
@@ -285,8 +305,9 @@ Twice: the run exits at once and calls in flight count at their worst case.
 
 Keys are read from the environment variables named in models.yaml
 (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `DEEPSEEK_API_KEY`).
-The runner does not read a `.env` file itself: set the variables in the shell
-that runs it.
+The runner does not read a `.env` file: set the variables in the shell that
+runs it ([docs/secrets.md](secrets.md#setting-keys-in-powershell) shows how
+in PowerShell).
 A paid run refuses to start, naming the variables, if a chosen model's key is
 missing or contains spaces or line breaks (values are never shown). Choose
 models with `--models` to run without some providers.

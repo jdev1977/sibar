@@ -240,6 +240,28 @@ def test_extract_file_refuses_unknown_names_and_bad_files(tmp_path):
         extract_file(tmp_path / "missing.jsonl")
 
 
+def test_a_copy_without_its_files_is_refused_and_not_rewritten(tmp_path, capsys):
+    # A record copied away from files/<record_id>/ must not silently turn into
+    # no-input features.
+    original = tmp_path / "run" / "records.jsonl"
+    original.parent.mkdir()
+    add(original)
+    copy = tmp_path / "elsewhere" / "records.jsonl"
+    copy.parent.mkdir()
+    copy.write_bytes(original.read_bytes())
+    before = copy.read_bytes()
+    with pytest.raises(ExtractRefused, match="files"):
+        extract_file(copy, say=lambda text: None)
+    assert copy.read_bytes() == before
+    assert main(["--records", str(copy)]) == 2
+    assert "files" in capsys.readouterr().out
+    assert copy.read_bytes() == before
+    # With its files beside it, the same copy extracts.
+    import shutil
+    shutil.copytree(original.parent / "files", copy.parent / "files")
+    assert extract_file(copy, say=lambda text: None)["records"] == 1
+
+
 def test_command_line_on_records_and_on_a_directory(tmp_path, capsys):
     path = tmp_path / "records.jsonl"
     add(path)

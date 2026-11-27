@@ -24,12 +24,17 @@ log and the ledger before going on.
 | [store.py](store.py) | The tag cache and a run's job log |
 | [run.py](run.py) | `python -m tagger tag` |
 | [agreement.py](agreement.py) | `python -m tagger agreement` and `python -m tagger template` |
+| [sample.py](sample.py) | `python -m tagger sample`: the calibration sample (T2.5) |
 
 ## Tagging
 
-    python -m tagger tag --records data/runs/pilot-1/records.jsonl \
-        --type pipeline --tagger claude-haiku-5-5 --run cal-haiku --dry-run
-    python -m tagger tag ... --paid --batch-cap 5 --total-cap 50 [--wait]
+    python -m tagger tag --records data/runs/pilot-1/records.jsonl --type pipeline --tagger claude-haiku-5-5 --run cal-haiku --dry-run
+    python -m tagger tag --records data/runs/pilot-1/records.jsonl --type pipeline --tagger claude-haiku-5-5 --run cal-haiku --paid --batch-cap 5 --total-cap 50 --wait
+
+One command per line; in PowerShell write `.venv\Scripts\python` for
+`python` ([docs/runner.md](../docs/runner.md#use)). The tagger reads its key
+from the environment only, never from a `.env` file
+([docs/secrets.md](../docs/secrets.md#setting-keys-in-powershell)).
 
 | Option | Meaning |
 |---|---|
@@ -104,6 +109,15 @@ the same extractor (another tagger's copy given as input), they are removed
 from every record this tagger has not tagged yet, so a copy never mixes two
 taggers. The input files are not changed.
 
+The copy holds the records only. Their files stay where the runner saved
+them, in `files/<record_id>/` beside the input record file
+(`data/runs/<batch-id>/files/`); nothing is copied into `data/tagger/<run>/`.
+The metrics read only the copy's features, so they do not need the files.
+Run the extractors before tagging: `python -m extractors` on the copy
+refuses, because the files are not beside it (run it on the runner's file
+and tag again, which the cache makes free, or copy the `files` folder
+beside the copy).
+
 ### Faults in an answer
 
 Every reply is checked strictly ([answers.py](answers.py)): exactly the items
@@ -138,10 +152,8 @@ features, is a new key and a new request.
 To **measure** how much a live model's tags vary (docs/rubrics.md, "Repeat
 tagging", target 0.97), tag again into a separate cache and compare:
 
-    python -m tagger tag ... --run repeat-1 --cache data/tagger/cache-repeat.jsonl --paid ...
-    python -m tagger agreement --type pipeline \
-        --a data/tagger/cal-haiku/records.claude-haiku-5-5.jsonl \
-        --b data/tagger/repeat-1/records.claude-haiku-5-5.jsonl
+    python -m tagger tag --records data/runs/pilot-1/records.jsonl --type pipeline --tagger claude-haiku-5-5 --run repeat-1 --cache data/tagger/cache-repeat.jsonl --paid --batch-cap 5 --total-cap 50 --wait
+    python -m tagger agreement --type pipeline --a data/tagger/cal-haiku/records.claude-haiku-5-5.jsonl --b data/tagger/repeat-1/records.claude-haiku-5-5.jsonl
 
 ### Money
 
@@ -213,10 +225,8 @@ same operating-system lock as the ledger).
 
 ## Agreement
 
-    python -m tagger agreement --type pipeline --a human/tags.yaml \
-        --b data/tagger/cal-haiku/records.claude-haiku-5-5.jsonl [--json out.json]
-    python -m tagger agreement --type pipeline --a CLAUDE.jsonl --b OTHER.jsonl \
-        --family anthropic
+    python -m tagger agreement --type pipeline --a data/tagger/human-pipeline/tags.yaml --b data/tagger/cal-haiku/records.claude-haiku-5-5.jsonl [--json out.json]
+    python -m tagger agreement --type pipeline --a CLAUDE.jsonl --b OTHER.jsonl --family anthropic
 
 Side A is the reference. A side is a human tag file (`.yaml`) or a tagged
 record file. The command prints, as [docs/rubrics.md](../docs/rubrics.md),
@@ -239,16 +249,48 @@ an answer; an error is not). A `null` item of a `partial` tagging stays a
 judgements where A answered the item: where A stopped at the gate, the
 items after it have no A answer.
 
+## The calibration sample
+
+    python -m tagger sample --type pipeline --records data/runs/t2.9/records.jsonl --size 100 --human 5 --seed 1 --models pilot --out data/tagger/sample-pipeline
+
+draws the sample of [docs/rubrics.md](../docs/rubrics.md), "The sample", from
+the records with status `ok`. **The 100**: every task gets an equal share
+(16 or 17 for six tasks; a task with too few records is refused), and within
+a task each pick keeps the levels, the wordings and the models as even as
+the pool allows (no value used more than once above the least-used one of
+its kind, then the fewest uses, then the fewest uses of each pair).
+**The 30 for the Human**: `--human` per task (default 5) from the 100, by the
+same rule, so each task's five hold every level and every model when the 100
+do; a task where they do not is printed as a note. The choice is fixed by
+`--seed` and by which records are in the pool, whatever the order of the
+input files. `--models` is `all` (every model in the records), `pilot`
+(models.yaml's pilot list) or ids separated by commas.
+
+It writes, and never overwrites:
+
+| File | For |
+|---|---|
+| `records.jsonl` | The 100: `python -m tagger tag --records data/tagger/sample-pipeline/records.jsonl ...` |
+| `ids.txt` | Their record ids, one per line |
+| `human-records.jsonl` | The 30: `python -m tagger template --records data/tagger/sample-pipeline/human-records.jsonl ...` (no `--sample`) |
+| `human-ids.txt` | Their record ids |
+| `sample.yaml` | Seed, inputs, and the counts per task, level, wording and model |
+
+The subset files hold whole records but not their files, which stay beside
+the input record file. Tagging and the template read only `raw_response`, so
+they need none.
+
 ## The human tag file
 
-    python -m tagger template --type pipeline --records FILE... \
-        --sample 30 --seed 1 --out data/tagger/human-pipeline
+    python -m tagger template --type pipeline --records data/tagger/sample-pipeline/human-records.jsonl --out data/tagger/human-pipeline
 
 writes `tags.yaml` and one reading sheet per output in `sheets/`. A sheet
 holds the rubric's instructions, the items with their options in the same
 order the tagger sees for that output, and the response. It does not name
-the model, the prompt or the level. T2.5 chooses the 30 (`--record-id`,
-repeated, takes an exact list). The outputs are listed in random order.
+the model, the prompt or the level. Give it the 30 of
+[the calibration sample](#the-calibration-sample) as above; `--record-id`,
+repeated, takes an exact list instead, and `--sample N --seed S` draws N at
+random (not stratified). The outputs are listed in random order.
 
 ```yaml
 schema_version: 1

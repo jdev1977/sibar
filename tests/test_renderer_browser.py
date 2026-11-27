@@ -654,10 +654,29 @@ def test_the_console_is_silenced_in_every_frame(tmp_path):
       const f = document.createElement("iframe"); document.body.appendChild(f);
       alert([window, f.contentWindow].map((w) => ["log", "debug", "error", "table"]
         .map((n) => { const d = Object.getOwnPropertyDescriptor(w.console, n);
-          return [d.writable, d.configurable, /native code/.test(String(d.value))]
+          return [typeof d.get, typeof d.set, d.configurable,
+                  /native code/.test(String(w.console[n]))]
             .join(); }).join(" ")).join(" "))</script>""")
     result, _ = one(site, tmp_path)
-    assert reports(result) == [" ".join(["false,false,false"] * 8)]
+    assert reports(result) == [" ".join(["function,function,false,false"] * 8)]
+
+
+def test_strict_page_code_may_assign_console_methods(tmp_path):
+    # A page that wraps console.log in strict mode must not throw, or its later
+    # code (here the green background) would not run and the screenshot change.
+    site = page(tmp_path, """<body style="margin:0"><script>"use strict";
+      const before = console.log;
+      console.log = function () {};
+      console.error = console.log;
+      console.log("hidden"); console.table({a: 1});
+      document.body.style.background = "rgb(0, 255, 0)";
+      alert(["silenced " + (console.log === before),
+             "native " + /native code/.test(String(console.error))].join(" "));
+    </script>""")
+    result, variant = one(site, tmp_path)
+    assert variant.outcome == "ok", variant
+    assert reports(result) == ["silenced true native false"]
+    assert Png(tmp_path / "out" / variant.file).pixel(50, 50) == (0, 255, 0)
 
 
 def test_navigation_reports_are_limited(tmp_path):

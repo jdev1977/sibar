@@ -37,7 +37,14 @@ def test_the_tagger_list_loads_and_prices_come_from_one_place():
     assert sonnet.model.output_price_per_mtok_usd == 10.0
     assert {t.provider for t in TAGGERS.taggers} == {"anthropic", "openai"}
     assert all(t.batch_discount == Decimal("0.5") for t in TAGGERS.taggers)
-    assert TAGGERS.confirmed_by_human is False
+    committed = yaml.safe_load(open("tagger/taggers.yaml", encoding="utf-8"))
+    assert TAGGERS.confirmed_by_human is committed["confirmed_by_human"]
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_the_confirmed_flag_is_read_from_the_file(tmp_path, value):
+    path = _write(tmp_path, lambda raw: raw.update(confirmed_by_human=value))
+    assert load_taggers(path, MODELS).confirmed_by_human is value
 
 
 def test_tagger_only_models_reach_the_ledger_not_the_models_under_test():

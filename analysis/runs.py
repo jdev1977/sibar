@@ -9,6 +9,7 @@ mean something other than it says is refused with a message.
 
 import datetime
 import json
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -19,6 +20,12 @@ from analysis.spec import LEVELS, WORDINGS
 
 OUTCOMES = ("artifact", "no-artifact", "unread", "truncated", "refused")
 EXTRACTOR_STATUSES = ("ok", "partial", "no-input", "error")
+# The runner stores what a response said about its own serving (service tier
+# and the like) in the record's settings under this prefix. Those values vary
+# per response and are not settings that were sent, so they are not compared.
+REPORTED_PREFIX = "reported_"
+TAG_HINT = ("python -m tagger tag (tagger/README.md) and give the tagged copy, "
+            "data/tagger/<run>/records.<tagger>.jsonl, to --records")
 
 
 class Refused(Exception):
@@ -200,12 +207,13 @@ class Run:
     timestamp: str
     batch_id: str
     model_id_returned: Optional[str]
-    settings: str
+    settings: str  # what was sent (reported_* values left out), as JSON text
     outcome: str
     values: dict = field(default_factory=dict)
     masked: bool = False
     statuses: dict = field(default_factory=dict)
     health: dict = field(default_factory=dict)
+    served: str = "{}"  # the reported_* values of the record, as JSON text
 
     @property
     def usable(self):
@@ -271,6 +279,18 @@ def _check_one_tagger(records, spec):
                           "tags of two taggers are never mixed")
 
 
+def _unread_rubrics(records, spec):
+    """Notes for rubric tags the records carry but features.yaml does not
+    declare (the website rubric): they are stored, and not read."""
+    found = Counter(e["extractor"] for record in records for e in record["extractors"]
+                    if e["extractor"].startswith("rubric.")
+                    and e["extractor"] not in spec.extractor_versions)
+    features = spec.source.get("features", "features.yaml")
+    return [f"{count} records carry {name} tags, which are not read: {features} "
+            f"declares no {name} variables, so no table or metric uses them"
+            for name, count in sorted(found.items())]
+
+
 def _check_extractors(record, spec, required):
     listed = {e["extractor"]: e["extractor_version"] for e in record["extractors"]}
     rid = record["record_id"]
@@ -281,13 +301,19 @@ def _check_extractors(record, spec, required):
                           f"{spec.source.get('features', 'features.yaml')}")
     for name in required:
         want = spec.extractor_versions[name]
+        tags = want.endswith("@*")  # a rubric's tags, written by the tagger
         if name not in listed:
+            if tags:
+                raise Refused(f"record {rid}: it has not been tagged ({name}); run "
+                              f"{TAG_HINT}")
             raise Refused(f"record {rid}: extractor {name} has not run on it; "
                           "re-run python -m extractors first")
         if not _version_fits(listed[name], want):
+            fix = (f"tag again with python -m tagger tag at that rubric version"
+                   if tags else "re-run python -m extractors first")
             raise Refused(f"record {rid}: extractor {name} is at version "
                           f"{listed[name]}, the metrics read version {want}; "
-                          "re-run python -m extractors first (versions are never mixed)")
+                          f"{fix} (versions are never mixed)")
     for entry in record["features"]:
         if entry["extractor"] in required and \
                 entry["name"] not in spec.declared_features(entry["extractor"]):
@@ -389,19 +415,22 @@ def select(records, spec, batches):
             continue
         chosen.setdefault(cell_key(record), record)
     _check_one_tagger([r for r in chosen.values() if r["status"] == "ok"], spec)
-    settings = {}
+    notes.extend(_unread_rubrics(chosen.values(), spec))
+    settings, serving = {}, {}
     runs = []
     for key in sorted(chosen, key=lambda k: tuple("" if v is None else str(v) for v in k)):
         record = chosen[key]
-        text = json.dumps(record["settings"], sort_keys=True, separators=(",", ":"))
+        sent, served = split_settings(record["settings"])
+        text = _dump(sent)
         settings.setdefault(record["model_id"], set()).add(text)
+        serving.setdefault(record["model_id"], set()).add(_dump(served))
         outcome = _outcome(record, spec)
         run = Run(record_id=record["record_id"], model=record["model_id"],
                   task=record["task_id"], level=record["level"],
                   wording=record["wording"], run_index=record["run_index"],
                   timestamp=record["timestamp"], batch_id=record["batch_id"],
                   model_id_returned=record["model_id_returned"], settings=text,
-                  outcome=outcome)
+                  outcome=outcome, served=_dump(served))
         if outcome == "artifact":
             _check_extractors(record, spec, list(spec.extractor_versions))
             read = read_values(record, spec)
@@ -413,8 +442,25 @@ def select(records, spec, batches):
             raise Refused(f"model {model}: records with {len(texts)} different "
                           f"`settings` values ({'; '.join(sorted(texts))}); one table "
                           "takes one setting")
+    for model, texts in sorted(serving.items()):
+        if len(texts) > 1:
+            notes.append(f"model {model}: responses reported different serving "
+                         f"({'; '.join(sorted(texts))}); these are not settings "
+                         "that were sent, so the records are compared")
     runs.sort(key=lambda r: (r.model, r.task, r.level, r.wording, r.run_index))
     return Selection(runs=runs, notes=notes, batches=batches, files=())
+
+
+def split_settings(settings):
+    """(sent, reported): a record's settings without and with only the
+    ``reported_*`` values the runner stored from the response."""
+    sent = {k: v for k, v in settings.items() if not k.startswith(REPORTED_PREFIX)}
+    reported = {k: v for k, v in settings.items() if k.startswith(REPORTED_PREFIX)}
+    return sent, reported
+
+
+def _dump(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
 def select_files(paths, spec, batches):

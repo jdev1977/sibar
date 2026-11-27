@@ -49,6 +49,13 @@ def _out_dir(args):
     return OUT_DIR / "+".join(report.safe_name(b) for b in args.batch)
 
 
+def _named(stem, extension):
+    """``stem`` with ``extension`` appended as text. Path.with_suffix would
+    take a dotted model id's tail (``gpt-6.2-sol``) for an extension and
+    replace it, so outputs of different checks would overwrite each other."""
+    return stem.with_name(stem.name + extension)
+
+
 def _compare(text):
     try:
         small, big = (int(part) for part in text.split(","))
@@ -70,8 +77,8 @@ def main(argv=None, out=print):
                               f"{', '.join(batches)}")
             result = tables.compute(selection, spec)
             stem = folder / f"{spec.project_type}-tables"
-            json_path = report.write(stem.with_suffix(".json"), report.dumps(result))
-            md_path = report.write(stem.with_suffix(".md"), report.tables_markdown(result))
+            json_path = report.write(_named(stem, ".json"), report.dumps(result))
+            md_path = report.write(_named(stem, ".md"), report.tables_markdown(result))
             for model, body in result["models"].items():
                 for level, data in body["levels"].items():
                     fp = data["fingerprint"]
@@ -82,8 +89,8 @@ def main(argv=None, out=print):
             result = stability.check(selection, spec, args.model, small, big)
             stem = folder / (f"{spec.project_type}-stability-"
                              f"{report.safe_name(args.model)}-{small}v{big}")
-            json_path = report.write(stem.with_suffix(".json"), report.dumps(result))
-            md_path = report.write(stem.with_suffix(".md"), report.stability_markdown(result))
+            json_path = report.write(_named(stem, ".json"), report.dumps(result))
+            md_path = report.write(_named(stem, ".md"), report.stability_markdown(result))
             out(f"verdict: {result['verdict']}. {result['consequence']}")
             if result["verdict"] != "not run":
                 kinds = result["kinds"]

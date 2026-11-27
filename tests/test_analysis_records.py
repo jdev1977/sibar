@@ -135,6 +135,43 @@ def test_refuses_mixed_settings_within_a_model(spec):
     assert len(select([records[0], other_model], spec, ["b1"]).runs) == 2
 
 
+def test_website_rubric_tags_are_said_to_be_ignored_and_change_no_number(spec):
+    from runner.record import with_features
+    plain = [make(spec, run_index=i, values={CORNER: "rounded" if i % 2 else "square"})
+             for i in (1, 2, 3)]
+    tagged = [with_features(r, "rubric.website", "1@claude-haiku-5-5",
+                            {"status": "ok", "opening": "none"}) for r in plain[:2]]
+    tagged.append(plain[2])
+    before = select(plain, spec, ["b1"])
+    after = select(tagged, spec, ["b1"])
+    assert not any("rubric.website" in note for note in before.notes)
+    notes = [note for note in after.notes if "rubric.website" in note]
+    assert len(notes) == 1 and "not read" in notes[0] and "2 records" in notes[0]
+    one, two = tables.compute(before, spec), tables.compute(after, spec)
+    one.pop("notes"), two.pop("notes")
+    assert one == two
+
+
+def test_values_a_response_reported_are_not_compared_as_settings(spec):
+    # The runner stores per-response serving details as reported_<field>; one
+    # response served differently must not block the model's tables.
+    sent = {"max_tokens": 100}
+    records = [make(spec, settings=dict(sent, reported_service_tier="default")),
+               make(spec, run_index=2, settings=dict(sent, reported_service_tier="flex")),
+               make(spec, run_index=3, settings=dict(sent))]
+    selection = select(records, spec, ["b1"])
+    assert len(selection.runs) == 3
+    assert {run.settings for run in selection.runs} == {'{"max_tokens":100}'}
+    assert {run.served for run in selection.runs} == {
+        '{"reported_service_tier":"default"}', '{"reported_service_tier":"flex"}', "{}"}
+    assert any("reported_service_tier" in note for note in selection.notes)
+    # A difference in what was sent is still refused.
+    records.append(make(spec, run_index=4, settings={"max_tokens": 200,
+                                                     "reported_service_tier": "default"}))
+    with pytest.raises(Refused, match="settings"):
+        select(records, spec, ["b1"])
+
+
 def test_refused_and_truncated_records_need_no_current_extractors(spec):
     old = make(spec, status="truncated", versions={"website.palette": "1"})
     assert select([old], spec, ["b1"]).runs[0].outcome == "truncated"
@@ -348,6 +385,25 @@ def test_stability_plans_the_doubling(spec, tmp_path):
         "python -m runner.run --prompts prompts/website --batch-id b1 --models m1 "
         "--levels L0 --runs 10 --dry-run")
     assert any("runner.run" in line for line in lines)
+
+
+def test_stability_outputs_keep_dotted_model_ids_and_the_repeat_apart(spec, tmp_path):
+    model = "gpt-6.2-sol"
+    path = tmp_path / "records.jsonl"
+    records = [dict(r, model_id=model) for r in l0_records(spec, 10, lambda i: "rounded")]
+    write_records(path, records)
+    for compare in ("5,10", "10,20"):
+        assert cli.main(["stability", "--records", str(path), "--batch", "b1", "--model",
+                         model, "--compare", compare, "--out", str(tmp_path)],
+                        out=lambda line: None) == 0
+    names = sorted(p.name for p in tmp_path.glob("website-stability-*"))
+    assert names == [f"website-stability-{model}-10v20.json",
+                     f"website-stability-{model}-10v20.md",
+                     f"website-stability-{model}-5v10.json",
+                     f"website-stability-{model}-5v10.md"]
+    first = json.loads((tmp_path / f"website-stability-{model}-5v10.json").read_text("utf-8"))
+    repeat = json.loads((tmp_path / f"website-stability-{model}-10v20.json").read_text("utf-8"))
+    assert first["verdict"] == "stable" and repeat["verdict"] == "not run"
 
 
 def test_stability_stable(spec):

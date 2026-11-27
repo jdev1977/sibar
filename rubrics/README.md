@@ -12,7 +12,7 @@ and the calibration plan are in [docs/rubrics.md](../docs/rubrics.md).
 | `pipeline.v1.yaml` | 20 items; 7 to 13 asked about one output |
 | `math.v1.yaml` | 20 items; 5 to 11 asked about one output |
 | `engineering.v1.yaml` | 24 items; 12 to 15 asked about one output. Its examples are invented and are not designs |
-| `website.v1.yaml` | 6 items, for what the website extractors cannot read. Not yet scheduled for calibration |
+| `website.v1.yaml` | 6 items, for what the website extractors cannot read. In the calibration plan with the other three (accepted 2026-11-26; docs/rubrics.md, "Calibration (T2.5)"). Its tags are stored, but the website metrics do not read them yet ([analysis/README.md](../analysis/README.md#data-files)) |
 | `<type>.v1.dictated.yaml` | The companion of each: which items each prompt takes out of the model's hands, in the entry format of `analysis/website/dictated.yaml` |
 
 [tagger/rubric.py](../tagger/rubric.py) loads and checks them;

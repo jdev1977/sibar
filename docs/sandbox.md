@@ -53,8 +53,7 @@ them anyway).
 
     python -m sandbox run --records data/runs/<batch-id>/records.jsonl
     python -m sandbox run --records FILE --record-id ID --force
-    python -m sandbox run --dir FOLDER [--task pipeline/data-validation/L2]
-                          [--command "python main.py --day 2027-03-02"] [--out FILE]
+    python -m sandbox run --dir FOLDER [--task pipeline/data-validation/L2] [--command "python main.py --day 2027-03-02"] [--out FILE]
 
 | Option | Meaning | Default |
 |---|---|---|

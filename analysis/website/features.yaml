@@ -2,6 +2,12 @@
 # docs/metrics.md, "From features to variables"; this file is the list those
 # rules apply to. T1.6 reads it; nothing else decides how a feature is counted.
 #
+# The website rubric (rubrics/website.v1.yaml, extractor rubric.website) is
+# not declared here, so its tags are not read: a record may carry them, and
+# python -m analysis says so in a note. Declaring them would make every
+# website table need tagged records and add rows and dimensions; that is a
+# metrics change (raise metrics_version) for after the website calibration.
+#
 # One entry per feature of each website extractor (docs/extractors.md):
 #
 #   type   categorical | boolean | number | set | ordered-list | count-map

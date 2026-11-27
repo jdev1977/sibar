@@ -49,12 +49,17 @@ _CRASH = re.compile(r"[\w.]+: (Target|Page) crashed")
 # Runs in every frame before the page's own scripts.
 INIT_SCRIPT = """(() => {
   // The console says nothing, so a page cannot flood the programs listening
-  // to it. (Workers keep theirs: the memory cap is what holds.)
+  // to it. (Workers keep theirs: the memory cap is what holds.) Each method
+  // is an accessor that cannot be redefined: reading gives a no-op, and an
+  // assignment is accepted and ignored, so page code that wraps console.log
+  // in strict mode does not throw (and change the screenshot).
   const report = console.debug.bind(console);
+  const silent = () => {};
+  const ignore = (value) => {};
   for (const name of Object.getOwnPropertyNames(console)) {
     if (typeof console[name] === "function") {
       Object.defineProperty(console, name, {
-        value: () => {}, writable: false, configurable: false, enumerable: true});
+        get: () => silent, set: ignore, configurable: false, enumerable: true});
     }
   }
   let reports = 0;
