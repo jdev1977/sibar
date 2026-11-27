@@ -36,6 +36,7 @@ and the viewer are not built yet, and no results exist.
 | [rubrics/](rubrics/README.md) | Versioned tagging rubrics, by project type |
 | [tagger/](tagger/README.md) | Python package: loads and checks the rubrics, tags outputs through the providers' batch APIs, and measures agreement between taggings |
 | [checker/](checker/README.md) | Python package: grades the final answers of math and engineering outputs against reference answers with tolerances |
+| [importers/](docs/webdev-arena.md) | Python package: imports outside datasets as run records (WebDev Arena) |
 | [viewer/](viewer/README.md) | Local page for comparing outputs |
 | [docs/](docs/README.md) | Project documents |
 | `data/` | Local only, gitignored: run records, raw responses, extracted files and dataset releases. Not part of a clone |
