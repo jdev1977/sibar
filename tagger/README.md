@@ -24,6 +24,7 @@ log and the ledger before going on.
 | [store.py](store.py) | The tag cache and a run's job log |
 | [run.py](run.py) | `python -m tagger tag` |
 | [agreement.py](agreement.py) | `python -m tagger agreement` and `python -m tagger template` |
+| [sample.py](sample.py) | `python -m tagger sample`: the calibration sample (T2.5) |
 
 ## Tagging
 
@@ -248,15 +249,48 @@ an answer; an error is not). A `null` item of a `partial` tagging stays a
 judgements where A answered the item: where A stopped at the gate, the
 items after it have no A answer.
 
+## The calibration sample
+
+    python -m tagger sample --type pipeline --records data/runs/t2.9/records.jsonl --size 100 --human 5 --seed 1 --models pilot --out data/tagger/sample-pipeline
+
+draws the sample of [docs/rubrics.md](../docs/rubrics.md), "The sample", from
+the records with status `ok`. **The 100**: every task gets an equal share
+(16 or 17 for six tasks; a task with too few records is refused), and within
+a task each pick keeps the levels, the wordings and the models as even as
+the pool allows (no value used more than once above the least-used one of
+its kind, then the fewest uses, then the fewest uses of each pair).
+**The 30 for the Human**: `--human` per task (default 5) from the 100, by the
+same rule, so each task's five hold every level and every model when the 100
+do; a task where they do not is printed as a note. The choice is fixed by
+`--seed` and by which records are in the pool, whatever the order of the
+input files. `--models` is `all` (every model in the records), `pilot`
+(models.yaml's pilot list) or ids separated by commas.
+
+It writes, and never overwrites:
+
+| File | For |
+|---|---|
+| `records.jsonl` | The 100: `python -m tagger tag --records data/tagger/sample-pipeline/records.jsonl ...` |
+| `ids.txt` | Their record ids, one per line |
+| `human-records.jsonl` | The 30: `python -m tagger template --records data/tagger/sample-pipeline/human-records.jsonl ...` (no `--sample`) |
+| `human-ids.txt` | Their record ids |
+| `sample.yaml` | Seed, inputs, and the counts per task, level, wording and model |
+
+The subset files hold whole records but not their files, which stay beside
+the input record file. Tagging and the template read only `raw_response`, so
+they need none.
+
 ## The human tag file
 
-    python -m tagger template --type pipeline --records FILE... --sample 30 --seed 1 --out data/tagger/human-pipeline
+    python -m tagger template --type pipeline --records data/tagger/sample-pipeline/human-records.jsonl --out data/tagger/human-pipeline
 
 writes `tags.yaml` and one reading sheet per output in `sheets/`. A sheet
 holds the rubric's instructions, the items with their options in the same
 order the tagger sees for that output, and the response. It does not name
-the model, the prompt or the level. T2.5 chooses the 30 (`--record-id`,
-repeated, takes an exact list). The outputs are listed in random order.
+the model, the prompt or the level. Give it the 30 of
+[the calibration sample](#the-calibration-sample) as above; `--record-id`,
+repeated, takes an exact list instead, and `--sample N --seed S` draws N at
+random (not stratified). The outputs are listed in random order.
 
 ```yaml
 schema_version: 1
