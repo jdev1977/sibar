@@ -613,3 +613,189 @@ def test_an_unread_correction_puts_found_values_in_doubt(after):
 def test_a_summary_that_repeats_the_values_changes_nothing(after):
     text = f"Monthly payment: $178.21\n\n{after}"
     assert one("loan-amortization", "L0", text, "monthly_payment") == "correct"
+
+
+# --- review round 2 -----------------------------------------------------------
+
+# Sentences that state no assumption or margin of the response's own: a wrong
+# value beside one stays wrong.
+NOT_ASSUMED = [
+    ("hypothesis-test", "L0", "Sample mean: 52.4", "sample_mean", (
+        "The 95% interval excludes 50.",
+        "The confidence interval excludes the target value.",
+        "The interval excludes the value 50.",
+        "There is a significant difference.",
+        "The difference from the target is significant.",
+        "There are no outliers, and no values were removed.",
+    )),
+    ("hypothesis-test", "L0", "t = 2.11", "t_statistic", (
+        "The 95% interval excludes 50.",
+    )),
+    ("loan-amortization", "L0", "Monthly payment: $202.50", "monthly_payment", (
+        "Note: this excludes taxes and insurance.",
+        "This figure does not include insurance, taxes or fees.",
+        "No fees or down payment are assumed.",
+        "Remember to budget for insurance.",
+        "This leaves little margin in a student's budget.",
+    )),
+    ("pipe-and-pump", "L2", "Total head: 9.9 m", "total_head", (
+        "For safety, use a check valve.",
+        "No safety margin is included.",
+        "Choose a pump whose curve gives some margin.",
+        "The 8 m allowance for fittings is included.",
+        "I include an allowance of 8 m for the fittings.",
+    )),
+    ("projectile-drag", "L2", "Range: 45.0 m", "range", (
+        "Assuming launch from ground level (initial height 0).",
+        "Launch height: 0 m, with no wind and no spin.",
+        "We ignore spin and wind.",
+        "The ball returns to the launch height at t = 2.28 s.",
+        "Initial height y0 = 0.",
+    )),
+    ("heat-sink", "L2", "Required plate area: 0.0500 m²", "plate_area", (
+        "For safety, insulate the plate from the chassis.",
+        "No safety margin is added.",
+        "The target junction temperature is 125 °C.",
+        "Rounding up to 135 mm gives a small margin.",
+        "This leaves 4 °C of headroom.",
+    )),
+    ("cantilever-beam", "L0", "Maximum bending moment: 3 kN·m", "max_bending_moment", (
+        "The design moment follows from statics.",
+        "A safety factor of 3 is used on the yield strength.",
+        "The safety factor of 3.0 is as given.",
+    )),
+    ("conveyor-gear-ratio", "L2", "Drum speed: 60.0 rpm", "drum_speed", (
+        "Assume no slip.",
+        "The sprocket pitch diameter does not matter here.",
+        "The speed is within the ±2% allowance.",
+    )),
+    ("shelf-bracket", "L2", "Moment at the wall: 400 lb·in", "moment_at_wall", (
+        "The factor of safety on the plywood stress is large.",
+        "No safety factor is applied to the load.",
+        "The bracket's own weight is neglected.",
+    )),
+    ("compression-spring", "L2", "Required spring rate: 9.9 lbf/in", "spring_rate", (
+        "There is no preload.",
+        "Preload: 0 lbf.",
+        "The resulting factor of safety is comfortable.",
+    )),
+    ("titration-curve", "L0", "Initial pH: 3.40", "ph_0_ml", (
+        "Activity coefficients are neglected.",
+        "Ignoring ionic strength effects.",
+        "All values are at 25 °C.",
+    )),
+    ("least-squares-fit", "L0", "Slope: 1.50", "slope", (
+        "There are no obvious outliers.",
+        "No points are excluded.",
+        "This is an ordinary, not weighted, fit.",
+        "The 95% interval excludes zero.",
+    )),
+]
+
+
+@pytest.mark.parametrize("task,level,line,name,sentence", [
+    (task, level, line, name, sentence)
+    for task, level, line, name, sentences in NOT_ASSUMED for sentence in sentences])
+def test_a_sentence_that_states_no_assumption_leaves_a_wrong_value_wrong(
+        task, level, line, name, sentence):
+    assert one(task, level, line, name) == "wrong"
+    assert one(task, level, f"{line}\n\n{sentence}", name) == "wrong"
+
+
+@pytest.mark.parametrize("task,level,assumption,line,name", [
+    ("hypothesis-test", "L0", "I work with d = x - 50.", "Mean = 1.175", "sample_mean"),
+    ("hypothesis-test", "L0", "Differences from 50: 0.8, 1.6, -0.3.", "Mean = 1.175",
+     "sample_mean"),
+    ("hypothesis-test", "L0", "I excluded the value 49.7.", "Mean = 51.4", "sample_mean"),
+    ("least-squares-fit", "L0", "Excluding the last point:", "Slope: 1.89", "slope"),
+    ("least-squares-fit", "L0", "A weighted least-squares fit is used.", "Slope: 1.89",
+     "slope"),
+    ("loan-amortization", "L0", "A $1,000 down payment comes off first.",
+     "Monthly payment: $158.42", "monthly_payment"),
+    ("pipe-and-pump", "L2", "Safety factor: 1.2 on the head.", "Total head: 9.4 m",
+     "total_head"),
+    ("pipe-and-pump", "L2", "With a **10%** margin:", "Total head: 8.6 m", "total_head"),
+    ("projectile-drag", "L0", "Initial height h0 = 1.5 m.",
+     "Range without air resistance: 57.6 m", "range_no_air"),
+    ("projectile-drag", "L0", "I include a headwind.",
+     "Range without air resistance: 50.0 m", "range_no_air"),
+    ("heat-sink", "L2", "I design for a junction temperature of 100 °C.",
+     "Required plate area: 0.0600 m²", "plate_area"),
+    ("cantilever-beam", "L0", "Using a load factor of 1.5:",
+     "Maximum bending moment: 9 kN·m", "max_bending_moment"),
+    ("cantilever-beam", "L0", "The self-weight is included.",
+     "Maximum bending moment: 6.4 kN·m", "max_bending_moment"),
+    ("shelf-bracket", "L2", "I apply a factor of safety of 2.",
+     "Moment at the wall: 400 lb·in", "moment_at_wall"),
+    ("compression-spring", "L2", "With a preload of 0.5 lbf:",
+     "Required spring rate: 5.1 lbf/in", "spring_rate"),
+    ("titration-curve", "L0", "All values are at 37 °C.", "Initial pH: 2.95", "ph_0_ml"),
+    ("shelf-bracket", "L2", "With a safety factor of 2:", "Moment at the wall: 400 lb·in",
+     "moment_at_wall"),
+    ("heat-sink", "L2", "For margin, I size it up.", "Required plate area: 0.0600 m²",
+     "plate_area"),
+    ("hypothesis-test", "L0", "Differences: 0.8, 1.6, -0.3.", "x̄ = 1.175",
+     "sample_mean"),
+])
+def test_other_wordings_of_an_assumption(task, level, assumption, line, name):
+    assert one(task, level, line, name) == "wrong"
+    assert one(task, level, f"{assumption}\n\n{line}", name) == "could_not_determine"
+
+
+@pytest.mark.parametrize("task,level,line,name,after", [
+    ("hypothesis-test", "L0", "A t-test.\n\np = 0.0061", "p_value",
+     "## Summary\ndf = 9, critical value 2.262"),
+    ("hypothesis-test", "L0", "A t-test.\n\np = 0.0061", "p_value",
+     "In summary, compare with a critical value of 2.262."),
+    ("conveyor-gear-ratio", "L2", "Drum speed: 50.9 rpm", "drum_speed",
+     "In conclusion, use 12/68 and 12/72 teeth."),
+    ("loan-amortization", "L0", "Monthly payment: $178.21", "monthly_payment",
+     "In summary, keep the loan under 48 %."),
+    ("loan-amortization", "L0", "Monthly payment: $178.21", "monthly_payment",
+     "Update your budget by 2028."),
+])
+def test_an_unrelated_number_in_a_summary_changes_nothing(task, level, line, name, after):
+    assert one(task, level, line, name) == "correct"
+    assert one(task, level, f"{line}\n\n{after}", name) == "correct"
+
+
+@pytest.mark.parametrize("task,level,line,name,after", [
+    ("hypothesis-test", "L0", "A t-test.\n\np = 0.0061", "p_value",
+     "In summary, p comes to 0.02."),
+    ("hypothesis-test", "L0", "A t-test.\n\np = 0.0061", "p_value", "In summary: 0.02."),
+    ("conveyor-gear-ratio", "L2", "Drum speed: 50.9 rpm", "drum_speed",
+     "In conclusion, run the drum at 55 rpm."),
+    ("loan-amortization", "L0", "Monthly payment: $178.21", "monthly_payment",
+     "Updated answer: you pay 181 each month."),
+    ("pipe-and-pump", "L2", "Total head: 7.84 m", "total_head",
+     "Summary: allow for 9.2 m in all."),
+    ("loan-amortization", "L0", "Monthly payment: $178.21", "monthly_payment",
+     "In short, 181/month."),
+    ("loan-amortization", "L0", "Monthly payment: $178.21", "monthly_payment",
+     "In short, 181 pounds each time."),
+    ("loan-amortization", "L0", "Monthly payment: $178.21", "monthly_payment",
+     "Correction: the monthly payment is 181."),
+    ("hypothesis-test", "L0", "A t-test.\n\np = 0.0061", "p_value",
+     "Actually it's 0.02."),
+    ("heat-sink", "L2", "Required total resistance: 4.25 °C/W", "total_resistance",
+     "In short, stay under 3.9 °C per watt."),
+])
+def test_a_number_that_could_replace_a_value_puts_it_in_doubt(
+        task, level, line, name, after):
+    assert one(task, level, line, name) == "correct"
+    assert one(task, level, f"{line}\n\n{after}", name) == "could_not_determine"
+
+
+# These also name an alternative of the reference, which keeps some values
+# open by itself; they must still leave no doubt of their own.
+@pytest.mark.parametrize("task,line,name,sentence", [
+    ("cantilever-beam", "Maximum bending moment: 3 kN·m", "max_bending_moment",
+     "Self-weight is neglected."),
+    ("cantilever-beam", "Maximum bending moment: 3 kN·m", "max_bending_moment",
+     "No load factor is applied."),
+    ("conveyor-gear-ratio", "Drum speed: 60.0 rpm", "drum_speed",
+     "Belt thickness is neglected."),
+])
+def test_a_denied_assumption_leaves_no_doubt(task, line, name, sentence):
+    answers = extract(REFERENCE[task], "L0", f"{line}\n\n{sentence}")
+    assert [s.doubt for s in answers.quantities[name]] == [None]

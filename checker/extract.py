@@ -41,10 +41,17 @@ _NO_AIR = re.compile(r"\b(?:no[- ](?:air|drag)|without (?:air|drag)|vacuum|drag[
 _WITH_AIR = re.compile(r"\b(?:with (?:air|drag)|compar\w{0,6}|vs|versus|and)\b",
                        re.IGNORECASE)
 # A response that corrects itself, and one that sums itself up
-_CORRECTION = re.compile(r"\b(?:correction|corrected (?:value|answer|figure)|actually|"
-                         r"on reflection|revised)\b", re.IGNORECASE)
+_CORRECTION = re.compile(r"\b(?:correction|(?:corrected|updated) (?:value|answer|figure|"
+                         r"result)|actually|on reflection|revised)\b", re.IGNORECASE)
 _SUMMARY = re.compile(r"\b(?:final answers?|summary|in short|to summari[sz]e|"
-                      r"(?:in )?conclusion|bottom line|tl;?dr|update)\b", re.IGNORECASE)
+                      r"(?:in )?conclusion|bottom line|tl;?dr)\b", re.IGNORECASE)
+# A list of ratios ("12/68 and 12/72 teeth") shares the unit at its end.
+_RATIOS = re.compile(r"(?:/\d{1,6})?(?: and \d{1,6}/\d{1,6}){0,4}")
+_UNIT_WORDS = re.compile(r" ?([^\s,;:()!?|=]{1,15})(?: ([^\s,;:()!?|=]{1,15}))?")
+# Words that are also unit symbols: a unit only where no word follows.
+_PLAIN_WORDS = frozenset({"a", "A", "in", "s", "r", "l", "t", "C", "K"})
+# What may stand between a label and its number.
+_BEFORE_NUMBER = re.compile(r"(?:[ *_]|=|≈|≃|:|\||[$€£]|\bis\b|\bof\b|\babout\b){0,8}$")
 _LEVEL_PERCENTS = (1.0, 5.0, 95.0, 99.0)
 _STARRED = re.compile(r"(?:^|[\s(])[A-Za-zτσ]\w{0,3}[\^_]?\{?\\?\*\}?\)?\s*$")
 _VALUED = re.compile(r"=|≈|:\s{0,3}\S{0,20}\d")
@@ -79,6 +86,33 @@ _NAMED_DATE = re.compile(r"(?:([A-Z][a-z]{2,8})\.? (\d{1,2}),? (\d{4})|(\d{1,2})
 @lru_cache(maxsize=None)
 def _label_pattern(pattern):
     return re.compile(rf"(?:{pattern}){_SYMBOL}", re.IGNORECASE)
+
+
+@lru_cache(maxsize=None)
+def _label_end(pattern):
+    """The label of ``pattern`` at the end of a piece of text."""
+    return re.compile(rf"(?<![\w'’-])(?:{pattern}){_SYMBOL}$", re.IGNORECASE)
+
+
+def _unit_after(text):
+    """The known unit that ``text`` starts with, or None."""
+    found = _UNIT_WORDS.match(text)
+    if not found:
+        return None
+    first, second = found[1].rstrip(".*_"), (found[2] or "").rstrip(".*_")
+    if second == "per" or first.startswith("/") or first.endswith("/"):
+        return None                         # "per month", or spelled out
+    if first.lower() in ("pound", "pounds"):
+        return None                         # money or a force
+    if first in _PLAIN_WORDS:
+        return None if second else units.canonical(first) and first
+    moment = second == "in" and first.lower() in ("lb", "lbf")
+    if (second and (moment or second not in _PLAIN_WORDS)
+            and units.canonical(f"{first} {second}")):
+        return f"{first} {second}"
+    if first.lower() in ("%", "percent", "teeth", "tooth"):
+        return first.lower()
+    return first if units.canonical(first) else None
 
 
 def _date(text):
@@ -197,8 +231,12 @@ class _Reader:
         self.sentences, self.tables = read(working)
         self.truncated = truncated
         self.doubts = {}
+        plain = text.replace("**", "").replace("\\%", "%")
+        if self.task in labels.NOT_DOUBTS:
+            # a full stop in its place, so that no pattern reaches across
+            plain = re.sub(labels.NOT_DOUBTS[self.task], " . ", plain, flags=re.IGNORECASE)
         for pattern, names, reason in labels.DOUBTS.get(self.task, ()):
-            if re.search(pattern, text, re.IGNORECASE):
+            if re.search(pattern, plain, re.IGNORECASE):
                 self.doubts.update(dict.fromkeys(names or self.listed, reason))
         self.taken = set()        # the sentences and rows a value came from
         self.keyed_tables = []
@@ -560,8 +598,9 @@ class _Reader:
     # --- corrections and summaries ------------------------------------------
 
     def unsettled(self):
-        """Whether a correction, or a part that sums up and gave no value,
-        holds a number that is neither found nor given."""
+        """The found quantities that a number in a correction, or in a part
+        that sums up and gave no value, could replace: a number that is
+        neither found nor given."""
         known = []
         for statements in self.found.values():
             for statement in statements:
@@ -585,7 +624,10 @@ class _Reader:
         pieces = [(s.text, s.heading, s.text) for s in self.sentences]
         pieces += [(" | ".join(row), table.heading, row) for table in self.tables
                    if table not in self.keyed_tables for row in table.rows]
+        doubted = set()
         for text, heading, key in pieces:
+            if len(doubted) == len(self.found):
+                break
             context = f"{heading} {text}"
             if not (_CORRECTION.search(context)
                     or _SUMMARY.search(context) and key not in self.taken):
@@ -595,8 +637,34 @@ class _Reader:
                 if value in _LEVEL_PERCENTS and text[match.end():].lstrip()[:1] == "%":
                     continue
                 if not any(abs(value - k) <= 0.005 * abs(k) for k in known):
-                    return True
-        return False
+                    doubted |= self.replaceable(text, match, value)
+        return doubted
+
+    def replaceable(self, text, match, value):
+        """The found quantities the number at ``match`` could be a value of.
+        Its own label decides, or else a unit that is known; with neither it
+        could be any of them."""
+        before = text[max(match.start() - MAX_LABEL, 0):match.start()]
+        before = _BEFORE_NUMBER.sub("", before)
+        if before.endswith(")"):
+            before = _label(before)[0]
+        named = {name for name, pattern in labels.QUANTITIES[self.task].items()
+                 if _label_end(pattern).search(before)}
+        if named:
+            return named & set(self.found)
+        after = text[match.end():]
+        if text[:match.start()].rstrip()[-1:] in ("$", "€", "£"):
+            unit = "currency"
+        else:
+            unit = _unit_after(after[_RATIOS.match(after).end():])
+        found = set()
+        for name in self.found:
+            if (name.startswith("p_value") and not 0 <= value <= 1
+                    and unit not in ("%", "percent")):
+                continue
+            if unit is None or units.conversion(unit, self.quantity(name)) is not None:
+                found.add(name)
+        return found
 
     # --- facts and inputs ---------------------------------------------------
 
@@ -684,7 +752,7 @@ class _Reader:
         self.searched_inputs()
         tests, levels = self.facts()
         unsettled = self.unsettled()
-        quantities = {name: tuple(replace(s, unsettled=unsettled) for s in found)
+        quantities = {name: tuple(replace(s, unsettled=name in unsettled) for s in found)
                       for name, found in sorted(self.found.items())
                       if name not in self.unreadable}
         inputs = {name: values.copy().pop() for name, values in sorted(self.inputs.items())

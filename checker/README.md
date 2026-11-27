@@ -166,15 +166,26 @@ A criterion is never failed on an extracted input alone.
 
 ### Assumptions of the response's own
 
-Where the text mentions one, an extracted value that differs is
+Where the text states one, an extracted value that differs is
 `could_not_determine`, not `wrong`, for the quantities that follow from it
-(the patterns are `DOUBTS` in [labels.py](labels.py)): a margin or safety
-allowance (heat sink, pipe and pump, beam, conveyor, bracket, spring), a
-load factor or self-weight (beam, bracket), belt slip or thickness, a
-preload, fees or extra payments, another temperature or activity
-corrections, points left out or weighted, a launch height or wind, and, for
-the mean and its interval, work on differences from 50. A right value is
-still `correct`.
+(the patterns are `DOUBTS` in [labels.py](labels.py)). A word alone does not
+count: the patterns ask for the assumption itself, and `NOT_DOUBTS` first
+cuts denials ("no safety margin", "excludes taxes") from the text.
+
+| Task | What counts |
+|---|---|
+| Heat sink, pipe and pump | A margin or allowance with an amount or added by the answer, a safety factor; heat sink: a junction target other than 125 °C |
+| Beam | A margin, a load factor, self-weight that is included, a safety factor other than 3 or one on the load |
+| Conveyor | A margin, belt slip or creep that is allowed for, a belt thickness or another drum diameter |
+| Bracket, spring | A margin, a safety factor that is applied or small (1 to 4), one on the load; bracket: a load factor or self-weight; spring: a nonzero preload |
+| Loan | A fee, insurance, tax, deposit or extra payment with an amount |
+| Titration | Activity corrections, a temperature other than 25 °C |
+| Least squares, hypothesis | A point left out; least squares: a weighted fit; hypothesis, for the mean and its interval: work on differences from 50 |
+| Projectile | A nonzero launch height, wind or spin that is included |
+
+A right value is still `correct`. Separately, naming the condition of an
+alternative (self-weight, belt thickness and the like, `MENTIONS`), even to
+deny it, keeps open a value that cannot be told from that alternative.
 
 ### When it concludes nothing
 
@@ -184,9 +195,10 @@ statements disagree; when a labelled statement with a number cannot be read
 (a range, a decimal comma, a space as thousands separator, an unknown unit or
 trailing words); when a differing value was found but a matching number is
 also somewhere in the response; for any mismatch, when the response is cut
-off; and, for every extracted value, when a correction ("actually",
-"correction", "revised") or a summary holds a number that was neither read
-nor given.
+off; and when a correction ("actually", "correction", "revised") or a
+summary holds a number that was neither read nor given and could replace the
+value: one under that quantity's label, or else in a unit it accepts, or
+with no label and no known unit (then every value).
 
 ### What is not extracted
 
@@ -209,8 +221,9 @@ can say it.
   rounds money in the labelled line itself ("Monthly payment: $178", "Total
   interest: $1,693") is graded `wrong` unless the precise figure also appears
   somewhere in it.
-- The words that put a value in doubt are a fixed list. A margin or
-  correction worded another way is not noticed.
+- The wordings that put a value in doubt are a fixed list. A margin,
+  assumption or correction worded another way is not noticed, and the value
+  that follows from it can be graded `wrong`.
 - Hedging and conditions are recognised by English words only. Replies in
   other languages, or numbers in images, are not read.
 - Whether an alternative's condition is stated is judged by the absence of a
