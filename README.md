@@ -14,13 +14,19 @@ levels of direction (L0 bare, L1 brief, L2 directed) and run several times.
 - [plan.md](plan.md): the method, project types, deliverables and phases.
 - [tasks.md](tasks.md): the task list, with IDs such as T0.1.
 
-**Status:** early setup (Phase 0). The repository layout, the secret scan, the
-model list, the run record format, the cost ledger, the generation runner and
-the offline renderer, the website prompts and the website extractors are in
-place, and the metrics are defined ([docs/metrics.md](docs/metrics.md)) and
-implemented ([analysis/](analysis/README.md)). The runner has been tested only with a fake transport: no
-provider has been called yet (see [docs/runner.md](docs/runner.md)). Rubrics
-and the viewer are not built yet, and no results exist.
+**Status:** the tools for Phases 0 to 2 are written; nothing has been run
+against a provider. In place: the repository layout and the secret scan, the
+model list ([models.yaml](models.yaml), confirmed), the run record format,
+the cost ledger, the generation runner, the offline renderer, the sandbox
+for generated code, the prompts of all four project types, the deterministic
+extractors of all four types, the rubrics and the tagger (batch tagging,
+agreement, the calibration sample), the reference solutions for the math
+and engineering tasks, and the metrics ([docs/metrics.md](docs/metrics.md),
+implemented in [analysis/](analysis/README.md)). Every tool that calls a
+provider (the runner and the tagger) has been tested only against fakes: no
+live call has been made, so the first paid runs are also the first live
+tests ([docs/runner.md](docs/runner.md)). Not built yet: the answer checker
+(T2.10) and the viewer. No results exist: the pilot (T1.7) has not run.
 
 ## Layout
 
@@ -36,7 +42,7 @@ and the viewer are not built yet, and no results exist.
 | [rubrics/](rubrics/README.md) | Versioned tagging rubrics, by project type |
 | [tagger/](tagger/README.md) | Python package: loads and checks the rubrics, tags outputs through the providers' batch APIs, and measures agreement between taggings |
 | [checker/](checker/references/README.md) | Reference answers for the math and engineering tasks, with tolerances; the answer checker itself is not written yet |
-| [viewer/](viewer/README.md) | Local page for comparing outputs |
+| [viewer/](viewer/README.md) | Local page for comparing outputs (not built yet, T3.5) |
 | [docs/](docs/README.md) | Project documents |
 | `data/` | Local only, gitignored: run records, raw responses, extracted files and dataset releases. Not part of a clone |
 | `tests/` | pytest tests |
