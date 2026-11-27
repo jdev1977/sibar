@@ -17,7 +17,7 @@ from dataclasses import fields
 from pathlib import Path
 
 from sandbox import runtime
-from sandbox.box import Limits, SandboxError, sweep
+from sandbox.box import Limits, SandboxError, leftover_processes, sweep
 from sandbox.records import RunRefused, run_directory, run_file
 from sandbox.run import Settings
 
@@ -102,8 +102,15 @@ def _status():
     left = [name for name in win32.profile_names() if name.startswith("sibar.sb.")]
     work = root / "work"
     folders = sorted(p.name for p in work.iterdir()) if work.is_dir() else []
+    found, problem = leftover_processes(root)
+    running = []
+    for handle, pid, image in found:
+        win32.close(handle)
+        running.append(f"{pid} ({image})")
     print(f"AppContainer profiles of this sandbox: {', '.join(left) or 'none'}")
     print(f"working folders: {', '.join(folders) or 'none'}")
+    print("processes of the runtime: " + (f"not looked for: {problem}" if problem
+                                          else ", ".join(running) or "none"))
     return EXIT_OK
 
 

@@ -924,33 +924,37 @@ def test_a_cleanup_failure_is_reported_and_contained(monkeypatch, tmp_path):
 def test_the_token_is_checked_before_the_process_runs():
     from sandbox import win32
     from sandbox.box import Box
+    from sandbox.job import JobObject
 
     with Box(limits=SMALL) as box:
+        # The children are made in a job, so none can outlive this test, even
+        # if it dies before the end (see tests/test_sandbox_orphans.py).
+        job = JobObject()
         handles = [win32.null_input(), *win32.pipe()]
         common = dict(stdin=handles[0], stdout=handles[2], stderr=handles[2],
-                      desktop=box._desktop.path)
-        made = {
-            "as built": win32.start([box.python(), "-c", "pass"], box.app,
-                                    box.environment(), token=box._token,
-                                    package=box.package,
-                                    capabilities=box._capabilities, **common),
-            # Controls: what a failed layer would give.
-            "no AppContainer": win32.start([box.python(), "-c", "pass"], box.app,
-                                           box.environment(), token=box._token, **common),
-            "no restricted token": win32.start([box.python(), "-c", "pass"], box.app,
-                                               box.environment(), package=box.package,
-                                               capabilities=box._capabilities, **common),
-            "fewer capabilities": win32.start([box.python(), "-c", "pass"], box.app,
-                                              box.environment(), token=box._token,
-                                              package=box.package,
-                                              capabilities=box._capabilities[:1], **common),
-        }
+                      desktop=box._desktop.path, job=job.handle)
+        made = {}
         try:
+            made["as built"] = win32.start([box.python(), "-c", "pass"], box.app,
+                                           box.environment(), token=box._token,
+                                           package=box.package,
+                                           capabilities=box._capabilities, **common)
+            # Controls: what a failed layer would give.
+            made["no AppContainer"] = win32.start(
+                [box.python(), "-c", "pass"], box.app, box.environment(),
+                token=box._token, **common)
+            made["no restricted token"] = win32.start(
+                [box.python(), "-c", "pass"], box.app, box.environment(),
+                package=box.package, capabilities=box._capabilities, **common)
+            made["fewer capabilities"] = win32.start(
+                [box.python(), "-c", "pass"], box.app, box.environment(),
+                token=box._token, package=box.package,
+                capabilities=box._capabilities[:1], **common)
             found = {label: box.token_problem(process.handle)
                      for label, process in made.items()}
         finally:
+            job.close()  # ends every child, also one made before a failure
             for process in made.values():
-                win32.terminate(process)
                 process.close()
             for handle in handles:
                 win32.close(handle)

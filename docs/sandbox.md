@@ -45,7 +45,9 @@ the sandbox does not create and delete itself.
 with it) and anything runs left behind. Deleting `.sandbox` by hand does the
 same. `python -m sandbox status` shows the runtime and any leftovers;
 `python -m sandbox clean` removes leftovers (a crashed run's AppContainer
-profile or working folder; the next run would remove them anyway).
+profile or working folder, and any process still running a program from the
+runtime folder, once the runtime check passes; the next run would remove
+them anyway).
 
 ## Use
 
@@ -189,7 +191,7 @@ off gets through, so the test would fail if the boundary went.
 | Programs started through the shell | Whatever the process starts is in its job, with its token, on its desktop; Windows does not start a browser or a packaged app for it | opening a URL (to 127.0.0.1) and the calculator through the shell starts nothing outside |
 | Crashes | The job ends a crashing process at once, without Windows Error Reporting or a dialog | a thread started at address 0 ends the run with an access violation |
 | The sandbox's helpers | The helper scripts' folder is read and execute only for the sandboxed process | it cannot change or add to them |
-| Cleanup | Profile, desktop, token and folder are removed on close; a crashed run's profile and folder by the next box. Removal works from a stack (no recursion) in long-path form, never follows links, and a failure is reported, not raised past the run | nothing is left after a run, also after a 2000-deep tree with reserved and malformed names; `clean` removes such a tree a crashed run left; a removal failure is reported in the check and the next box still runs |
+| Cleanup | Profile, desktop, token and folder are removed on close; a crashed run's profile and folder by the next box, which also ends any process running a program from the runtime folder. Removal works from a stack (no recursion) in long-path form, never follows links, and a failure is reported, not raised past the run | nothing is left after a run, also after a 2000-deep tree with reserved and malformed names; `clean` removes such a tree a crashed run left; a removal failure is reported in the check and the next box still runs |
 | The process's token | Before the suspended process runs, its token is read back: an AppContainer token, of this box's package, with exactly its capabilities, at low integrity, restricted | a process made without the AppContainer, without the restricted token, or with fewer capabilities is refused |
 
 ### The layers, in order
@@ -221,7 +223,21 @@ off gets through, so the test would fail if the boundary went.
   priority (so the machine stays usable), UI restrictions, no crash dialogs,
   kill on close. The process is put in the job when it is created, suspended,
   and checked to be in it, and its token checked against the box, before it
-  runs; if either check fails it is ended and nothing runs.
+  runs; if either check fails it is ended and nothing runs. Windows puts it
+  in the job as part of creating it (`PROC_THREAD_ATTRIBUTE_JOB_LIST`), and
+  `win32.start` refuses to start any process without a job, so there is no
+  moment at which the sandbox could die and leave a process behind: its end
+  closes the job, which kills the process. (A test that started suspended
+  children outside a job once left one, `python.exe -c pass`, alive after
+  its run was killed; tests now make theirs in a job too.) As a backstop,
+  every new box and `python -m sandbox clean` end any process (other than
+  their own) whose program is inside the runtime folder (with the root's lock
+  held no box is open, so any such process is a leftover); nothing else is
+  touched. They end processes only after the runtime check passes and the
+  runtime folder is shown to be exactly itself: no junction, link or mount
+  point on it or above it (so two roots cannot share a runtime and end each
+  other's runs), and not a drive or share root or right below one.
+  Otherwise nothing is ended and the problem is reported.
 - **Watching**: the clock, bytes written, the folder and the free space.
 
 ### Threat model
@@ -362,7 +378,7 @@ an L0 or L1 output that invents another service is `blocked`.
 
 ## Tests
 
-    .venv/Scripts/python -m pytest tests/test_sandbox_job.py tests/test_sandbox_boundaries.py tests/test_sandbox_run.py tests/test_sandbox_tasks.py tests/test_sandbox_records.py
+    .venv/Scripts/python -m pytest tests/test_sandbox_job.py tests/test_sandbox_boundaries.py tests/test_sandbox_run.py tests/test_sandbox_tasks.py tests/test_sandbox_records.py tests/test_sandbox_orphans.py
 
 Tests marked `sandbox` need the runtime and are skipped with a message
 without it. Every hostile probe is bounded so that, even with its boundary
