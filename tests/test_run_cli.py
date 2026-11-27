@@ -1,6 +1,7 @@
 """The command line (``python -m runner.run``), with a fake transport only."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -25,15 +26,28 @@ def env():
             for model in MODELS.models}
 
 
+def models_file(tmp_path, value):
+    """A copy of models.yaml with confirmed_by_human set to ``value``, whatever
+    the committed file says."""
+    text = (ROOT / "models.yaml").read_text(encoding="utf-8")
+    text, count = re.subn(r"(?m)^confirmed_by_human:.*$",
+                          f"confirmed_by_human: {str(value).lower()}", text)
+    assert count == 1
+    path = tmp_path / f"models-{str(value).lower()}.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
 @pytest.fixture
 def confirmed(tmp_path):
     """A copy of models.yaml with confirmed_by_human set to true."""
-    text = (ROOT / "models.yaml").read_text(encoding="utf-8")
-    assert "confirmed_by_human: false" in text
-    path = tmp_path / "models.yaml"
-    path.write_text(text.replace("confirmed_by_human: false",
-                                 "confirmed_by_human: true"), encoding="utf-8")
-    return path
+    return models_file(tmp_path, True)
+
+
+@pytest.fixture
+def unconfirmed(tmp_path):
+    """A copy of models.yaml with confirmed_by_human set to false."""
+    return models_file(tmp_path, False)
 
 
 def no_network(request, number):
@@ -90,10 +104,18 @@ def test_a_dry_run_shows_cells_and_worst_case_and_sends_nothing(tmp_path):
     # Opus 5.5: (1031 * 4 + 128000 * 20) / 1e6
     assert "$2.5641" in output
     assert "worst case for 8 cells" in output.lower()
-    assert "confirmed_by_human: false" in output
     assert "no key" in output.lower()  # keys are reported, not required
     assert not (tmp_path / "records.jsonl").exists()
     assert not (tmp_path / "ledger.jsonl").exists()
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_a_dry_run_reports_the_flag_of_the_models_file_in_use(tmp_path, value):
+    path = models_file(tmp_path, value)
+    code, output = run(ONE + ["--batch-id", "b1", "--dry-run", "--models-file",
+                              str(path), "--ledger", str(tmp_path / "l.jsonl")])
+    assert code == 0
+    assert f"confirmed_by_human: {str(value).lower()}" in output
 
 
 def test_a_dry_run_prints_the_default_ledger_path():
@@ -114,8 +136,9 @@ def test_a_dry_run_compares_the_worst_case_with_the_caps(tmp_path):
 # --- Refusals before a paid run ---------------------------------------------------------
 
 
-def test_a_paid_run_is_refused_while_the_model_list_is_unconfirmed(tmp_path, env):
-    argv = paid(tmp_path, ROOT / "models.yaml")
+def test_a_paid_run_is_refused_while_the_model_list_is_unconfirmed(
+        tmp_path, unconfirmed, env):
+    argv = paid(tmp_path, unconfirmed)
     code, output = run(argv, environ=env)
     assert code == 2
     assert "confirmed_by_human" in output
