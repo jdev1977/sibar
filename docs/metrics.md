@@ -24,6 +24,11 @@ Metrics version: **1** (`metrics_version` in `features.yaml`). Any change to a
 formula, a threshold, a role, a bin edge or a dictated entry raises it, and
 tables made under different versions are never mixed.
 
+**Version 1 is frozen** (decided 2026-11-27, before the pilot): its formulas,
+thresholds, roles, bin edges and dictated entries stand as written. A review
+after the pilot ([thresholds](#thresholds)) may change them only as a new
+version.
+
 Contents: [words](#words) · [which runs count](#which-runs-count) ·
 [from features to variables](#from-features-to-variables) ·
 [open choices](#open-choices) · [pooling](#pooling-and-weights) ·
@@ -865,6 +870,10 @@ and one pair of levels only is weak.
 
 The plan's check: **doubling the runs per cell does not change the top
 choices in a fingerprint.** Formally, per model:
+
+**Approval.** On 2026-11-27 the Human approved the first check's added runs
+(180 for the pilot's three models). The repeat, 10 runs against 20, needs its
+own approval.
 
 **Which cells.** All 12 L0 cells of the model (6 tasks x 2 wordings), each
 doubled from 5 to 10 runs: 60 more runs per model, 180 for the pilot's three

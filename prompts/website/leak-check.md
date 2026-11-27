@@ -214,6 +214,10 @@ the expected default for the pricing page and the to-do app. A model that
 obeyed the brief would then match the default on accent hue. Hot pink is far
 from violet, from wood browns and from the muted pinks of a craft look.
 
+Decided 2026-11-27: the Human keeps both wording changes, the hot-pink accent
+here and "words only" in place of the bans on icons and emoji (portfolio,
+dashboard and event page).
+
 ## event-page
 
 | Prompt | Verdict | Reason |
