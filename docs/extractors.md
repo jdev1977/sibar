@@ -27,9 +27,19 @@ follow, the twelve website extractors, feature by feature, and the
 
 Exit codes: 0 done; 1 done, but an extractor recorded an `error`; 2 refused
 (bad option, missing or busy record file, a line that is not a valid record,
-an unknown record id or extractor name). The record file is locked with the
-runner's lock while it is rewritten; a file with bad or truncated lines is
-refused rather than rewritten, as those lines would be lost.
+an unknown record id or extractor name, a record whose files are all
+missing). The record file is locked with the runner's lock while it is
+rewritten; a file with bad or truncated lines is refused rather than
+rewritten, as those lines would be lost.
+
+A record's files are read from `files/<record_id>/` **beside the record
+file**. If a record to be processed lists files and none of them is there
+(a record file copied or moved without its `files` folder, such as the
+tagger's copy in `data/tagger/<run>/`), the command refuses and rewrites
+nothing, instead of storing `no-input` features that the metrics would read
+as no artifact. Run the extractors on the runner's own file,
+`data/runs/<batch-id>/records.jsonl`, before tagging, or copy the `files`
+folder beside the copy first.
 
 Re-running replaces each extractor's earlier features and version
 (`with_features`), so the same input gives a byte-identical file.

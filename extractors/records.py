@@ -6,7 +6,7 @@ from pathlib import Path
 from extractors.base import Inputs, run_extractors
 from extractors.registry import by_name, extractors_for
 from runner.ledger import LedgerError, _lock, _unlock
-from runner.record import read_records, with_features, write_records
+from runner.record import files_dir, read_records, with_features, write_records
 
 EXTRACTED_STATUSES = ("ok", "truncated")
 
@@ -22,6 +22,18 @@ def extract_record(record, records_path, extractors):
     for name, (version, values) in run_extractors(extractors, inputs).items():
         record = with_features(record, name, version, values)
     return record
+
+
+def files_missing(record, records_path):
+    """True when ``record`` lists files and none of them is in its data
+    directory (``files/<record_id>/`` beside the record file), as happens to
+    a record file copied without its ``files`` folder."""
+    entries = record.get("files") or []
+    if not entries:
+        return False
+    directory = files_dir(records_path, record["record_id"])
+    return not any(Path(directory, *entry["path"].split("/")).is_file()
+                   for entry in entries)
 
 
 def _chosen(only):
@@ -64,6 +76,7 @@ def extract_file(records_path, record_ids=(), only=(), say=print):
         if unknown:
             raise ExtractRefused(f"{path}: no record {', '.join(sorted(unknown))}")
         counts = Counter(records=0, error=0)
+        work = []
         for index, record in enumerate(records):
             if record_ids:
                 if record["record_id"] not in record_ids:
@@ -72,8 +85,17 @@ def extract_file(records_path, record_ids=(), only=(), say=print):
                 continue
             extractors = [e for e in (chosen or extractors_for(record["project_type"]))
                           if e.project_type == record["project_type"]]
-            if not extractors:
-                continue
+            if extractors:
+                work.append((index, record, extractors))
+        missing = [record["record_id"] for _, record, _ in work
+                   if files_missing(record, path)]
+        if missing:
+            raise ExtractRefused(
+                f"{path}: not rewriting it, as {len(missing)} record(s) list files "
+                f"of which none is in {path.parent / 'files'}/<record_id>/ (first: "
+                f"{missing[0]}). Keep the files folder beside the record file, or "
+                "copy it there, then run again")
+        for index, record, extractors in work:
             records[index] = extract_record(record, path, extractors)
             counts["records"] += 1
             failed = sorted(

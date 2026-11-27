@@ -277,12 +277,15 @@ def test_a_failed_tagging_is_unread(kind, spec):
 
 def test_untagged_records_and_mixed_taggers_are_refused(kind, spec):
     task, text = TASKS[kind][0], reply_text(kind)
-    with pytest.raises(Refused, match="has not run"):
+    with pytest.raises(Refused, match="has not been tagged") as refusal:
         select([record(kind, task, 1, text, tagged=False)], spec, ["b1"])
+    assert "python -m tagger tag" in str(refusal.value)
+    assert "python -m extractors" not in str(refusal.value)
     with pytest.raises(Refused, match="never mixed"):
         select([record(kind, task, 1, text),
                 record(kind, task, 2, text, tagger="other-model")], spec, ["b1"])
     old = record(kind, task, 1, text)
     old = with_features(old, f"rubric.{kind}", f"2@{TAGGER}", {"status": "ok"})
-    with pytest.raises(Refused, match="version"):
+    with pytest.raises(Refused, match="version") as refusal:
         select([old], spec, ["b1"])
+    assert "python -m tagger tag" in str(refusal.value)

@@ -23,6 +23,8 @@ EXTRACTOR_STATUSES = ("ok", "partial", "no-input", "error")
 # and the like) in the record's settings under this prefix. Those values vary
 # per response and are not settings that were sent, so they are not compared.
 REPORTED_PREFIX = "reported_"
+TAG_HINT = ("python -m tagger tag (tagger/README.md) and give the tagged copy, "
+            "data/tagger/<run>/records.<tagger>.jsonl, to --records")
 
 
 class Refused(Exception):
@@ -286,13 +288,19 @@ def _check_extractors(record, spec, required):
                           f"{spec.source.get('features', 'features.yaml')}")
     for name in required:
         want = spec.extractor_versions[name]
+        tags = want.endswith("@*")  # a rubric's tags, written by the tagger
         if name not in listed:
+            if tags:
+                raise Refused(f"record {rid}: it has not been tagged ({name}); run "
+                              f"{TAG_HINT}")
             raise Refused(f"record {rid}: extractor {name} has not run on it; "
                           "re-run python -m extractors first")
         if not _version_fits(listed[name], want):
+            fix = (f"tag again with python -m tagger tag at that rubric version"
+                   if tags else "re-run python -m extractors first")
             raise Refused(f"record {rid}: extractor {name} is at version "
                           f"{listed[name]}, the metrics read version {want}; "
-                          "re-run python -m extractors first (versions are never mixed)")
+                          f"{fix} (versions are never mixed)")
     for entry in record["features"]:
         if entry["extractor"] in required and \
                 entry["name"] not in spec.declared_features(entry["extractor"]):

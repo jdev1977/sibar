@@ -44,12 +44,23 @@ Filled by these tasks in [tasks.md](../tasks.md):
 
 ## Before you run it
 
-1. Run the extractors over the record file, so that every `ok` record carries
-   every extractor of the type at the version `features.yaml` lists:
+1. Run the extractors over the runner's record file, so that every `ok`
+   record carries every extractor of the type at the version `features.yaml`
+   lists:
 
        python -m extractors --records data/runs/<batch-id>/records.jsonl
 
-2. Make sure `features.yaml` and `dictated.yaml` describe the prompts and
+   The extractors read each record's files from `files/<record_id>/` beside
+   the record file, and refuse a record file whose files are not there.
+2. For a type with a rubric (pipeline, math, engineering), tag the records
+   after step 1 with `python -m tagger tag` ([tagger/README.md](../tagger/README.md)).
+   The tagger writes a tagged copy, `data/tagger/<run>/records.<tagger>.jsonl`,
+   holding the extractor features of step 1; give that copy to `--records`.
+   Its files stay in `data/runs/<batch-id>/files/`: to re-run the extractors
+   later (a new extractor version), run them on the runner's file and tag
+   again (the tag cache makes that free for outputs already tagged), or copy
+   the `files` folder beside the tagged copy first.
+3. Make sure `features.yaml` and `dictated.yaml` describe the prompts and
    extractor versions the records were made with (`tests/test_metrics_data.py`
    checks this against the repository).
 
@@ -159,7 +170,8 @@ when the tables would mean something other than they say:
   not declared;
 - a record's `prompt_set_version` differs from the one in `dictated.yaml`, or
   its task is not in `dictated.yaml`;
-- for a type with a rubric, a record has not been tagged, was tagged at
+- for a type with a rubric, a record has not been tagged (run
+  `python -m tagger tag` and give the tagged copy), was tagged at
   another rubric version, or the records of the table come from two tagger
   models;
 - a stored value does not fit its declared type, or a number is below its

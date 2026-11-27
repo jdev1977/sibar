@@ -104,6 +104,15 @@ the same extractor (another tagger's copy given as input), they are removed
 from every record this tagger has not tagged yet, so a copy never mixes two
 taggers. The input files are not changed.
 
+The copy holds the records only. Their files stay where the runner saved
+them, in `files/<record_id>/` beside the input record file
+(`data/runs/<batch-id>/files/`); nothing is copied into `data/tagger/<run>/`.
+The metrics read only the copy's features, so they do not need the files.
+Run the extractors before tagging: `python -m extractors` on the copy
+refuses, because the files are not beside it (run it on the runner's file
+and tag again, which the cache makes free, or copy the `files` folder
+beside the copy).
+
 ### Faults in an answer
 
 Every reply is checked strictly ([answers.py](answers.py)): exactly the items
