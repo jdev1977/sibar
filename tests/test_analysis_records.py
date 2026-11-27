@@ -370,6 +370,25 @@ def test_stability_plans_the_doubling(spec, tmp_path):
     assert any("runner.run" in line for line in lines)
 
 
+def test_stability_outputs_keep_dotted_model_ids_and_the_repeat_apart(spec, tmp_path):
+    model = "gpt-6.2-sol"
+    path = tmp_path / "records.jsonl"
+    records = [dict(r, model_id=model) for r in l0_records(spec, 10, lambda i: "rounded")]
+    write_records(path, records)
+    for compare in ("5,10", "10,20"):
+        assert cli.main(["stability", "--records", str(path), "--batch", "b1", "--model",
+                         model, "--compare", compare, "--out", str(tmp_path)],
+                        out=lambda line: None) == 0
+    names = sorted(p.name for p in tmp_path.glob("website-stability-*"))
+    assert names == [f"website-stability-{model}-10v20.json",
+                     f"website-stability-{model}-10v20.md",
+                     f"website-stability-{model}-5v10.json",
+                     f"website-stability-{model}-5v10.md"]
+    first = json.loads((tmp_path / f"website-stability-{model}-5v10.json").read_text("utf-8"))
+    repeat = json.loads((tmp_path / f"website-stability-{model}-10v20.json").read_text("utf-8"))
+    assert first["verdict"] == "stable" and repeat["verdict"] == "not run"
+
+
 def test_stability_stable(spec):
     selection = select(l0_records(spec, 10, lambda i: "rounded"), spec, ["b1"])
     result = stability.check(selection, spec, "m1", 5, 10)
