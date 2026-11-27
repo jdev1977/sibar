@@ -166,26 +166,25 @@ A criterion is never failed on an extracted input alone.
 
 ### Assumptions of the response's own
 
-Where the text states one, an extracted value that differs is
+Where the text mentions one, an extracted value that differs is
 `could_not_determine`, not `wrong`, for the quantities that follow from it
-(the patterns are `DOUBTS` in [labels.py](labels.py)). A word alone does not
-count: the patterns ask for the assumption itself, and `NOT_DOUBTS` first
-cuts denials ("no safety margin", "excludes taxes") from the text.
+(the patterns are `DOUBTS` in [labels.py](labels.py)): a margin or safety
+allowance or factor (heat sink, pipe and pump, beam, conveyor, bracket,
+spring; for the beam not the dictated factor of 3), a junction target (heat
+sink), a load factor or self-weight (beam, bracket), belt slip or thickness,
+a preload, fees, taxes, insurance or extra payments, another temperature or
+activity corrections, points left out or weighted, a launch height, wind or
+spin, and, for the mean and its interval, differences. A right value is still
+`correct`.
 
-| Task | What counts |
-|---|---|
-| Heat sink, pipe and pump | A margin or allowance with an amount or added by the answer, a safety factor; heat sink: a junction target other than 125 °C |
-| Beam | A margin, a load factor, self-weight that is included, a safety factor other than 3 or one on the load |
-| Conveyor | A margin, belt slip or creep that is allowed for, a belt thickness or another drum diameter |
-| Bracket, spring | A margin, a safety factor that is applied or small (1 to 4), one on the load; bracket: a load factor or self-weight; spring: a nonzero preload |
-| Loan | A fee, insurance, tax, deposit or extra payment with an amount |
-| Titration | Activity corrections, a temperature other than 25 °C |
-| Least squares, hypothesis | A point left out; least squares: a weighted fit; hypothesis, for the mean and its interval: work on differences from 50 |
-| Projectile | A nonzero launch height, wind or spin that is included |
-
-A right value is still `correct`. Separately, naming the condition of an
-alternative (self-weight, belt thickness and the like, `MENTIONS`), even to
-deny it, keeps open a value that cannot be told from that alternative.
+The patterns are broad on purpose, because a false "wrong" is worse than
+"could not determine". Only these are taken as harmless (`BENIGN` and
+`UNCHARGED`), and not where the same sentence states an added amount: an
+interval that excludes 50, the target or zero; a "significant difference";
+a note without any figure that the payment excludes taxes, insurance or fees;
+"for safety, use ..." operating advice without figures or sizing words; a
+fuse margin above the current; an initial height of 0; "ignore spin and
+wind".
 
 ### When it concludes nothing
 
@@ -210,6 +209,14 @@ can say it.
 
 ## Blind spots
 
+- **Graded accuracy is biased upward.** Where a harmless mention cannot be
+  told from a real assumption, the doubt stays, so a wrong value beside it is
+  `could_not_determine` while a right one is `correct`. Examples: "no safety
+  factor is applied", "no outliers were removed", "no fees", "assume no
+  slip", "this leaves some margin", "the design junction temperature is
+  125 °C", "the ball returns to its launch height", "significant
+  differences". Count `could_not_determine` results, and read a sample,
+  before comparing accuracy between groups.
 - Recall is low by design. Expect many `could_not_determine` results; send
   those to a reader or a model-based extractor.
 - The extractor can be fooled. A labelled figure may be an unflagged

@@ -202,232 +202,131 @@ MENTIONS = {
     "wall_moment": r"bear", "net_section": r"net |through the (?:screw )?holes",
 }
 
-# A statement of these means the response may work from an assumption of its
+# A mention of these means the response may work from an assumption of its
 # own, so a mismatch of the quantities that follow from it is not called
-# wrong: task -> (pattern, quantities or None for all, reason). A doubt only
-# ever turns "wrong" into "could_not_determine", so a broad pattern hides
-# wrong answers while right ones stay correct: each pattern asks for the
-# assumption itself (an amount, an act, a value other than the dictated one),
-# not for the word alone.
-_GAP = r"(?:[^.\n]|\.(?=\d)){0,30}?"        # within one sentence
-_NOT_ZERO = r"(?!0(?:\.0{1,4})?(?!\.?\d))"
-_AMOUNT = r"\d ?(?:%|percent\b|per cent\b|°C|K\b|mm\b|m\b|kN\b|lbf?\b|N\b|W\b|rpm\b|psi\b)"
-_MARGIN_WORD = r"(?:margin|contingency|headroom|derating|service factor)"
-_ANY_MARGIN = rf"(?:{_MARGIN_WORD}|allowance)"
-_MARGIN = "|".join((
-    r"\b(?:safety|design) (?:margin|allowance)",
-    rf"{_AMOUNT}{_GAP}\b{_ANY_MARGIN}",
-    rf"\b{_ANY_MARGIN}(?: of| =| is|:)? ?(?:about |roughly |at least |~ ?)?\d",
-    r"\b(?:add|includ|appl|keep|kept|allow|leave|reserv|maintain|build in|built[- ]in|siz)"
-    rf"\w{{0,4}}\b{_GAP}\b{_MARGIN_WORD}",
-    rf"\boversiz\w{{0,3}}\b{_GAP}\d|\b(?:I|we) (?:\w{{1,15}} )?oversize",
-    r"\b(?:take|took|assum|use|using|chose|choos|adopt)\w{0,4}\b" + _GAP + r"\bconservativ",
-    r"\bconservatively (?:take|assum|use|choos|adopt)",
-    r"\bfor (?:extra |some |added )?(?:margin|headroom)\b",
-    r"\bderat\w{0,4} (?:\w{1,15} ){0,3}(?:by|to) \d",
-))
-# Phrases that name a margin only to deny it, or as what a result happens to
-# leave: cut before the patterns are applied.
-_NO_MARGIN = (
-    r"\b(?:no|without|zero|not (?:add|includ|appl|keep|allow)\w{0,4})(?: [\w-]{1,15}){0,3}? "
-    r"(?:margins?|contingency|allowance|headroom|safety factor|factor of safety|derating)\b"
-    r"|\b(?:margin|factor|allowance|contingency) (?:is|are|was|were|has been|have been) not\b"
-    r"|\b(?:leaves|leaving|gives|giving|provides|providing|yields|offers|round\w{0,4}|within)"
-    rf"\b{_GAP}\b(?:margins?|headroom|allowance)\b"
-    r"|\bmargin(?: of [\d.]{1,8} ?[\w°/%]{0,8})? (?:below|under|against)\b"
+# wrong: task -> (pattern, quantities or None for all, reason). The patterns
+# are broad on purpose: a false "wrong" is worse than "could not determine".
+# What is plainly harmless is listed in BENIGN. The cost: a wrong value beside
+# any other such mention stays undetermined, which biases graded accuracy
+# upward (checker/README.md).
+_MARGIN = (r"margin|contingency|allowance|headroom|oversiz|conservativ|service factor|"
+           r"derat")
+_LOAD = (r"|(?:load|dynamic|impact) factor|factored|design (?:load|moment)|"
+         r"self[- ]?weight|own weight")
+_SF = r"\bSF ?(?:[=:]|of\b)"
+_FOR_SAFETY = r"|\bfor safety\b|\d ?%[^.\n]{0,30}?\bsafety\b"
+_SAFETY_FACTOR = r"safety factor|factor of safety|" + _SF
+# a number other than the brief's safety factor of 3
+_NOT_THREE = r"(?: of| =| is|:)? ?(?!3(?:\.0{1,4})?(?!\.?\d))\d"
+_JUNCTION = (
+    r"|(?:target|design|limit(?:ing)?) (?:junction|T_?\{?j)"
+    r"|\b(?:keep|kept|limit|hold|held|design|siz|aim|target|cap|restrict|assum|allow)\w{0,4}\b"
+    r"(?:[^.\n]|\.(?=\d)){0,40}?(?:junction|\bT_?\{?j\}?)(?:[^.\n\d]|\.(?=\d)){0,30}?"
+    r"(?<!\d)(?!125(?!\d))\d{2,3}(?!\d)"
+    r"|(?:junction|\bT_?\{?j\}?)(?: temperature)? (?:limit|target)(?: of| is|:| =)? ?"
+    r"(?!125(?!\d))\d{2,3}"
 )
-_LOAD = "|".join((
-    r"\b(?:load|dynamic|impact) factor(?: of| =| is|:)? ?(?:γ\w{0,3} ?=? ?)?"
-    r"(?!1(?:\.0{1,4})?(?!\.?\d))\d",
-    r"\d[- ]?(?:×)? ?(?:load|dynamic|impact) factor",
-    rf"\b(?:appl|includ|us|add|with)\w{{0,4}}\b{_GAP}\b(?:load|dynamic|impact) factor",
-    r"\bfactored (?:load|moment|shear|force)",
-    r"\bdesign load(?: of| =| is|:)? ?(?!4(?:\.0{1,4})? ?kN|40(?:\.0{1,4})? ?lb)\d",
-    r"\b(?:load|moment|force) ?[×x*] ?1\.[1-9]",
-    rf"\b(?:includ|add)\w{{0,4}}\b{_GAP}\b(?:self[- ]?weight|own weight)",
-    r"(?:self[- ]?weight|own weight)(?: of)?" + _GAP
-    + r"(?:\d ?(?:kN|N\b|kg|lb)|\b(?:(?:is|are) )?(?:included|added))",
-    r"(?:\bwith|\bplus|\+) (?:the |its |the beam'?s )?(?:self[- ]?weight|own weight)",
-))
-_NO_LOAD = (
-    r"|\b(?:no|without|not (?:add|includ|appl|us)\w{0,4})(?: [\w-]{1,15}){0,3}? "
-    r"(?:load|dynamic|impact) factor\b|\b(?:not|never) factored\b"
-    r"|\b(?:no|without|ignor\w{0,4}|neglect\w{0,4}|exclud\w{0,4}|omit\w{0,6}|"
-    r"not includ\w{0,4})(?: [\w'-]{1,15}){0,3}? (?:self[- ]?weight|own weight)"
-    rf"(?:{_GAP}\d ?(?:kN/m|kN|N\b|kg|lb))?"
-    r"|\b(?:self[- ]?weight|own weight) (?:(?:is|are|was) )?(?:ignored|neglected|omitted|"
-    r"excluded|not \w{1,15})"
+_LEFT_OUT = (
+    r"outlier|exclud|omit|discard|\bremov|\bdrop(?:s|ped|ping)?\b|\bleav\w{0,3} out\b|"
+    r"\bleft out\b|\b(?:without|ignor\w{0,4}|skip\w{0,4}) (?:the |that |this )?(?:\w{1,15} )?"
+    r"(?:point|value|measurement|observation|reading|datum)"
 )
-_SAFETY = r"(?:safety factor|factor of safety)"
-# A safety factor the answer works with: applied, or small enough to be one it
-# chose rather than one its result happens to reach.
-_APPLIED_SAFETY = "|".join((
-    rf"\b(?:appl|includ|add|us)\w{{0,4}} (?:a |an )?{_SAFETY} of \d",
-    rf"(?<!actual )(?<!resulting )(?<!achieved ){_SAFETY}(?: of| =|:)? ?"
-    r"(?:1(?:\.\d{1,2})?|[2-4](?:\.[05])?)(?!\.?\d)",
-))
-_FEE = r"(?:fees?|insurance|tax(?:es)?|deposit|down payment|extra payments?|overpay\w{0,4})"
-_LOAN = "|".join((
-    rf"\b{_FEE}(?: of| is| by| at| costs?| adds?| =|:)? ?(?:about |roughly |~ ?)?[$€£]? ?\d",
-    r"(?:[$€£] ?\d[\d,.]{0,12}|\d ?%|\d{2,7})(?: [\w-]{1,15}){0,3}? " + _FEE + r"\b",
-))
-_NO_FEE = (
-    r"\b(?:no|not|without|exclud(?:es?|ed|ing)|before|ignor\w{0,4}|neglect\w{0,4})"
-    rf"(?: [\w-]{{1,15}}){{0,3}}? {_FEE}\b"
-    rf"(?:(?:,? and|,? or|,? nor|,|/) ?(?:\w{{1,15}} )?{_FEE}\b){{0,4}}"
-)
-_ACTIVITY = r"(?:activit(?:y|ies) coefficients?|ionic strength|debye(?:[- ]h\w{1,8})?|davies)"
-_NO_ACTIVITY = (
-    r"\b(?:no|without|ignor\w{0,4}|neglect\w{0,4}|not (?:includ|consider|appl|us)\w{0,4})"
-    rf"(?: [\w-]{{1,15}}){{0,3}}? {_ACTIVITY}(?: effects?| corrections?)?"
-    rf"|{_ACTIVITY}(?: effects?| corrections?)? (?:(?:is|are|was|were) )?"
-    r"(?:ignored|neglected|omitted|not \w{1,15})"
-)
-_POINT = r"(?:point|value|observation|outlier|measurement|reading|datum)s?"
-_DROP = r"(?:exclud|omit|discard|remov|dropp?)"
-_LEFT_OUT = "|".join((
-    # leaving out a point, an outlier or a measured value (not "excludes 50")
-    rf"\b{_DROP}\w{{0,5}} (?:(?:the|this|that|these|one|an?|any|both|first|last) ){{0,2}}"
-    r"(?:(?!(?:target|null|hypothesi|reference|nominal|claimed|specified))[\w.-]{1,15} ){0,2}?"
-    rf"(?:{_POINT}\b(?! (?:of )?50(?!\.?0{{0,4}}[1-9]))|x ?= ?\d"
-    r"|(?!50(?:\.0{1,4})?(?!\.?\d))\d\d\.\d)",
-    rf"\b{_POINT}\b(?:[^.\n]|\.(?=\d)){{0,40}}?\b(?:is|was|are|were|been|be) (?:\w{{1,12}}ly )?"
-    r"(?:excluded|omitted|discarded|removed|dropped)",
-    r"\b(?:fit\w{0,4}|test\w{0,4}|analysis|mean) without (?:the |this |that )?"
-    rf"(?:\w{{1,15}} )?{_POINT}",
-    r"\bweighted (?:least[- ]squares|fit|regression)|\bweighted by\b",
-))
-_NOT_LEFT_OUT = (
-    rf"\b(?:no|none of the|neither)(?: [\w-]{{1,15}}){{0,4}}? {_DROP}\w{{0,5}}"
-    rf"|\b(?:not|never|without)(?: been)? {_DROP}\w{{0,5}}"
-    r"|(?:interval|\bCI\b)(?:[^.\n]|\.(?=\d)){0,60}?\bexclud\w{0,4}"
-    r"|\b50(?:\.0{1,4})?\b[^.\n]{0,20}?\bexclud\w{0,4}"
-    r"|\b(?:no|not(?: a| an)?|without) weighted"
-    r"|\bweighted (?:least[- ]squares|fit|regression) (?:is|was) not\b"
-)
-# Working on the differences from 50, not any mention of a difference.
-_DIFFERENCES = "|".join((
-    r"\bdifferences? (?:from (?:the )?(?:\w{1,15} ){0,2}(?:of )?50\b|d(?:_\{?i\}?)?\b|"
-    r"[-−] ?50\b)",
-    r"\bdifferences ?(?:\(|:|=)",
-    r"\b(?:comput|calculat|form|tak|list|us|work\w{0,3} (?:on|with)|test\w{0,3} (?:on)?)"
-    r"\w{0,4} (?:the |these )?(?:signed )?differences\b",
-    r"\bmean (?:of (?:the )?)?(?:signed )?differences?\b",
-    r"\|[ *]{0,4}(?:signed )?differences?(?: ?\([^)|\n]{0,30}\))? ?\|",
-    r"\bsubtract\w{0,3}(?: [\w-]{1,15}){0,3}? 50\b|\b50 (?:is )?subtracted\b",
-    r"\bdeviations? from (?:the )?(?:\w{1,15} ){0,2}(?:of )?50\b",
-    r"d̄|\\bar\{ ?d ?\}|\bd(?:_\{?i\}?)? ?= ?x|\bx(?:_\{?i\}?)? ?(?:-|−|–) ?50\b",
-))
-_HEIGHT = (
-    r"(?:launch|initial|release|starting) height"
-    r"(?:\s|of\b|is\b|=|≈|:|\(|about\b|taken\b|as\b|[hy]_?\{?0\}?(?!\w)){0,6}"
-)
-_LAUNCHED = r"\b(?:launch|kick|thrown|fired|releas)\w{0,3} from"
-_PROJECTILE = "|".join((
-    rf"{_HEIGHT}{_NOT_ZERO}\d",
-    rf"(?<![\d.]){_NOT_ZERO}\d{{1,3}}(?:\.\d{{1,3}})?[- ]?m (?:launch|release|initial|starting) "
-    r"height",
-    rf"{_LAUNCHED} (?:a height of )?{_NOT_ZERO}\d{{1,3}}(?:\.\d{{1,3}})? ?m(?:et(?:er|re)s?)? "
-    r"(?:above|high|up)",
-    rf"{_LAUNCHED} a height(?: of)? ?{_NOT_ZERO}\d",
-    rf"\by_?\{{?0\}}? ?= ?{_NOT_ZERO}\d",
-    rf"\bwind(?: speed| velocity)?(?: of| is| =|:)? ?{_NOT_ZERO}\d",
-    rf"(?<![\d.]){_NOT_ZERO}\d{{1,3}}(?:\.\d{{1,3}})? ?m/s (?:head|tail|cross)?[- ]?wind",
-    r"\b(?:includ|add|assum|with|account\w{0,3} for)\w{0,4} (?:a |the )?(?:\w{1,15} )?"
-    r"(?:head|tail|cross)[- ]?wind",
-    r"\b(?:includ|add|account\w{0,3} for)\w{0,4} (?:the )?(?:effect of )?(?:back|top)?spin\b",
-    r"\bspin(?: rate)?(?: of| =|:) ?[1-9]|\bmagnus (?:force|lift)(?: coefficient)?(?: of| =) ?"
-    r"[\d.]{0,6}[1-9]",
-))
-_NO_WIND = r"\b(?:no|without|ignor\w{0,4}|neglect\w{0,4})(?: [\w-]{1,15}){0,3}? (?:wind|spin)\b"
-
-# Cut from the text before the doubts are looked for: denials, and mentions
-# that name an assumption without making one.
-NOT_DOUBTS = {
-    "heat-sink": _NO_MARGIN + r"|\b(?:resistance|thermal|temperature(?:[- ]rise)?)[- ]allowance",
-    # the allowance for fittings is dictated, not a margin
-    "pipe-and-pump": _NO_MARGIN + (
-        r"|(?:\d{1,3}(?:\.\d{1,3})? ?m (?:\w{1,15} ){0,2})?(?:fittings?|equivalent[- ]length)"
-        r"[- ]allowance"
-        r"|\ballowance(?: of ?\d{1,3}(?:\.\d{1,3})? ?m)? for (?:the )?(?:\w{1,15} )?"
-        r"(?:fittings|elbows|strainer|valves?)"),
-    "cantilever-beam": _NO_MARGIN + _NO_LOAD,
-    "conveyor-gear-ratio": _NO_MARGIN + (
-        r"|\b(?:no|without|neglect\w{0,4}|ignor\w{0,4}|not (?:account|allow|includ)\w{0,4}"
-        r"(?: for)?)(?: [\w-]{1,15}){0,3}? (?:slip|creep)\b"),
-    "shelf-bracket": _NO_MARGIN + _NO_LOAD,
-    "compression-spring": _NO_MARGIN
-    + r"|\b(?:no|without|zero)(?: [\w-]{1,15}){0,2}? pre[- ]?load",
-    "loan-amortization": _NO_FEE,
-    "titration-curve": _NO_ACTIVITY,
-    "least-squares-fit": _NOT_LEFT_OUT,
-    "hypothesis-test": _NOT_LEFT_OUT,
-    "projectile-drag": _NO_WIND,
-}
-
 _OWN = "the response states an assumption or margin of its own"
 DOUBTS = {
     "heat-sink": ((
-        _MARGIN + r"|\bsafety factor"
-        r"|\b(?:target|design|limit(?:ing)?) junction(?: temperature)?(?: T_?\{?j\}?)?"
-        r"(?: of| is| =|:|,)? ?(?:about )?(?!125(?!\d))\d{2,3}"
-        r"|\b(?:design|siz|aim|target)\w{0,4}\b" + _GAP + r"\bjunction[^.\n\d]{0,25}?"
-        r"(?<!\d)(?!125(?!\d))\d{2,3} ?°C",
+        _MARGIN + r"|safety|" + _SF + _JUNCTION,
         ("total_resistance", "case_to_air_resistance", "plate_resistance_limit",
          "temperature_rise_allowed", "plate_area", "square_side", "square_side_exact",
          "junction_temperature", "plate_resistance", "plate_temperature",
          "case_temperature"), _OWN),),
     "pipe-and-pump": ((
-        _MARGIN + r"|\bsafety factor",
+        _MARGIN + r"|safety|" + _SF,
         ("friction_loss", "equivalent_length", "total_head", "hydraulic_power",
          "electrical_power", "battery_current"), _OWN),),
     # The brief dictates a safety factor of 3 on the yield strength.
     "cantilever-beam": ((
-        "|".join((
-            _MARGIN, _LOAD,
-            rf"{_SAFETY}[^.\n]{{0,20}}?(?:on|to) the (?:load|moment|deflection)",
-            rf"(?<!actual )(?<!resulting )(?<!achieved ){_SAFETY}(?: of| =| is|:)? ?"
-            r"(?!3(?:\.0{1,4})?(?!\.?\d))(?!\d{1,4}(?:\.\d{1,4})? ?[/>≥])\d",
-        )), None, _OWN),),
+        _MARGIN + _LOAD + _FOR_SAFETY
+        + r"|(?:safety factor|factor of safety|\bSF\b)[^.\n]{0,20}?(?:on|to) the "
+        r"(?:load|moment|deflection)"
+        r"|(?:safety factor|factor of safety|\bSF\b)" + _NOT_THREE, None, _OWN),),
     "conveyor-gear-ratio": ((
-        "|".join((
-            _MARGIN,
-            r"\d ?%[^.\n]{0,20}?\b(?:slip|creep)",
-            r"\b(?:slip|creep)(?: factor)?(?: of| =| is|:)? ?(?:about )?" + _NOT_ZERO + r"\d",
-            r"\b(?:allow|account|compensat|correct|includ)\w{0,4}(?: for)?[^.\n]{0,20}?"
-            r"\b(?:slip|creep)\b",
-            r"(?:belt thickness|thickness of the belt|\blagging)[^.\n]{0,20}?\d ?mm",
-            r"\d ?mm[- ](?:thick\b|(?:thick )?(?:belt|lagging)\b(?! speed))",
-            r"\b(?:includ|add|account\w{0,3} for)\w{0,4}[^.\n]{0,20}?(?:belt thickness|lagging)",
-            r"\b(?:effective|drum pitch)(?: drum)? diameter(?: of| =| is|:)? ?"
-            r"(?!150(?!\.?\d))\d{3}",
-        )),
+        _MARGIN + _FOR_SAFETY + "|" + _SAFETY_FACTOR
+        + r"|slip|creep|belt thickness|thick belt|\bbelt\b[^.\n]{0,20}?\bthick|lagging|"
+        r"(?:effective|pitch) diameter",
         ("drum_speed", "drum_angular_speed", "overall_ratio", "exact_ratio",
          "ratio_window_low", "ratio_window_high"), _OWN),),
     "shelf-bracket": ((
-        "|".join((
-            _MARGIN, _LOAD, _APPLIED_SAFETY,
-            rf"{_SAFETY}{_GAP}\b(?:on|to) (?:the )?(?:\w{{1,15}} )?"
-            r"(?:load|force|weight|moment|shelf)",
-        )), None, _OWN),),
+        _MARGIN + _LOAD + _FOR_SAFETY + "|" + _SAFETY_FACTOR, None, _OWN),),
     "compression-spring": ((
-        "|".join((
-            _MARGIN, _APPLIED_SAFETY,
-            rf"{_SAFETY}{_GAP}\b(?:on|to) (?:the )?(?:\w{{1,15}} )?"
-            r"(?:load|force|stress|strength)",
-            r"\bpre[- ]?load(?:ed)?(?: of| =| is|:| by)? ?(?:about )?" + _NOT_ZERO + r"\d",
-            r"(?<![\d.])" + _NOT_ZERO + r"\d{1,4}(?:\.\d{1,3})? ?(?:lbf?|N|in) (?:of )?"
-            r"pre[- ]?load",
-            r"\b(?:add|includ|appl|assum|us|with)\w{0,4} [^.\n]{0,20}?pre[- ]?load",
-        )), None, _OWN),),
-    "loan-amortization": ((_LOAN, None, _OWN),),
+        _MARGIN + _FOR_SAFETY + "|" + _SAFETY_FACTOR + r"|pre[- ]?load", None, _OWN),),
+    "loan-amortization": ((
+        r"\bfees?\b|insurance|\btax|deposit|down payment|extra payment|overpay|margin",
+        None, _OWN),),
     "titration-curve": ((
-        _ACTIVITY + r"|(?:\bat|temperature(?: of| =| is|:)?|\bT ?=) ?(?<![\d.])"
-        r"(?!25(?!\d))\d{1,2}(?:\.\d)? ?°C", None, _OWN),),
-    "least-squares-fit": ((_LEFT_OUT, None, _OWN),),
+        r"\bactivit(?:y|ies)\b|ionic strength|debye|davies|"
+        r"(?<![\d.])(?!25(?!\d))\d{1,2} ?°C", None, _OWN),),
+    "least-squares-fit": ((_LEFT_OUT + r"|\bweighted", None, _OWN),),
     "hypothesis-test": (
         (_LEFT_OUT, None, _OWN),
-        (_DIFFERENCES, ("sample_mean", "ci95_low", "ci95_high"),
+        (r"differenc|deviations? from|d̄|\bd(?:_i)? ?= ?x",
+         ("sample_mean", "ci95_low", "ci95_high"),
          "the response works on differences from 50")),
-    "projectile-drag": ((_PROJECTILE, None, _OWN),),
+    "projectile-drag": ((
+        r"(?:launch|initial|release|starting) height|from a height|\bwind|\bspin|"
+        r"(?:head|tail|cross)[- ]?wind|(?:back|top)[- ]?spin|"
+        r"\by_?\{?0\}? ?= ?(?!0(?:\.0{1,4})?(?!\.?\d))\d|\d ?m above (?:the )?ground",
+        None, _OWN),),
+}
+
+# The only phrases taken as harmless: each is cut from its sentence before the
+# doubts are looked for, unless the sentence states an added amount (or is
+# longer than MAX_BENIGN). Anything else that matches a doubt keeps it.
+MAX_BENIGN = 400
+ADDED_AMOUNT = (
+    r"\b(?:add(?:s|ed|ing)?|includ(?:es?|ed|ing)|plus|extra|appl(?:y|ies|ied|ying)|"
+    r"increas(?:es?|ed|ing))\b.{0,60}?\d|\d.{0,40}?\b(?:add(?:s|ed|ing)?|extra)\b|\+ ?\d"
+)
+# operating advice: no number, and nothing about sizing
+_ADVICE = (
+    r"\bfor safety,? (?:use|fit|install|insulate|wear|mount|disconnect|fuse|keep)\b"
+    r"(?!.*(?:\d|factor|margin|allowance|oversiz|larger|bigger|cooler|lower|higher|more|"
+    r"junction|load|head))"
+)
+_INTERVAL = (
+    r"(?:\binterval\b|\bCI\b)(?:[^.\n]|\.(?=\d)){0,60}?\bexclud(?:es|ed|ing|e)? (?:the )?"
+    r"(?:(?:target|null|hypothesi[sz]ed|reference)(?: value| mean)?(?: of 50)?|"
+    r"(?:value (?:of )?)?50(?:\.0{1,4})?|zero|0)(?!\.?\w)"
+)
+_SIGNIFICANT = (
+    r"\b(?:statistically )?significant difference\b"
+    r"|\bdifference (?:from|between)\b[^.\n]{0,40}?\bis (?:not )?(?:statistically )?"
+    r"significant\b"
+)
+_UNCHARGED = r"(?:any )?(?:tax(?:es)?|insurance|fees)\b"
+_FUSE = r"\bfus(?:e|es|ed|ing)\b[^.\n]{0,60}?\bmargin\b[^.\n]{0,30}?\bcurrent\b"
+_GROUND = (
+    r"(?:launch|initial|release|starting) height(?:\s|of\b|is\b|=|:|\(|[hy]_?\{?0\}?(?!\w))"
+    r"{0,6}(?:0(?:\.0{1,4})?(?!\.?\d)|zero\b)"
+)
+# the brief's own words
+_NO_WIND = (
+    r"\b(?:ignor(?:e|es|ed|ing)|neglect(?:s|ed|ing)?|no) (?:spin|wind)(?: (?:and|or) "
+    r"(?:no )?(?:spin|wind))?\b"
+)
+BENIGN = {
+    "heat-sink": _ADVICE,
+    "pipe-and-pump": _ADVICE + "|" + _FUSE,
+    "cantilever-beam": _ADVICE,
+    "conveyor-gear-ratio": _ADVICE,
+    "shelf-bracket": _ADVICE,
+    "compression-spring": _ADVICE,
+    "least-squares-fit": _INTERVAL,
+    "hypothesis-test": _INTERVAL + "|" + _SIGNIFICANT,
+    "projectile-drag": _GROUND + "|" + _NO_WIND,
+}
+# A note that leaves charges out, in a sentence with no figure.
+UNCHARGED = {
+    "loan-amortization": (
+        rf"\b(?:exclud(?:es|ed|ing|e)|(?:does not|doesn't) include) {_UNCHARGED}"
+        rf"(?:(?:,? and|,? or|,) {_UNCHARGED}){{0,3}}"),
 }

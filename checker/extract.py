@@ -45,6 +45,8 @@ _CORRECTION = re.compile(r"\b(?:correction|(?:corrected|updated) (?:value|answer
                          r"result)|actually|on reflection|revised)\b", re.IGNORECASE)
 _SUMMARY = re.compile(r"\b(?:final answers?|summary|in short|to summari[sz]e|"
                       r"(?:in )?conclusion|bottom line|tl;?dr)\b", re.IGNORECASE)
+# Where one sentence ends, for what is cut as harmless
+_DOUBT_SENTENCE = re.compile(r"\n|(?<=[.!?])[ \t]+")
 # A list of ratios ("12/68 and 12/72 teeth") shares the unit at its end.
 _RATIOS = re.compile(r"(?:/\d{1,6})?(?: and \d{1,6}/\d{1,6}){0,4}")
 _UNIT_WORDS = re.compile(r" ?([^\s,;:()!?|=]{1,15})(?: ([^\s,;:()!?|=]{1,15}))?")
@@ -113,6 +115,19 @@ def _unit_after(text):
     if first.lower() in ("%", "percent", "teeth", "tooth"):
         return first.lower()
     return first if units.canonical(first) else None
+
+
+def _without_benign(task, sentence):
+    """``sentence`` without the phrases that state no assumption."""
+    if len(sentence) > labels.MAX_BENIGN:
+        return sentence
+    uncharged = labels.UNCHARGED.get(task)
+    if uncharged and not re.search(r"\d", sentence):
+        return re.sub(uncharged, " ", sentence, flags=re.IGNORECASE)
+    benign = labels.BENIGN.get(task)
+    if not benign or re.search(labels.ADDED_AMOUNT, sentence, re.IGNORECASE):
+        return sentence
+    return re.sub(benign, " ", sentence, flags=re.IGNORECASE)
 
 
 def _date(text):
@@ -232,9 +247,8 @@ class _Reader:
         self.truncated = truncated
         self.doubts = {}
         plain = text.replace("**", "").replace("\\%", "%")
-        if self.task in labels.NOT_DOUBTS:
-            # a full stop in its place, so that no pattern reaches across
-            plain = re.sub(labels.NOT_DOUBTS[self.task], " . ", plain, flags=re.IGNORECASE)
+        plain = "\n".join(_without_benign(self.task, part)
+                          for part in _DOUBT_SENTENCE.split(plain))
         for pattern, names, reason in labels.DOUBTS.get(self.task, ()):
             if re.search(pattern, plain, re.IGNORECASE):
                 self.doubts.update(dict.fromkeys(names or self.listed, reason))

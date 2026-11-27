@@ -617,16 +617,17 @@ def test_a_summary_that_repeats_the_values_changes_nothing(after):
 
 # --- review round 2 -----------------------------------------------------------
 
-# Sentences that state no assumption or margin of the response's own: a wrong
-# value beside one stays wrong.
+# The phrases taken as harmless: a wrong value beside one stays wrong.
 NOT_ASSUMED = [
     ("hypothesis-test", "L0", "Sample mean: 52.4", "sample_mean", (
         "The 95% interval excludes 50.",
+        "The 95% confidence interval (50.46, 51.89) excludes 50.0.",
         "The confidence interval excludes the target value.",
         "The interval excludes the value 50.",
         "There is a significant difference.",
-        "The difference from the target is significant.",
-        "There are no outliers, and no values were removed.",
+        "There is no statistically significant difference.",
+        "The mean differs from 50.",
+        "The difference from 50 is significant.",
     )),
     ("hypothesis-test", "L0", "t = 2.11", "t_statistic", (
         "The 95% interval excludes 50.",
@@ -634,60 +635,27 @@ NOT_ASSUMED = [
     ("loan-amortization", "L0", "Monthly payment: $202.50", "monthly_payment", (
         "Note: this excludes taxes and insurance.",
         "This figure does not include insurance, taxes or fees.",
-        "No fees or down payment are assumed.",
-        "Remember to budget for insurance.",
-        "This leaves little margin in a student's budget.",
     )),
     ("pipe-and-pump", "L2", "Total head: 9.9 m", "total_head", (
         "For safety, use a check valve.",
-        "No safety margin is included.",
-        "Choose a pump whose curve gives some margin.",
-        "The 8 m allowance for fittings is included.",
-        "I include an allowance of 8 m for the fittings.",
-    )),
-    ("projectile-drag", "L2", "Range: 45.0 m", "range", (
-        "Assuming launch from ground level (initial height 0).",
-        "Launch height: 0 m, with no wind and no spin.",
-        "We ignore spin and wind.",
-        "The ball returns to the launch height at t = 2.28 s.",
-        "Initial height y0 = 0.",
+        "Fuse the battery lead with a margin above the current.",
     )),
     ("heat-sink", "L2", "Required plate area: 0.0500 m²", "plate_area", (
         "For safety, insulate the plate from the chassis.",
-        "No safety margin is added.",
-        "The target junction temperature is 125 °C.",
-        "Rounding up to 135 mm gives a small margin.",
-        "This leaves 4 °C of headroom.",
+    )),
+    ("projectile-drag", "L2", "Range: 45.0 m", "range", (
+        "Assuming launch from ground level (initial height 0).",
+        "Initial height: 0 m.",
+        "Ignore spin and wind.",
     )),
     ("cantilever-beam", "L0", "Maximum bending moment: 3 kN·m", "max_bending_moment", (
-        "The design moment follows from statics.",
         "A safety factor of 3 is used on the yield strength.",
-        "The safety factor of 3.0 is as given.",
-    )),
-    ("conveyor-gear-ratio", "L2", "Drum speed: 60.0 rpm", "drum_speed", (
-        "Assume no slip.",
-        "The sprocket pitch diameter does not matter here.",
-        "The speed is within the ±2% allowance.",
-    )),
-    ("shelf-bracket", "L2", "Moment at the wall: 400 lb·in", "moment_at_wall", (
-        "The factor of safety on the plywood stress is large.",
-        "No safety factor is applied to the load.",
-        "The bracket's own weight is neglected.",
-    )),
-    ("compression-spring", "L2", "Required spring rate: 9.9 lbf/in", "spring_rate", (
-        "There is no preload.",
-        "Preload: 0 lbf.",
-        "The resulting factor of safety is comfortable.",
+        "The factor of safety of 3.0 is as given.",
     )),
     ("titration-curve", "L0", "Initial pH: 3.40", "ph_0_ml", (
-        "Activity coefficients are neglected.",
-        "Ignoring ionic strength effects.",
         "All values are at 25 °C.",
     )),
     ("least-squares-fit", "L0", "Slope: 1.50", "slope", (
-        "There are no obvious outliers.",
-        "No points are excluded.",
-        "This is an ordinary, not weighted, fit.",
         "The 95% interval excludes zero.",
     )),
 ]
@@ -786,16 +754,61 @@ def test_a_number_that_could_replace_a_value_puts_it_in_doubt(
     assert one(task, level, f"{line}\n\n{after}", name) == "could_not_determine"
 
 
-# These also name an alternative of the reference, which keeps some values
-# open by itself; they must still leave no doubt of their own.
-@pytest.mark.parametrize("task,line,name,sentence", [
-    ("cantilever-beam", "Maximum bending moment: 3 kN·m", "max_bending_moment",
-     "Self-weight is neglected."),
-    ("cantilever-beam", "Maximum bending moment: 3 kN·m", "max_bending_moment",
-     "No load factor is applied."),
-    ("conveyor-gear-ratio", "Drum speed: 60.0 rpm", "drum_speed",
-     "Belt thickness is neglected."),
-])
-def test_a_denied_assumption_leaves_no_doubt(task, line, name, sentence):
-    answers = extract(REFERENCE[task], "L0", f"{line}\n\n{sentence}")
-    assert [s.doubt for s in answers.quantities[name]] == [None]
+# --- review round 3 -----------------------------------------------------------
+
+WRONG_LINES = {
+    "heat-sink": ("L2", "Required plate area: 0.0600 m²", "plate_area"),
+    "pipe-and-pump": ("L2", "Total head: 9.4 m", "total_head"),
+    "cantilever-beam": ("L0", "Maximum bending moment: 9 kN·m", "max_bending_moment"),
+    "conveyor-gear-ratio": ("L2", "Drum speed: 60.0 rpm", "drum_speed"),
+    "shelf-bracket": ("L2", "Moment at the wall: 400 lb·in", "moment_at_wall"),
+    "compression-spring": ("L2", "Required spring rate: 9.9 lbf/in", "spring_rate"),
+    "loan-amortization": ("L0", "Monthly payment: $202.50", "monthly_payment"),
+    "titration-curve": ("L0", "Initial pH: 3.40", "ph_0_ml"),
+    "least-squares-fit": ("L0", "Slope: 1.50", "slope"),
+    "hypothesis-test": ("L0", "Sample mean: 1.175", "sample_mean"),
+    "projectile-drag": ("L2", "Range: 45.0 m", "range"),
+}
+SIZING = ("heat-sink", "pipe-and-pump", "cantilever-beam", "conveyor-gear-ratio",
+          "shelf-bracket", "compression-spring")
+STATED_ASSUMPTIONS = [
+    *((task, sentence) for task in SIZING for sentence in (
+        "I use a factor of safety 1.2.",
+        "I include a factor of safety of 1.2.",
+        "Factor of safety: 1.2",
+        "SF = 1.2",
+        "I add 10%, giving a safety margin.",
+        "To be conservative I added 10%.",
+        "To be conservative, I added 10%.",
+        "Includes 10% for safety.",
+        "With margin:",
+        "For safety, use 10% more.",
+        "For safety, add a factor of 1.2.",
+    )),
+    ("heat-sink", "I limit Tj to 110 °C."),
+    ("heat-sink", "I limit $T_j$ to 110 °C."),
+    ("heat-sink", "I keep the junction at 100 °C."),
+    ("pipe-and-pump", "Fuse margin aside, I add 10% to the head as a margin above the current."),
+    ("conveyor-gear-ratio", "The belt slips about 2%."),
+    ("hypothesis-test", "These are differences from the target."),
+    ("hypothesis-test", "The differences are 0.8, 1.6, -0.3."),
+    ("hypothesis-test", "Compute each difference from the target:"),
+    ("hypothesis-test", "49.7 looks like an outlier, so I remove it."),
+    ("hypothesis-test", "I remove it."),
+    ("least-squares-fit", "I remove it."),
+    ("least-squares-fit", "The fit excludes (8, 30)."),
+    ("loan-amortization", "With an origination fee (2%):"),
+    ("loan-amortization", "An origination fee is added."),
+    ("loan-amortization", "Insurance is added to each payment."),
+    ("loan-amortization", "This excludes taxes but includes insurance of $30."),
+    ("titration-curve", "I assume 37 °C."),
+    ("titration-curve", "Correcting for activity:"),
+    ("projectile-drag", "No wind, but a launch height of 1.5 m."),
+]
+
+
+@pytest.mark.parametrize("task,sentence", STATED_ASSUMPTIONS)
+def test_a_naturally_worded_assumption_is_never_called_wrong(task, sentence):
+    level, line, name = WRONG_LINES[task]
+    assert one(task, level, line, name) == "wrong"
+    assert one(task, level, f"{sentence}\n\n{line}", name) == "could_not_determine"
