@@ -49,6 +49,7 @@ def self_test(monkeypatch, tmp_path):
 def test_the_self_test_waits_longer_than_a_run_does(self_test):
     self_test(result())
     assert self_test.limits.seconds == 600
+    assert boxes.Limits().seconds == 60  # a run's limit is as it was
 
 
 def test_a_self_test_ended_by_the_time_limit_says_so(self_test):
