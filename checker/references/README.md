@@ -10,7 +10,7 @@ for T2.3. The worked solution behind each file is in
 **The engineering answers are study data, not designs.** They exist to grade
 answers collected for a study of model defaults. Do not build from them.
 
-The checker itself is T2.10 and is not written yet. This folder is data only.
+The checker is [checker/](../README.md). This folder is data only.
 
 ## How the numbers are kept right
 
