@@ -225,17 +225,67 @@ def _alive(pid):
         kernel.CloseHandle(ctypes.c_void_p(handle))
 
 
+def _inside(path, folder):
+    """Whether ``path`` is strictly inside ``folder`` (case and link aware)."""
+    path = os.path.normcase(os.path.realpath(path))
+    folder = os.path.normcase(os.path.realpath(folder)).rstrip("\\/")
+    return path.startswith(folder + os.sep)
+
+
+def leftover_processes(root):
+    """``(handle, pid, image)`` of each process whose program is in ``root``'s
+    runtime folder. With ``root``'s lock held, no box of ``root`` is open, so
+    every such process is a leftover. Close each handle."""
+    from sandbox import win32
+
+    folder, found = runtime.runtime_dir(root), []
+    for handle, pid, image in win32.processes():
+        if _inside(image, folder):
+            found.append((handle, pid, image))
+        else:
+            win32.close(handle)
+    return found
+
+
+def _end_leftovers(root, removed, problems):
+    from sandbox import win32
+
+    for handle, pid, image in leftover_processes(root):
+        try:
+            # The handle was opened before the image was read: it is this
+            # process, whatever happens to the id meanwhile.
+            win32.api().TerminateProcess(win32.HANDLE(handle), KILLED)
+            if win32.wait(handle, END_GRACE_SECONDS * 1000):
+                removed.append(f"process {pid} ({Path(image).name})")
+            else:
+                problems.append(f"process {pid} ({image}): did not end")
+        except Exception as error:
+            problems.append(f"process {pid}: {type(error).__name__}: {error}"[:300])
+        finally:
+            win32.close(handle)
+
+
 def sweep(root):
-    """Remove what earlier boxes left behind: AppContainer profiles of this
-    sandbox whose process is gone, and working folders under ``root`` (call
-    only with ``root``'s lock held). Returns ``(removed, problems)``: what was
-    removed, and what could not be (each tried; none stops the others).
+    """Remove what earlier boxes left behind: processes running the runtime's
+    programs, AppContainer profiles of this sandbox whose process is gone, and
+    working folders under ``root`` (call only with ``root``'s lock held).
+    Returns ``(removed, problems)``: what was removed, and what could not be
+    (each tried; none stops the others).
+
+    Every sandboxed process is created inside its run's kill-on-close job, so
+    none should outlive its creator; a process found here comes from code
+    that made one some other way. Only processes whose program lies inside
+    ``root``'s runtime folder are ended: sandboxed code cannot write there.
 
     A folder that cannot be removed stays contained: only its own run's
     package SID, whose profile is gone, and the sandbox's SID may use it."""
     from sandbox import win32
 
     removed, problems = [], []
+    try:
+        _end_leftovers(root, removed, problems)
+    except Exception as error:
+        problems.append(f"processes: {type(error).__name__}: {error}"[:300])
     for name in win32.profile_names():
         if not name.startswith(PROFILE_PREFIX) or name in _OPEN:
             continue

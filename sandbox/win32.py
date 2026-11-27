@@ -127,6 +127,10 @@ class _Api:
         self.TerminateProcess = _bind(k, "TerminateProcess", B, [HANDLE, wintypes.UINT])
         self.ResumeThread = _bind(k, "ResumeThread", D, [HANDLE])
         self.IsProcessInJob = _bind(k, "IsProcessInJob", B, [HANDLE, HANDLE, P(B)])
+        self.OpenProcess = _bind(k, "OpenProcess", HANDLE, [D, B, D])
+        self.K32EnumProcesses = _bind(k, "K32EnumProcesses", B, [P(D), D, P(D)])
+        self.QueryFullProcessImageNameW = _bind(
+            k, "QueryFullProcessImageNameW", B, [HANDLE, D, wintypes.LPWSTR, P(D)])
         self.InitializeProcThreadAttributeList = _bind(
             k, "InitializeProcThreadAttributeList", B, [V, D, D, P(ctypes.c_size_t)])
         self.UpdateProcThreadAttribute = _bind(
@@ -703,18 +707,24 @@ class Process:
 
 
 def start(argv, cwd, environment, *, token=None, package=None, capabilities=(),
-          less_privileged=True, job=None, stdin, stdout, stderr, desktop=None):
+          less_privileged=True, job, stdin, stdout, stderr, desktop=None):
     """Start ``argv`` suspended and return a :class:`Process`.
 
     ``token``: a primary token to run as (else this process's). ``package``: a
     package SID, which puts the process in that AppContainer with
     ``capabilities``; ``less_privileged`` opts it out of the access granted to
-    all application packages. ``job``: a job handle the process starts in.
-    Only the three standard handles are inherited. Resume the thread with
-    :func:`resume` once the caller has checked the process is where it should
-    be."""
+    all application packages. ``job``: the handle of a kill-on-close job the
+    process starts in (required). Windows puts it in the job as it creates
+    it, so there is no moment at which this process could die and leave the
+    child behind: closing the job's last handle, which this process's end
+    does, kills it. Only the three standard handles are inherited. Resume the
+    thread with :func:`resume` once the caller has checked the process is
+    where it should be."""
+    if not job:
+        raise ValueError("a process is started only inside a job (job= is required): "
+                         "outside one it could outlive this process")
     a = api()
-    count = 1 + (2 if package is not None else 0) + (1 if job is not None else 0)
+    count = 1 + (2 if package is not None else 0) + 1
     size = ctypes.c_size_t()
     a.InitializeProcThreadAttributeList(None, count, 0, ctypes.byref(size))
     attribute_list = ctypes.create_string_buffer(size.value)
@@ -742,8 +752,7 @@ def start(argv, cwd, environment, *, token=None, package=None, capabilities=(),
                 len(capabilities), 0))
             add(ATTRIBUTE_ALL_APPLICATION_PACKAGES_POLICY, wintypes.DWORD(
                 ALL_APPLICATION_PACKAGES_OPT_OUT if less_privileged else 0))
-        if job is not None:
-            add(ATTRIBUTE_JOB_LIST, (HANDLE * 1)(job))
+        add(ATTRIBUTE_JOB_LIST, (HANDLE * 1)(job))
         info = STARTUPINFOEXW()
         info.StartupInfo.cb = ctypes.sizeof(info)
         info.StartupInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW
@@ -832,3 +841,37 @@ def resume(process):
 
 def terminate(process, code=1):
     api().TerminateProcess(HANDLE(process.handle), code)
+
+
+PROCESS_TERMINATE, PROCESS_QUERY_LIMITED, SYNCHRONIZE = 0x0001, 0x1000, 0x00100000
+
+
+def processes():
+    """``(handle, pid, image path)`` for each process that this process may
+    query, end and wait for. The handle keeps the id from being reused while
+    it is open; the caller closes every one (:func:`close`)."""
+    a = api()
+    count = 4096
+    while True:
+        ids = (wintypes.DWORD * count)()
+        used = wintypes.DWORD()
+        if not a.K32EnumProcesses(ids, ctypes.sizeof(ids), ctypes.byref(used)):
+            raise WinError("EnumProcesses")
+        if used.value < ctypes.sizeof(ids):
+            break
+        count *= 2
+    found = []
+    buffer = ctypes.create_unicode_buffer(32768)
+    for pid in ids[:used.value // ctypes.sizeof(wintypes.DWORD)]:
+        if not pid:
+            continue
+        handle = a.OpenProcess(PROCESS_QUERY_LIMITED | PROCESS_TERMINATE | SYNCHRONIZE,
+                               False, pid)
+        if not handle:
+            continue  # not this user's, or already gone
+        size = wintypes.DWORD(len(buffer))
+        if a.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+            found.append((handle, pid, buffer.value))
+        else:
+            a.CloseHandle(handle)
+    return found
