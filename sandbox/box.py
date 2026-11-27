@@ -225,17 +225,143 @@ def _alive(pid):
         kernel.CloseHandle(ctypes.c_void_p(handle))
 
 
+def _inside(path, folder):
+    """Whether ``path`` is strictly inside ``folder`` (case and link aware)."""
+    path = os.path.normcase(os.path.realpath(path))
+    folder = os.path.normcase(os.path.realpath(folder)).rstrip("\\/")
+    return path.startswith(folder + os.sep)
+
+
+def _too_broad(folder):
+    """Why ``folder`` is too broad to end processes by, or None: it must be
+    an absolute local or share path with at least two names below its drive
+    or share (so never a drive or share root, nor a folder right below one)."""
+    from pathlib import PureWindowsPath
+
+    path = PureWindowsPath(folder)
+    if not (path.drive and path.root):
+        return f"{folder} is not an absolute path"
+    if len(path.parts) < 3:
+        return f"{folder} is a drive or share root, or right below one"
+    return None
+
+
+def runtime_folder_problem(root):
+    """Why processes may not be ended by ``root``'s runtime folder, or None.
+
+    The folder must be exactly the runtime setup made: no junction, symbolic
+    link or mount point in it or above it (so two roots cannot share one
+    runtime and end each other's runs, and a link cannot widen it to a
+    drive), not a drive or share root, and passing :func:`runtime.check`
+    (manifest, programs and the DACL setup gives)."""
+    import stat
+
+    folder = runtime.runtime_dir(root)
+    problem = _too_broad(folder)
+    if problem:
+        return problem
+    try:
+        attributes = os.lstat(folder).st_file_attributes
+    except OSError as error:
+        return f"{folder}: {error}"
+    if attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        return f"{folder} is a junction, link or mount point"
+    if not attributes & stat.FILE_ATTRIBUTE_DIRECTORY:
+        return f"{folder} is not a folder"
+    real = os.path.realpath(folder)
+    if os.path.normcase(real) != os.path.normcase(os.path.abspath(folder)):
+        return f"{folder} is reached through a link (it is really {real})"
+    problem = _too_broad(real)
+    if problem:
+        return problem
+    try:
+        runtime.check(root)
+    except runtime.RuntimeMissing as error:
+        return f"the runtime is not as setup left it: {error}"
+    return None
+
+
+def leftover_processes(root):
+    """``(handles, problem)``: ``handles`` is ``(handle, pid, image)`` for each
+    process, other than this one, whose program is in ``root``'s runtime
+    folder (each handle may query and wait; the caller closes it). With
+    ``root``'s lock held no box of ``root`` is open, so each is a leftover.
+    If :func:`runtime_folder_problem` finds a problem, nothing is listed and
+    ``problem`` says why."""
+    from sandbox import win32
+
+    problem = runtime_folder_problem(root)
+    if problem:
+        return [], problem
+    folder, found, me = runtime.runtime_dir(root), [], os.getpid()
+    every = win32.processes()
+    try:
+        while every:
+            handle, pid, image = every.pop()
+            if pid != me and _inside(image, folder):
+                found.append((handle, pid, image))
+            else:
+                win32.close(handle)
+    except BaseException:
+        for handle, _, _ in every + found:
+            win32.close(handle)
+        raise
+    return found, None
+
+
+def _end_leftovers(root, removed, problems):
+    from sandbox import win32
+
+    found, problem = leftover_processes(root)
+    if problem:
+        problems.append(f"processes: none ended, because {problem}"[:500])
+        return
+    ending = []  # (handle, pid, image) of those terminated, to wait for
+    try:
+        for handle, pid, image in found:
+            # The held handle keeps ``pid`` this process while it is opened
+            # again, now with the right to end it.
+            try:
+                win32.end_process(pid, KILLED)
+                ending.append((handle, pid, image))
+            except Exception as error:
+                problems.append(f"process {pid} ({image}): {error}"[:300])
+        deadline = time.monotonic() + END_GRACE_SECONDS
+        for handle, pid, image in ending:
+            rest = max(0.0, deadline - time.monotonic())
+            if win32.wait(handle, rest * 1000):
+                removed.append(f"process {pid} ({Path(image).name})")
+            else:
+                problems.append(f"process {pid} ({image}): did not end")
+    finally:
+        for handle, _, _ in found:
+            win32.close(handle)
+
+
 def sweep(root):
-    """Remove what earlier boxes left behind: AppContainer profiles of this
-    sandbox whose process is gone, and working folders under ``root`` (call
-    only with ``root``'s lock held). Returns ``(removed, problems)``: what was
-    removed, and what could not be (each tried; none stops the others).
+    """Remove what earlier boxes left behind: processes running the runtime's
+    programs, AppContainer profiles of this sandbox whose process is gone, and
+    working folders under ``root`` (call only with ``root``'s lock held).
+    Returns ``(removed, problems)``: what was removed, and what could not be
+    (each tried; none stops the others).
+
+    Every sandboxed process is created inside its run's kill-on-close job, so
+    none should outlive its creator; a process found here comes from code
+    that made one some other way. Only processes whose program lies inside
+    ``root``'s runtime folder are ended (sandboxed code cannot write there),
+    never this process, and only once :func:`runtime_folder_problem` finds
+    nothing wrong with that folder; otherwise none is ended and the problem
+    is reported.
 
     A folder that cannot be removed stays contained: only its own run's
     package SID, whose profile is gone, and the sandbox's SID may use it."""
     from sandbox import win32
 
     removed, problems = [], []
+    try:
+        _end_leftovers(root, removed, problems)
+    except Exception as error:
+        problems.append(f"processes: {type(error).__name__}: {error}"[:300])
     for name in win32.profile_names():
         if not name.startswith(PROFILE_PREFIX) or name in _OPEN:
             continue

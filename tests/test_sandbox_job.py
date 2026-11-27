@@ -16,35 +16,80 @@ pytestmark = pytest.mark.skipif(os.name != "nt", reason="job objects are Windows
 
 from sandbox.job import JobLimits, JobObject  # noqa: E402
 
-CHILD_FLAGS = 0x4  # CREATE_SUSPENDED
 # The interpreter itself: in a virtual environment ``sys.executable`` is a
 # launcher that starts it as a second process.
 PYTHON = getattr(sys, "_base_executable", sys.executable)
 
 
+class Child:
+    """``python -c code`` made inside ``job`` (so it is never outside it, even
+    if this test dies at once), then let run. Its output is read from a
+    pipe; with ``feed`` it reads its input from one."""
+
+    def __init__(self, code, job, feed=False):
+        import msvcrt
+
+        from sandbox import win32
+
+        self._win32 = win32
+        out_read, out_write = win32.pipe()
+        in_read = in_write = None
+        null = win32.null_input()
+        try:
+            if feed:
+                in_read, in_write = win32.pipe()
+                os.set_handle_inheritable(in_read, True)
+                os.set_handle_inheritable(in_write, False)
+            self._process = win32.start(
+                [PYTHON, "-I", "-S", "-c", code], os.getcwd(), dict(os.environ),
+                job=job.handle, stdin=in_read or null, stdout=out_write, stderr=null)
+        except BaseException:
+            for handle in (out_read, in_write):
+                win32.close(handle)
+            raise
+        finally:
+            for handle in (out_write, in_read, null):
+                win32.close(handle)
+        self.stdout = os.fdopen(msvcrt.open_osfhandle(out_read, os.O_RDONLY), "rb")
+        self.stdin = (os.fdopen(msvcrt.open_osfhandle(in_write, 0), "wb")
+                      if feed else None)
+        win32.resume(self._process)
+
+    def wait(self, timeout):
+        if not self._win32.wait(self._process.handle, timeout * 1000):
+            raise subprocess.TimeoutExpired("child", timeout)
+        return self._win32.exit_code(self._process.handle)
+
+    def communicate(self, data=None, timeout=60):
+        if self.stdin is not None:
+            self.stdin.write(data or b"")
+            self.stdin.close()
+        out = self.stdout.read()
+        self.wait(timeout)
+        return out, b""
+
+    def close(self):
+        for name in ("stdin", "stdout"):
+            stream = getattr(self, name, None)
+            if stream is not None:
+                try:
+                    stream.close()
+                except OSError:
+                    pass
+        process = getattr(self, "_process", None)
+        if process is not None:
+            process.close()
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass  # at interpreter exit, modules may already be gone
+
+
 def start(code, job):
-    """Start ``python -c code`` suspended, put it in ``job``, let it run."""
-    child = subprocess.Popen([PYTHON, "-I", "-S", "-c", code],
-                             creationflags=CHILD_FLAGS, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-    job.assign_handle(int(child._handle))
-    _resume(child.pid)
-    return child
-
-
-def _resume(pid):
-    import ctypes
-    from ctypes import wintypes
-
-    ntdll = ctypes.WinDLL("ntdll")
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-    kernel.OpenProcess.restype = wintypes.HANDLE
-    handle = kernel.OpenProcess(0x0800, False, pid)  # PROCESS_SUSPEND_RESUME
-    assert handle, ctypes.get_last_error()
-    try:
-        ntdll.NtResumeProcess(wintypes.HANDLE(handle))
-    finally:
-        kernel.CloseHandle(wintypes.HANDLE(handle))
+    """Start ``python -c code`` in ``job`` and let it run."""
+    return Child(code, job)
 
 
 def wait_empty(job, seconds=30):
@@ -124,13 +169,22 @@ def test_process_limit_refuses_processes_past_the_limit():
 
 def test_closing_the_job_kills_every_process_in_it():
     job = JobObject(JobLimits())
+    from sandbox import win32
+
     child = start("import subprocess, sys, time\n"
-                  "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+                  "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+                  "print(g.pid, flush=True)\n"
                   "time.sleep(60)", job)
-    time.sleep(1.0)
-    assert job.accounting().active_processes == 2
-    job.close()
-    assert child.wait(timeout=10) != 0
+    grandchild = int(child.stdout.readline())
+    held = win32.api().OpenProcess(win32.SYNCHRONIZE, False, grandchild)
+    try:
+        assert held and grandchild in job.process_ids()
+        job.close()
+        assert child.wait(timeout=10) != 0
+        assert win32.wait(held, 10_000)
+    finally:
+        job.close()
+        win32.close(held)
 
 
 def test_cpu_time_limit_ends_the_job():
@@ -181,11 +235,7 @@ def test_ui_restrictions_give_the_job_its_own_atoms(restricted):
     name = f"sibar-test-{uuid.uuid4().hex}"
     job = JobObject(JobLimits(ui_restricted=restricted))
     try:
-        child = subprocess.Popen(
-            [PYTHON, "-I", "-S", "-c", ATOM.replace("NAME", repr(name))],
-            creationflags=CHILD_FLAGS, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        job.assign_handle(int(child._handle))
-        _resume(child.pid)
+        child = Child(ATOM.replace("NAME", repr(name)), job, feed=True)
         assert child.stdout.readline().strip() == b"True"
         seen = ctypes.WinDLL("kernel32").GlobalFindAtomW(name) != 0
         child.communicate(b"\n", timeout=30)

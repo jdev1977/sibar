@@ -29,6 +29,8 @@ Project documents. Present now:
 - [sandbox.md](sandbox.md): running generated code: setup, use, outcomes,
   boundaries and their tests, the threat model and what it does not defend,
   task fixtures and measurements (T2.7)
+- [webdev-arena.md](webdev-arena.md): the WebDev Arena dataset's licence, the
+  decision it leaves to the owner, and the importer (T5.2)
 
 Added by later tasks in [tasks.md](../tasks.md):
 

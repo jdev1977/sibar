@@ -21,12 +21,14 @@ the cost ledger, the generation runner, the offline renderer, the sandbox
 for generated code, the prompts of all four project types, the deterministic
 extractors of all four types, the rubrics and the tagger (batch tagging,
 agreement, the calibration sample), the reference solutions for the math
-and engineering tasks, and the metrics ([docs/metrics.md](docs/metrics.md),
-implemented in [analysis/](analysis/README.md)). Every tool that calls a
-provider (the runner and the tagger) has been tested only against fakes: no
-live call has been made, so the first paid runs are also the first live
-tests ([docs/runner.md](docs/runner.md)). Not built yet: the answer checker
-(T2.10) and the viewer. No results exist: the pilot (T1.7) has not run.
+and engineering tasks, the answer checker ([checker/](checker/README.md)), the
+metrics ([docs/metrics.md](docs/metrics.md), implemented in
+[analysis/](analysis/README.md)) and the WebDev Arena importer
+([docs/webdev-arena.md](docs/webdev-arena.md), tested on invented data only).
+Every tool that calls a provider (the runner and the tagger) has been tested only
+against fakes: no live call has been made, so the first paid runs are also the
+first live tests ([docs/runner.md](docs/runner.md)). Not built yet: the viewer
+(T3.5). No results exist: the pilot (T1.7) has not run.
 
 ## Layout
 
@@ -41,7 +43,8 @@ tests ([docs/runner.md](docs/runner.md)). Not built yet: the answer checker
 | [analysis/](analysis/README.md) | Python package: the metrics and the stability check, with the data files they read (how each feature is counted, what each prompt dictates) |
 | [rubrics/](rubrics/README.md) | Versioned tagging rubrics, by project type |
 | [tagger/](tagger/README.md) | Python package: loads and checks the rubrics, tags outputs through the providers' batch APIs, and measures agreement between taggings |
-| [checker/](checker/references/README.md) | Reference answers for the math and engineering tasks, with tolerances; the answer checker itself is not written yet |
+| [checker/](checker/README.md) | Python package: grades the final answers of math and engineering outputs against reference answers with tolerances |
+| [importers/](docs/webdev-arena.md) | Python package: imports outside datasets as run records (WebDev Arena) |
 | [viewer/](viewer/README.md) | Local page for comparing outputs (not built yet, T3.5) |
 | [docs/](docs/README.md) | Project documents |
 | `data/` | Local only, gitignored: run records, raw responses, extracted files and dataset releases. Not part of a clone |
