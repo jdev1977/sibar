@@ -9,10 +9,12 @@ for the interface, the command line and every feature.
 - `registry.py`: extractors by project type (`PACKAGES`)
 - `records.py`, `__main__.py`: `python -m extractors` over a record file
 - `website/`: the twelve website extractors (T1.4) and their readers
+- `pipeline/`, `math/`, `engineering/`: the extractors of those types (T2.8)
+- `common/`: the readers those three share; not a project type
 
 Filled by these tasks in [tasks.md](../tasks.md):
 
 - T1.4: website extractors (done)
-- T2.8: pipeline, math or science, and engineering extractors
+- T2.8: pipeline, math or science, and engineering extractors (done)
 - W2.x.4: extractors and checkers for Wave 2 types
 - W3.x: extractors and checkers for Wave 3 types

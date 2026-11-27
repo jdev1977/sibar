@@ -97,6 +97,44 @@ named when it is computed (for the pilot, one: `pilot-1`). Its date is the
 first and last UTC date of its records' timestamps. If its records report
 more than one `model_id_returned`, it is flagged `mixed snapshots`.
 
+## Types with a rubric
+
+Pipeline, math and engineering records (T2.8) carry two kinds of features:
+the deterministic extractors' and the tags of the model-read rubric
+([rubrics.md](rubrics.md)). Their `analysis/<type>/` folders hold the same
+two data files as the website's, with three additions to `features.yaml`.
+Every formula on this page applies unchanged.
+
+**Outcome** (`outcome`). These types have no page, so the rubric's gate item
+`response_mode` decides:
+
+| Outcome | Record with status `ok` |
+|---|---|
+| `unread` | the tagger's status is `error`, or the gate is `null` (cannot tell); or, for pipeline, `pipeline.layout` failed |
+| `no-artifact` | the gate is `asks-first` or `declines`; or, for pipeline only, `pipeline.layout.structure` is `no-code` (code written outside a fenced block is not seen) |
+| `artifact` | otherwise. A math or engineering answer in prose is an artifact |
+
+`truncated` and `refused` records are as for websites. A record that has not
+been tagged is refused: tag the record file before computing tables.
+
+**Versions.** The rubric's version is written `1@*` in `features.yaml`: the
+rubric version is fixed, the tagger model is not. All tags in one table must
+come from one tagger model.
+
+**Items asked of some tasks** (`tasks`). A rubric item asked only of some
+tasks is `not applicable` in the others, so those runs are not counted as
+undetermined.
+
+**Open choices.** `dictated.yaml` of each type holds the entries of the
+rubric's companion, copied word for word, and the entries for the extractor
+features. L0 and L1 close nothing but the unit system, in the tasks whose
+givens are in SI units at every level.
+
+Every extractor feature that a keyword or pattern may misread starts
+`provisional`, as every rubric variable does; T2.11 promotes or drops them.
+The simulation behind [the stability rule](#the-stability-rule) was run with
+the website's variable counts; it has not been repeated for these types.
+
 ## From features to variables
 
 ### Value, undetermined, not applicable

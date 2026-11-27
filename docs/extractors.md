@@ -6,9 +6,9 @@ choices made in it as **features**: countable values stored in the run record
 the extractor that produced it. Extractors read bytes only. They never run the
 output's code and never use the network.
 
-This page has three parts: how to run them, the interface new extractors
-follow (T2.8 and later), and the twelve website extractors, feature by
-feature.
+This page has four parts: how to run them, the interface new extractors
+follow, the twelve website extractors, feature by feature, and the
+[pipeline, math and engineering extractors](#pipeline-math-and-engineering-outputs-t28).
 
 ## Use
 
@@ -594,6 +594,267 @@ Blind spots: colour contrast (needs rendering), focus order, whether `alt`
 text is meaningful, labels added by scripts, components that render
 accessible markup (counted only as the component).
 
+## Pipeline, math and engineering outputs (T2.8)
+
+Code: [extractors/common/](../extractors/common/),
+[extractors/pipeline/](../extractors/pipeline/),
+[extractors/math/](../extractors/math/),
+[extractors/engineering/](../extractors/engineering/). Versions are `1`,
+except where a review raised them: `2` for `pipeline.ci` and
+`engineering.safety`; `3` for `pipeline.operations`, `pipeline.images`,
+`math.precision`, `math.units`, `math.constants`, `engineering.units` and
+`engineering.quantities`. Which choice goes to an extractor and which to the
+model-read rubric is set in [rubrics.md](rubrics.md), "The split with the
+extractors".
+
+### What is read
+
+| Part | From | Used by |
+|---|---|---|
+| **Reply** | the record's `raw_response` | every type |
+| **Prose** | the reply outside fenced blocks; an unclosed block runs to the end and is not prose | `*.reply` |
+| **Working** | the prose and the untagged, `text`, `math`, `latex` and `tex` blocks that do not look like a program | math prose features |
+| **Files** | the record's extracted files, one per fenced block ([record-format.md](record-format.md)); the language comes from the file name, or for an untagged block from a few unmistakable marks (Python, Go, OpenSCAD, DXF, STL, STEP, SVG). Anything else has no language and is not code | pipeline, code and CAD features |
+| **Prompt** | the record's `prompt_text`: its numbers are givens, not choices | `math.precision` |
+
+With `--dir`, the reply is `response.md` and its fenced blocks are the files
+when the folder holds nothing else. At most 1,000,000 characters of the
+reply and 1,000,000 of the files are read (`partial` beyond that). Source is
+split into code, comments and strings by a linear scanner; nothing is parsed
+by a language's own parser and nothing is run. YAML is loaded with
+`safe_load` under limits (100,000 characters, 20 aliases, 2,000 brackets).
+Every repeat in the patterns is bounded or runs over a single character
+class; [tests/test_extractors_hostile.py](../tests/test_extractors_hostile.py)
+holds the hostile cases.
+
+**Status.** `no-input` means there is nothing for that extractor to read: no
+reply text; for the pipeline behaviour extractors, no program (so a
+configuration-only reply leaves them undetermined). A feature that is `null`
+could not be determined. Values such as `"none"`, `"not-stated"` and `[]`
+mean the extractor looked. `"not-relevant"`, `"no-spring"`,
+`"no-image-code"` and `"no-workflow"` mean the thing the feature describes is
+not there; the metrics treat them as not applicable.
+
+**All of these are keyword and pattern readings.** They see what is written,
+not what it does. A call that is named and never reached counts; a way of
+doing the same thing that is not in a table is missed. Features where a
+miss or a false hit is likely are `provisional` in
+`analysis/<type>/features.yaml` until outputs have been reviewed (T2.11).
+
+### *.reply (all three types)
+
+`pipeline.reply`, `math.reply`, `engineering.reply`.
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `words` | number | runs of letters in the prose | formulas in prose count as words (`frac`, units) |
+| `headings` | number | `#` headings | bold lines used as headings and underlined headings are not counted |
+| `list_items` | number | lines starting with a bullet or a number | numbered working steps count |
+| `code_blocks` | number | fenced blocks, closed or not | indented code is not a block |
+| `tables` | number | Markdown tables (a separator row under a header) | tables drawn in text blocks or HTML are not counted |
+| `largest_table_rows` | number | data rows of the longest table: "points reported" and "how much of the schedule" | the values are not read |
+
+### pipeline.language, pipeline.layout
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `primary_language` | categorical | the programming language with most code (comments aside); shell or SQL only where there is no other; `none` for configuration only | usage commands never outweigh a program, by design |
+| `languages` | set | every programming and scripting language found | untagged blocks that are not recognised are left out |
+| `structure` | categorical | `no-code`, `config-only`, `single-file`, `multiple-files`, `package`; test files and `setup.py` do not count, nor do unnamed blocks under 8 lines of code beside a longer one. `null` where several substantial blocks are unnamed: they may be files or alternatives | code outside fences is not seen, so such a reply reads as `no-code` |
+| `source_files` | number | the files behind `structure` | |
+| `file_names` | set | names the reply gave, lower case | generic `block-NN` names are left out |
+| `has_readme` | boolean | a file named `readme*` | instructions in the reply itself are the rubric's `usage_docs` |
+| `dependency_files` | set | `requirements*.txt`, `pyproject.toml`, `package.json`, `go.mod` and the like, when named | an unnamed dependency list is missed |
+| `entry_point_guard` | boolean | `if __name__ == "__main__"` in Python; `null` without Python | |
+
+### pipeline.testing, pipeline.comments
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `tests_present` | boolean | test functions or cases in any file; in a Python file not named as a test, an assertion is needed too | checks written as plain `if` statements are not tests |
+| `test_files` | number | files holding tests | |
+| `test_frameworks` | set | `pytest` (also bare `test_` functions), `unittest`, `go-testing`, `jest`, `vitest`, `mocha`, `node-test`, `rust-test`, `rspec`, `testthat` | JavaScript tests with global `describe` name no framework |
+| `comment_lines` | number | lines of comments, shebang aside | |
+| `comment_density` | categorical | comment lines over all non-blank lines: `none`, `low` (under 5%), `medium` (under 15%), `high` | |
+| `docstrings` | number | Python docstrings; `null` without Python | doc comments of other languages count as comments |
+| `has_docstrings` | boolean | as above | |
+
+A **test file**, left out of the behaviour features below, is one that holds
+tests and nothing else: named or placed as a test, or an unnamed block whose
+definitions are all tests. A script with tests inside it is still the
+pipeline.
+
+### pipeline.libraries
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `imports` | set | top-level modules or packages imported (Python, JavaScript/TypeScript, Go, Rust, Ruby, R) | dynamic imports; `null` for other languages |
+| `third_party` | set | imports found in a table of known libraries, by distribution name (`pillow`, `pyyaml`); every dotted Go import path | a library not in the table goes to `other_imports` |
+| `other_imports` | set | neither the language's own, nor known, nor a file of the output | an unnamed helper block cannot be matched to its import |
+| `stdlib_only` | boolean | false with any known library; `null` with unknown imports or a program in an unread language; else true. Python's own modules are those of Python 3.13 | libraries used without an import (a command run by the code) |
+| `database_libraries` | set | database drivers and mappers among the imports | storage through a command line client |
+| `scheduling_libraries` | set | scheduling libraries among the imports | cron lines and CI schedules are the rubric's and `pipeline.ci`'s |
+
+### pipeline.logging, pipeline.config
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `logging_style` | categorical | `logging-library`, `print`, `both`, `neither`; `null` for a language whose printing is not read | a print used for a report and one used as a log look alike |
+| `logging_libraries` | set | `logging`, `loguru`, `structlog`, `winston`, `pino`, `slog`, `go-log`, `zap` and others, by import | |
+| `uses_print` | boolean | `print`, `console.*`, `fmt.Print*`, `echo` | |
+| `config_sources` | set | `arguments` (argument parsers, `argv`), `environment` (environment variables, dotenv), `config-file` (a config parser, YAML loading, or a file named `config`, `settings`, `rules` or `schema`) | a JSON file with another name read as configuration |
+| `key_source` | categorical | where a name like API key, token, secret or password gets its value, on its own line: `environment`, `argument`, `file`, `written-in` (a literal, placeholders included), `several`; `none` with no such name; `null` where it is named and the source is not on that line | a value passed through another variable; keys under other names (`KEY`, `token`) |
+
+### pipeline.operations
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `retry_present` | boolean | a retry library, or `retry`, `backoff`, `max_attempts` or a loop over attempts in the code, strings and comments aside. `urllib3` counts only where its `Retry` object is made | a retry under other words; whether it waits is the rubric's `retry_policy` |
+| `retry_libraries` | set | `tenacity`, `backoff`, `urllib3`, `p-retry` and others, by import | |
+| `file_reading` | categorical | `whole-file`, `streaming`, `both`, `none`, or `null` where a file is opened and no known read follows. Streaming: a loop over a file, `open(...)`, `fileinput` or `sys.stdin`, chunks, or a streaming call. A loop over content already read whole (`read().splitlines()`) is not streaming. Loading a configuration file (by a file name in a string, a plain name such as `CONFIG_PATH` or `args.config`, its handle or the variable it fills: `config`, `settings`, `cfg`, `conf`, `rules`, `schema`) counts for neither; a path taken from a configuration object (`config.input_path`, `settings['input']`) is data, and `Image.open` is not a text file | this is the second reading of "one line at a time"; the first is the sandbox's. A data file named like a configuration file is not counted; a loop over a parameter is seen only when its variable is named `line` |
+| `read_calls` | set | the calls behind it: `read`, `readlines`, `read-text`, `table-read`, `json-load`, `list-of-rows`, `read-file`, `line-loop`, `readline`, `chunked`, `stream-api` | a loop over a parameter is seen only when its variable is named `line` |
+| `output_formats` | set | writing calls: `csv`, `json`, `jsonl`, `parquet`, `database`, `excel`, `html`, `plot`, `image`, `printed`. In Python with an image library, `image` is a `save` of an object made from an image call (or with a usual name such as `img`) | files written as plain text with a suffix chosen at run time; `json.dumps` for a log line counts as `json`; an image passed in under an unusual name and no type annotation |
+| `parallel_work` | set | `process-pool`, `thread-pool`, `asyncio` (`gather`, `TaskGroup`, `create_task`, `as_completed`, `wait`; `asyncio.run` alone is not parallel work), `promise-all`, `worker-threads`, `goroutines`, `rayon`, `shell-parallel` | parallelism inside a library |
+
+### pipeline.images
+
+`null` of image code is `no-image-code`: no image library imported and no
+ImageMagick command.
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `image_libraries` | set | `pillow`, `opencv`, `sharp`, `imagemagick`, `go-imaging` and others | |
+| `orientation_handling` | categorical | `present` or `absent`; `provisional` | a library that turns images by default shows no keyword (OpenCV's reader, for one) |
+| `orientation_calls` | set | `exif-transpose`, `auto-orient`, `orientation-tag`, `sharp-rotate` | |
+| `metadata_handling` | categorical | `strips`, `keeps`, `both`, `unmentioned`; `provisional`. `exif` counts only as a keyword argument of a call, or a `["exif"]` entry being set: `exif = img.getexif()` reads and decides nothing | Pillow and sharp drop metadata on saving with no word in the code: `unmentioned` is not "kept". The files the output writes show what happened (T2.7) |
+| `metadata_calls` | set | `empty-exif`, `strip-option`, `remove-function`, `pixel-copy`, `delete-exif`, `keeps-exif`, `with-metadata` | removing one tag (the orientation) reads as nothing |
+
+### pipeline.ci
+
+Files are recognised by path (`.github/workflows/`, `.gitlab-ci.yml`, ...)
+or, for unnamed YAML, by their keys. A file that does not load safely leaves
+what would be read from it `null`.
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `ci_service` | categorical | `github-actions`, `gitlab-ci`, `circleci`, `azure-pipelines`, `travis`, `bitbucket`, `jenkins`, `several`, `none` | other services read as `none`; Jenkins files are not read further |
+| `triggers` | set | `push`, `pull-request`, `tag`, `schedule`, `manual`, `release`, `merge-queue`, `called`, `other` | outside GitHub Actions, only what is written in the file; `null` where nothing is (circleci always) |
+| `matrix_keys` | set | the keys of every matrix | |
+| `matrix_os` | set | `linux`, `windows`, `macos` from matrix values, `runs-on` and images | |
+| `matrix_versions` | set | `key=value` for other matrix values | values given by expressions |
+| `ci_tools` | set | tools named in commands and actions (`pytest`, `ruff`, `go-vet`, `coverage`, ...) | scripts that call tools; the kind of check is the rubric's `ci_checks` |
+| `timeout`, `cancel_superseded` | categorical | `set`, `not-set`, `no-workflow` | |
+
+### math.notation, math.voice, math.currency
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `main_notation` | categorical | `latex`, `unicode`, `plain`, `mixed`, `none`: the form of 70% of the formulas. A LaTeX formula is a `$...$` (opening mark with no blank after it, closing one with no blank before and no digit after), `$$`, `\[`, `\(` or an equation environment; other lines with `=` are Unicode if they hold a mathematical character, else plain | counts formulas, not their length |
+| `notation` | set | every form present | one `×` in a sentence with `=` makes it Unicode |
+| `has_formula` | boolean | a relation in any of them | |
+| `address` | categorical | `you`, `we`, `both`, `neither`; a pronoun counts from 2 uses | an offer of help at the end adds uses of "you" |
+| `you_count`, `we_count` | number | | |
+| `currency` | set | symbols, ISO codes and words; `["none"]` for a money answer without one; `[]` (not applicable) otherwise. A dollar inside a formula is not money | "pounds" alone is not read (it is a weight too) |
+
+### math.precision
+
+Results are the last number of each bold or boxed span (labels such as
+"Step 2" aside); without any, the numbers after "≈". Numbers equal to a
+number of the prompt are not results. A whole number ending in zero has no
+countable figures.
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `result_sig_figs` | categorical | the most common among the results: `1` to `4`, `5+`, `mixed`; `null` with no result found | results only in a table or in running text are missed; emphasised intermediate values count |
+| `result_decimals` | categorical | the same for decimal places: `0` to `2`, `3+` | |
+| `result_basis` | categorical | `marked`, `approximation`, `none` | |
+| `result_numbers` | number | | |
+| `max_decimals` | number | most decimals of any number in the working | code output is not in the working unless in a text block |
+| `long_decimals` | boolean | a number with 7 or more significant figures | |
+
+### math.units, math.methods, math.code
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `unit_system` | categorical | as for engineering, below | the givens fix it in most tasks |
+| `unit_style` | categorical | compound units written with `/` (`slash`), with negative powers (`exponent`), `both`, `none` | |
+| `unit_symbols` | set | units found after numbers or in brackets | |
+| `concentration_notation` | set | `molar`, `mol-per-litre-slash`, `mol-per-litre-exponent`, `mol-per-dm3` | |
+| `methods` | set | names found anywhere in the reply: `euler`, `heun`, `runge-kutta`, `ode-solver`, `charge-balance`, `henderson-hasselbalch`, `t-test`, `wilcoxon`, `shapiro-wilk`, `centered-sums`, `annuity-formula`, `microstates` and others (the table in `math/values.py`) | a method named and rejected counts; which one the result rests on is the rubric's |
+| `code_present` | boolean | a file in a programming or scripting language | |
+| `code_languages` | set | | |
+| `plot_code` | boolean | plotting calls of matplotlib, seaborn, plotly, ggplot, base R, MATLAB, Julia, or a TikZ picture | plots described or drawn in text are the rubric's |
+| `plot_libraries` | set | | |
+
+### math.constants
+
+Each is a categorical: the value, `several` (more than one distinct value),
+`not-stated`, or `not-relevant` (the reply is not about a projectile, or not
+about a titration). Values outside a plausible range are ignored.
+
+| Feature | Value | Read from |
+|---|---|---|
+| `g_value` | `9.81` | `g =`, or a 9.8 followed by m/s |
+| `drag_coefficient` | `0.47` | `C_d =`, "drag coefficient ..." |
+| `air_density` | `1.225` | `ρ =`, "air density ..." |
+| `projectile_mass` | `0.145 kg` | "mass ...", `m =`, with kg or g |
+| `projectile_diameter` | `0.074 m` | "diameter ...", `d =`, with m, cm or mm |
+| `ka_value`, `pka_value`, `kw_value` | `1.8e-05`, `4.74`, `1e-14` | `K_a`, `Kₐ`, `pK_a`, `K_w`, followed by `=`, `:`, "is" or "of", with a bracket or "of/for ..." between if need be; a power of ten alone is a value (`10^-14`; with a decimal exponent, `10^-4.76`, the decimal written after it, else three figures) |
+
+Blind spots: a value given only in code or only in a table without a symbol
+or name beside it; a radius given instead of a diameter reads as
+`not-stated`.
+
+### engineering.units, engineering.safety, engineering.standards
+
+The engineering extractors read the whole reply, code and comments included.
+Quantities are the exception for programs only: a block of code (OpenSCAD and
+SQL included) is read in its comments and outside its strings, so that a plot
+label or its closing quote is no dimension; the prose and every other block
+(YAML, CSV, JSON, notes, drawings) are read whole. A number written straight
+after a comma (`plate,4 mm`) is not read. An inch fraction is read whole
+(`1 1/2 in` is 1.5 in; denominators 2, 4, 8, 16, 32 and 64, before inches
+only, so `12/24 V` is read as 24 V), and
+`2g` closed up is twice gravity and is not read (so two grams written `2g` are
+missed).
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `unit_system` | categorical | `metric`, `us-customary` (4 in 5 or more of the units found), `both`, `none`. Units count only after a number or alone in brackets; `in` only before punctuation or a word of size. Time, speed of rotation and electrical units count for neither | dimensions given only as variable names (`width_mm`) |
+| `metric_mentions`, `us_mentions` | number | | |
+| `unit_symbols` | set | | |
+| `safety_factor` | categorical | the value stated beside "safety factor", "factor of safety", "design factor", FoS, SF or FS (also after `>=` or `≥`, and as ", n = 2"): a number from 1 to 20, `several`, `range`, `none` (never mentioned), `null` (mentioned, no value read). Values that read as results are skipped: "achieved", "gives", "about", "≈", part of a sum or an inequality, "so FS ≥ 1.3", or two decimals not ending in 0 or 5 | a round achieved value stated plainly reads as the chosen one; a factor given only as "n = 2" |
+| `safety_factor_mentioned` | boolean | | |
+| `safety_factor_values` | set | | |
+| `standard_bodies` | set | `ISO`, `DIN`, `EN`, `BS`, `ASTM`, `ASME`, `ANSI`, `AGMA`, `AISC`, `Eurocode`, `NEMA` and others | textbooks and catalogues are the rubric's `formula_source` |
+| `standards` | set | designations with a number (`EN 1993-1-1`, `ASTM A228`) | AISI and SAE numbers are material grades and are not counted |
+| `standards_cited` | boolean | | |
+
+### engineering.checks, engineering.materials, engineering.quantities, engineering.cad
+
+| Feature | Type | Normalisation | Blind spots |
+|---|---|---|---|
+| `checks` | set | checks **named**: `bending`, `shear`, `torsion`, `deflection`, `yield`, `buckling`, `fatigue`, `natural-frequency`, `coil-bind`, `bearing-stress`, `screw-load`, `stress-concentration`, `creep`, `cavitation`, `weld`, `junction-temperature` | a check dismissed in words counts; one done with numbers and never named is missed (the rubric's `checks_performed`) |
+| `spring_end_type` | categorical | `squared-and-ground`, `squared`, `plain-and-ground`, `plain`, `open`, `several`, `not-stated`, `no-spring`; a line or row declaring the end type wins over other mentions | |
+| `stress_correction` | categorical | `wahl`, `bergstrasser`, `both`, `not-mentioned`, `no-spring` | |
+| `materials` | set | material families found anywhere | a rejected material counts; which one is designed in is the rubric's `material_assumed` |
+| `supply_voltage` | categorical | the one voltage of 3 V or more, `several`, `not-stated` | a velocity written `5 V` |
+| `supply_voltages` | set | | |
+| `pipe_roughness_mm` | categorical | a roughness height in mm, `several`, `not-stated`, `not-relevant` (no pipe) | a Hazen-Williams C is not a height |
+| `water_temperature_c` | categorical | a temperature written beside "water" | a temperature given elsewhere in a table |
+| `quantities` | set | every `value unit` found, at most 200: the numbers and chosen dimensions, for the answer checker | which number is which dimension is not read |
+| `cad_format` | categorical | `openscad`, `dxf`, `step`, `stl`, `svg`, `gcode`, `cadquery`, `build123d`, `freecad`, `ezdxf`, `solidpython`, `svg-python`, `several`, `none` | drawings in text characters; macros of CAD programs |
+| `cad_formats` | set | | |
+| `code_languages` | set | programming languages and OpenSCAD | |
+| `cad_parameters` | set | `name=value` for numbers assigned at the start of a line in OpenSCAD or in a Python CAD file: the default dimensions | values inside calls |
+
+### Not read
+
+- **Stock phrases** for these types (the rubric's `opening` and `closing`
+  cover how a reply starts and ends).
+- **The motor speed, section shape, pump type** and the other items the split
+  gives to the rubric.
+
 ## Relation to the prompts
 
 Some features can be dictated by an L2 prompt (an L2 bakery brief names a
@@ -606,4 +867,5 @@ was read from
 [prompts/website/leak-check.md](../prompts/website/leak-check.md). How each
 feature is counted (its type, role and bins) is in
 [analysis/website/features.yaml](../analysis/website/features.yaml); raising
-an extractor's version means updating that file.
+an extractor's version means updating that file. The other types have the
+same two files in `analysis/<type>/`.

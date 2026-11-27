@@ -1,13 +1,14 @@
 """Every extractor, by project type.
 
 Each project type's package (``extractors.<type>``) lists its extractors in
-an ``EXTRACTORS`` tuple, in the order they run. To add a type (T2.8), create
+an ``EXTRACTORS`` tuple, in the order they run. To add a type, create
 its package and add its module name to :data:`PACKAGES`.
 """
 
 import importlib
 
-PACKAGES = ("extractors.website",)
+PACKAGES = ("extractors.website", "extractors.pipeline", "extractors.math",
+            "extractors.engineering")
 
 
 def all_extractors():

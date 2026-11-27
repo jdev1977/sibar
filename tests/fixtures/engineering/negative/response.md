@@ -1,0 +1,1 @@
+What load should the part carry, and what is it made of? There are 3 in total that I could size, in a few ways. In 2 of them the factor that matters is stiffness. Once you tell me, I can go through the ISO preferred numbers, the spring in your step-by-step list, and open BS items 2 and 3.
