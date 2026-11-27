@@ -5,6 +5,7 @@ import time
 
 import pytest
 
+from checker.answers import answers_from_dict
 from checker.extract import extract
 from checker.formulas import load_reference, reference_paths
 from checker.grade import grade
@@ -24,6 +25,24 @@ def statuses(result, *names):
 
 def one(task, level, text, name):
     return check(task, level, text)["quantities"][name]["status"]
+
+
+def never_wrong(task, level, line, name, sentence):
+    """A mismatch found in text is suspected, never wrong, whatever a sentence
+    beside it says: only an answers file gives a final "wrong"."""
+    assert one(task, level, line, name) == "suspected_wrong"
+    for text in (f"{sentence}\n\n{line}", f"{line}\n\n{sentence}"):
+        result = check(task, level, text)
+        assert result["quantities"][name]["status"] in (
+            "suspected_wrong", "could_not_determine"), (text, result["quantities"][name])
+        assert "wrong" not in (result["verdict"], result["answers_verdict"]), text
+
+
+def reviewed(task, level, text, **data):
+    """Grade ``text`` with an answers file's entries put over what was found."""
+    reference = REFERENCE[task]
+    answers = extract(reference, level, text).merged(answers_from_dict(data))
+    return grade(reference, level, answers)
 
 
 LOAN_L0 = """## Monthly payment
@@ -92,9 +111,10 @@ def test_a_cut_schedule_is_not_counted():
     "**Monthly payment:** €202.50 per month.",
     "| Quantity | Value |\n|---|---|\n| Monthly payment | 202.50 |",
     "So the monthly payment is $202.50.",
+    "Monthly payment: $202.50\n\nSo you pay 178.21 each month.",  # right one too
 ])
-def test_a_wrong_payment_is_wrong(text):
-    assert one("loan-amortization", "L0", text, "monthly_payment") == "wrong"
+def test_a_wrong_payment_found_in_text_is_suspected(text):
+    assert one("loan-amortization", "L0", text, "monthly_payment") == "suspected_wrong"
 
 
 @pytest.mark.parametrize("text", [
@@ -104,7 +124,6 @@ def test_a_wrong_payment_is_wrong(text):
     "A naive estimate:\nMonthly payment = $202.50",
     "## Sanity check\nMonthly payment: $202.50",
     "Monthly payment: $178.21\n\nMonthly payment: $202.50",   # two values
-    "Monthly payment: $202.50\n\nSo you pay 178.21 each month.",  # right one too
     "Monthly payment: between $175 and $180",
     "Monthly payment: 178,21",                          # a decimal comma
     "Monthly payment (with insurance fees): $202.50",
@@ -164,11 +183,11 @@ def test_a_wilcoxon_answer_with_its_ranks():
         "ranks": "correct", "differences": "correct"}
 
 
-def test_the_wrong_decision_is_wrong():
+def test_the_wrong_decision_is_suspected():
     text = HYPOTHESIS_L2.replace("we fail to reject H₀", "we reject H₀")
     result = check("hypothesis-test", "L2", text)
-    assert statuses(result, "decision_l2") == {"decision_l2": "wrong"}
-    assert result["verdict"] == "wrong"
+    assert statuses(result, "decision_l2") == {"decision_l2": "suspected_wrong"}
+    assert result["verdict"] == "suspected_wrong"
 
 
 @pytest.mark.parametrize("text", [
@@ -219,11 +238,11 @@ def test_a_least_squares_answer():
     assert result["verdict"] == "correct", result
 
 
-def test_a_line_through_the_origin_is_wrong():
+def test_a_line_through_the_origin_is_suspected():
     text = "Slope: 1.9893\nIntercept: 0"
     result = check("least-squares-fit", "L0", text)
-    assert statuses(result, "slope", "intercept") == {"slope": "wrong",
-                                                      "intercept": "wrong"}
+    assert statuses(result, "slope", "intercept") == {"slope": "suspected_wrong",
+                                                      "intercept": "suspected_wrong"}
 
 
 PROJECTILE_L2 = """| Quantity | With drag | No air |
@@ -246,11 +265,11 @@ def test_a_range_under_a_no_air_heading():
     assert result["verdict"] == "correct", result
 
 
-def test_euler_values_are_wrong():
+def test_euler_values_are_suspected():
     text = "Range: 38.6 m\nTime of flight: 2.35 s\nMaximum height: 6.93 m"
     result = check("projectile-drag", "L2", text)
     assert statuses(result, "range", "flight_time", "max_height") == dict.fromkeys(
-        ["range", "flight_time", "max_height"], "wrong")
+        ["range", "flight_time", "max_height"], "suspected_wrong")
 
 
 def titration(values):
@@ -271,7 +290,7 @@ def test_a_titration_table():
 def test_a_wrong_ph_in_a_table():
     values = [(v, 7.00 if v == 25.0 else ph) for v, ph in PH]
     result = check("titration-curve", "L2", titration(values))
-    assert statuses(result, "ph_25_ml", "ph_26_ml") == {"ph_25_ml": "wrong",
+    assert statuses(result, "ph_25_ml", "ph_26_ml") == {"ph_25_ml": "suspected_wrong",
                                                          "ph_26_ml": "correct"}
 
 
@@ -300,7 +319,7 @@ def test_self_weight_is_not_called_wrong():
     assert one("cantilever-beam", "L0", text,
                "max_bending_moment") == "could_not_determine"
     assert one("cantilever-beam", "L0", "Maximum bending moment: 3 kN·m",
-               "max_bending_moment") == "wrong"
+               "max_bending_moment") == "suspected_wrong"
 
 
 def test_the_motor_speed_grades_the_ratio():
@@ -309,7 +328,7 @@ def test_the_motor_speed_grades_the_ratio():
     result = check("conveyor-gear-ratio", "L0", text)
     assert result["verdict"] == "correct", result
     wrong = check("conveyor-gear-ratio", "L0", text.replace("28.5", "33.9"))
-    assert statuses(wrong, "overall_ratio") == {"overall_ratio": "wrong"}
+    assert statuses(wrong, "overall_ratio") == {"overall_ratio": "suspected_wrong"}
     two = check("conveyor-gear-ratio", "L0",
                 text + "\nA 960 rpm motor would also work.")
     assert statuses(two, "overall_ratio") == {"overall_ratio": "could_not_determine"}
@@ -329,7 +348,7 @@ Resulting junction temperature: 120.9 °C
 def test_a_junction_margin_is_not_called_wrong():
     text = ("Keeping a 25 °C margin on the junction:\n\n"
             "Allowable total resistance: 3.0 °C/W")
-    assert one("heat-sink", "L0", text, "total_resistance") == "could_not_determine"
+    assert one("heat-sink", "L0", text, "total_resistance") == "suspected_wrong"
 
 
 def test_a_pipe_table_in_two_units():
@@ -384,7 +403,9 @@ def test_a_cut_off_response_is_never_wrong():
     reference = REFERENCE["loan-amortization"]
     answers = extract(reference, "L0", "Monthly payment: $202.50", truncated=True)
     result = grade(reference, "L0", answers)
-    assert result["quantities"]["monthly_payment"]["status"] == "could_not_determine"
+    found = result["quantities"]["monthly_payment"]
+    assert found["status"] == "suspected_wrong"
+    assert "cut off" in found["reason"]
 
 
 @pytest.mark.parametrize("task", sorted(REFERENCE))
@@ -449,8 +470,8 @@ def test_other_cases_and_rules_are_not_graded(task, level, text, name):
 
 
 @pytest.mark.parametrize("text,status", [
-    ("We therefore reject H0 at the 1% level.", "wrong"),
-    ("**Decision: reject the null hypothesis.**", "wrong"),
+    ("We therefore reject H0 at the 1% level.", "suspected_wrong"),
+    ("**Decision: reject the null hypothesis.**", "suspected_wrong"),
     ("At the 1% level, H0 is not rejected.", "correct"),
     ("So we do not reject the null hypothesis.", "correct"),
 ])
@@ -513,11 +534,13 @@ t = 1.175 / (0.858/√8) = 3.87, p = 0.0061, so we reject H0.
 def test_the_mean_of_the_differences_is_not_a_wrong_sample_mean():
     result = check("hypothesis-test", "L0", DIFFERENCES)
     assert statuses(result, "sample_mean", "ci95_low", "ci95_high") == dict.fromkeys(
-        ["sample_mean", "ci95_low", "ci95_high"], "could_not_determine")
-    assert result["verdict"] != "wrong"
+        ["sample_mean", "ci95_low", "ci95_high"], "suspected_wrong")
+    assert result["verdict"] == "suspected_wrong"
 
 
-# One case for each quantity an assumption of the response's own moves.
+# One case for each quantity an assumption of the response's own moves: every
+# sentence of rounds 1 to 3 that could lead to a false "wrong" is kept, and
+# none may now give a final "wrong" (see never_wrong).
 ASSUMED = [
     ("heat-sink", "L2", "With a 10 °C safety margin on the junction:", [
         ("Required plate area: 0.0388 m²", "plate_area"),
@@ -558,9 +581,9 @@ ASSUMED = [
 @pytest.mark.parametrize("task,level,assumption,line,name", [
     (task, level, assumption, line, name)
     for task, level, assumption, lines in ASSUMED for line, name in lines])
-def test_a_stated_assumption_keeps_a_mismatch_open(task, level, assumption, line, name):
-    assert one(task, level, line, name) == "wrong"
-    assert one(task, level, f"{assumption}\n\n{line}", name) == "could_not_determine"
+def test_a_stated_assumption_never_makes_a_mismatch_wrong(task, level, assumption, line,
+                                                         name):
+    never_wrong(task, level, line, name, assumption)
 
 
 def test_a_bracket_after_a_value_does_not_replace_it():
@@ -617,7 +640,7 @@ def test_a_summary_that_repeats_the_values_changes_nothing(after):
 
 # --- review round 2 -----------------------------------------------------------
 
-# The phrases taken as harmless: a wrong value beside one stays wrong.
+# Phrases once taken as harmless: a mismatch beside one is still only suspected.
 NOT_ASSUMED = [
     ("hypothesis-test", "L0", "Sample mean: 52.4", "sample_mean", (
         "The 95% interval excludes 50.",
@@ -664,10 +687,9 @@ NOT_ASSUMED = [
 @pytest.mark.parametrize("task,level,line,name,sentence", [
     (task, level, line, name, sentence)
     for task, level, line, name, sentences in NOT_ASSUMED for sentence in sentences])
-def test_a_sentence_that_states_no_assumption_leaves_a_wrong_value_wrong(
+def test_a_sentence_that_states_no_assumption_changes_nothing(
         task, level, line, name, sentence):
-    assert one(task, level, line, name) == "wrong"
-    assert one(task, level, f"{line}\n\n{sentence}", name) == "wrong"
+    never_wrong(task, level, line, name, sentence)
 
 
 @pytest.mark.parametrize("task,level,assumption,line,name", [
@@ -706,8 +728,7 @@ def test_a_sentence_that_states_no_assumption_leaves_a_wrong_value_wrong(
      "sample_mean"),
 ])
 def test_other_wordings_of_an_assumption(task, level, assumption, line, name):
-    assert one(task, level, line, name) == "wrong"
-    assert one(task, level, f"{assumption}\n\n{line}", name) == "could_not_determine"
+    never_wrong(task, level, line, name, assumption)
 
 
 @pytest.mark.parametrize("task,level,line,name,after", [
@@ -810,5 +831,96 @@ STATED_ASSUMPTIONS = [
 @pytest.mark.parametrize("task,sentence", STATED_ASSUMPTIONS)
 def test_a_naturally_worded_assumption_is_never_called_wrong(task, sentence):
     level, line, name = WRONG_LINES[task]
-    assert one(task, level, line, name) == "wrong"
-    assert one(task, level, f"{sentence}\n\n{line}", name) == "could_not_determine"
+    never_wrong(task, level, line, name, sentence)
+
+
+# --- fix round 4: text extraction never gives a final "wrong" -----------------
+
+# Sentences that earlier rounds took as harmless or left as blind spots.
+HARMLESS = [
+    ("cantilever-beam", "No safety factor is applied."),
+    ("hypothesis-test", "No outliers were removed."),
+    ("loan-amortization", "There are no fees."),
+    ("conveyor-gear-ratio", "Assume no slip."),
+    ("heat-sink", "This leaves some margin."),
+    ("heat-sink", "The design junction temperature is 125 °C."),
+    ("projectile-drag", "The ball returns to its launch height."),
+    ("hypothesis-test", "There are significant differences."),
+    ("projectile-drag", "Initial height = 0,5 m."),
+    ("projectile-drag", "Initial height = 0.5 m."),
+]
+
+
+@pytest.mark.parametrize("task,sentence", HARMLESS)
+def test_a_harmless_sentence_leaves_a_mismatch_suspected(task, sentence):
+    level, line, name = WRONG_LINES[task]
+    never_wrong(task, level, line, name, sentence)
+
+
+def test_a_reader_confirms_or_rejects_a_suspected_value():
+    task, text = "loan-amortization", "Monthly payment: $202.50\nTotal interest: $1,692.65"
+    confirmed = reviewed(task, "L0", text, review={"monthly_payment": "confirmed"})
+    assert confirmed["quantities"]["monthly_payment"]["status"] == "wrong"
+    assert confirmed["quantities"]["monthly_payment"]["review"] == "confirmed"
+    assert confirmed["verdict"] == "wrong"
+    rejected = reviewed(task, "L0", text, review={"monthly_payment": "rejected"})
+    assert rejected["quantities"]["monthly_payment"]["status"] == "could_not_determine"
+    assert rejected["verdict"] == "could_not_determine"
+    supplied = reviewed(task, "L0", text,
+                        quantities={"monthly_payment": {"value": 178.21, "unit": "$"}})
+    assert supplied["verdict"] == "correct"
+    right = reviewed(task, "L0", "Monthly payment: $178.21\nTotal interest: $1,692.65",
+                     review={"monthly_payment": "confirmed"})
+    assert right["quantities"]["monthly_payment"]["status"] == "correct"
+    assert right["quantities"]["monthly_payment"]["review"] == "not_applied"
+
+
+SPRING_TOO_WIDE = """Wire diameter: 0.040 in
+Mean coil diameter: 0.250 in
+Active coils: 13
+Total coils: 15
+"""
+
+
+def test_a_criterion_failed_on_found_inputs_is_suspected():
+    result = check("compression-spring", "L2", SPRING_TOO_WIDE)
+    criterion = result["criteria"]["design_meets_requirements"]
+    assert criterion["items"]["fits_the_hole"]["status"] == "suspected_fail"
+    assert criterion["status"] == "suspected_fail"
+    assert result["verdict"] == "suspected_wrong"
+    judged = reviewed("compression-spring", "L2", SPRING_TOO_WIDE, criteria={
+        "design_meets_requirements": {"fits_the_hole": "fail"}})
+    assert judged["criteria"]["design_meets_requirements"]["items"][
+        "fits_the_hole"]["status"] == "fail"
+    assert judged["verdict"] == "wrong"
+
+
+def test_a_keyed_list_mismatch_in_text_is_suspected():
+    text = LSQ_L2.replace("| 7 | 14.1 | 13.839 | 0.261 |", "| 7 | 14.1 | 13.839 | 0.961 |")
+    result = check("least-squares-fit", "L2", text)
+    assert statuses(result, "residuals") == {"residuals": "suspected_wrong"}
+    assert result["verdict"] == "suspected_wrong"
+
+
+def test_a_level_in_words_is_not_taken_as_five_percent():
+    text = ("We use the exact Wilcoxon signed-rank test at the one percent level.\n\n"
+            "We reject the null hypothesis.")
+    assert one("hypothesis-test", "L0", text, "decision") == "could_not_determine"
+
+
+def test_the_reference_value_beside_a_replacing_assumption_is_not_correct():
+    text = "Using the effective annual rate of 7%:\n\nMonthly payment: $178.21"
+    assert one("loan-amortization", "L0", text, "monthly_payment") == "could_not_determine"
+
+
+@pytest.mark.parametrize("extra,truncated", [
+    ("Total paid: $10,000.00", True),                      # cut off
+    ("Total paid: $10,000.00\nYou pay 60 × 178.21 = 10692.60 in all.", False),
+    ("Total paid: $10,000.00\n\nTotal paid: $11,000.00", False),  # two values
+])
+def test_an_extra_mismatch_keeps_the_level_from_correct(extra, truncated):
+    reference = REFERENCE["loan-amortization"]
+    text = f"Monthly payment: $178.21\nTotal interest: $1,692.65\n{extra}"
+    result = grade(reference, "L0", extract(reference, "L0", text, truncated=truncated))
+    assert result["quantities"]["total_paid"]["status"] == "suspected_wrong"
+    assert result["verdict"] == "suspected_wrong"

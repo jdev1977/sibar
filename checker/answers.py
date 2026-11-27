@@ -18,8 +18,10 @@ SUPPLIED, EXTRACTED = "supplied", "extracted"
 TESTS = ("t", "z", "wilcoxon", "wilcoxon_exact", "wilcoxon_normal",
          "wilcoxon_normal_corrected", "sign_flip_permutation", "sign_test", "other")
 JUDGEMENTS = ("pass", "fail")
+# A reader's ruling on a value the extractor found and suspects is wrong.
+CONFIRMED, REJECTED = "confirmed", "rejected"
 TOP_KEYS = frozenset({"record_id", "complete", "quantities", "inputs", "conditions",
-                      "facts", "criteria"})
+                      "facts", "criteria", "review"})
 MAX_FILE_BYTES = 1_000_000
 MAX_ENTRIES = 500
 MAX_TEXT = 200
@@ -35,8 +37,8 @@ class Stated:
 
     ``value`` is a number, a word (a choice or a date) or, for a list, a
     mapping of key to number. ``hedged`` marks a statement the extractor
-    found in a comparison, a condition or a check; ``doubt`` gives a reason
-    a mismatch must not be called wrong; ``unsettled`` marks a response with a
+    found in a comparison, a condition or a check; ``cut_off`` one from a
+    response that is cut off; ``unsettled`` marks a response with a
     correction or summary holding a number that was not read.
     """
 
@@ -45,7 +47,7 @@ class Stated:
     inputs: dict = field(default_factory=dict)
     source: str = SUPPLIED
     hedged: bool = False
-    doubt: object = None
+    cut_off: bool = False
     unsettled: bool = False
 
 
@@ -57,7 +59,9 @@ class Answers:
     alternative's id to true (the response states it), false (it does not) or
     null (unknown). ``tests`` and ``levels`` are the facts of a hypothesis
     test: the tests the response uses and the significance levels it states.
-    ``seen`` holds every number of the response (extraction only)."""
+    ``review`` maps a quantity id to a reader's ruling on a suspected value:
+    :data:`CONFIRMED` (it is the response's answer, so it is wrong) or
+    :data:`REJECTED` (it is not)."""
 
     quantities: dict = field(default_factory=dict)
     inputs: dict = field(default_factory=dict)
@@ -66,8 +70,8 @@ class Answers:
     tests: tuple = ()
     levels: tuple = ()
     complete: bool = False
-    seen: tuple = ()
     extracted_inputs: frozenset = frozenset()
+    review: dict = field(default_factory=dict)
 
     def condition(self, identifier):
         if identifier in self.conditions:
@@ -85,6 +89,7 @@ class Answers:
             inputs=dict(self.inputs, **supplied.inputs),
             conditions=dict(self.conditions, **supplied.conditions),
             criteria=dict(self.criteria, **supplied.criteria),
+            review=dict(self.review, **supplied.review),
             tests=supplied.tests or self.tests,
             levels=supplied.levels or self.levels,
             complete=complete,
@@ -162,6 +167,9 @@ def answers_from_dict(data):
         items = _mapping(items, f"criteria.{name}")
         _need(all(value in JUDGEMENTS for value in items.values()),
               f"criteria.{name}: each item is pass or fail")
+    review = _mapping(data.get("review"), "review")
+    _need(all(value in (CONFIRMED, REJECTED) for value in review.values()),
+          f"review: each quantity is {CONFIRMED} or {REJECTED}")
     facts = _mapping(data.get("facts"), "facts")
     _need(set(facts) <= {"test", "level_percent"}, "facts holds test and level_percent")
     tests, levels = (), ()
@@ -174,7 +182,7 @@ def answers_from_dict(data):
         levels = (float(level),)
     return Answers(quantities=quantities, inputs=_inputs(data.get("inputs"), "inputs"),
                    conditions=dict(conditions), criteria=dict(criteria),
-                   tests=tests, levels=levels, complete=complete)
+                   tests=tests, levels=levels, complete=complete, review=dict(review))
 
 
 class _NoAliases(yaml.SafeLoader):

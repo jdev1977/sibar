@@ -14,6 +14,7 @@ import sys
 
 from checker.answers import AnswersError, read_answers_file
 from checker.formulas import LEVELS
+from checker.grade import SUSPECTED
 from checker.records import CheckRefused, evaluate_response, references, run_file
 from extractors.common.response import MAX_TEXT
 
@@ -71,6 +72,9 @@ def main(argv=None):
                           extract=not args.no_extract, say=print)
         print(", ".join(f"{name} {count}" for name, count in sorted(counts.items()))
               or "no records to check")
+        if counts[SUSPECTED]:
+            print(f"{SUSPECTED} is neither right nor wrong: it needs review (supply "
+                  "the value, or confirm or reject it under review: in an answers file)")
         return EXIT_FAILED if counts["error"] else EXIT_OK
     except (CheckRefused, AnswersError, OSError, ValueError) as error:
         print(f"refused: {error}")

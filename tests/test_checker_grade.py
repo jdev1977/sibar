@@ -509,6 +509,8 @@ def test_impossible_inputs_are_not_graded(inputs):
     {"inputs": {"d": "1e9999"}},
     {"conditions": {"one_face": "yes"}},
     {"criteria": {"life": {"verdict_given": "maybe"}}},
+    {"review": {"range": "yes"}},
+    {"review": ["range"]},
     [1, 2],
 ])
 def test_a_malformed_answers_file_is_refused(data):
@@ -519,6 +521,18 @@ def test_a_malformed_answers_file_is_refused(data):
 def test_a_quantity_the_task_does_not_have_is_refused():
     with pytest.raises(AnswersError):
         run("math/projectile-drag", "L2", {"rnage": q(37.4, "m")})
+    with pytest.raises(AnswersError):
+        run("math/projectile-drag", "L2", review={"rnage": "confirmed"})
+
+
+def test_supplied_values_are_never_only_suspected():
+    for task, level, name, wrong in WRONG:
+        answer = dict(RIGHT[(task, level)])
+        answer["quantities"] = dict(answer["quantities"], **{name: wrong})
+        assert run(task, level, **answer)["verdict"] == "wrong"
+        part = run(task, level, **dict(answer, complete=False))
+        assert "suspected_wrong" not in {r["status"] for r in part["quantities"].values()}
+        assert part["verdict"] in ("wrong", "could_not_determine")
 
 
 def test_every_formula_comes_through_the_shared_evaluator():

@@ -6,7 +6,8 @@ label, in a sentence, a table or a few named forms (a fitted line, an
 interval, a decision, a keyed table). It takes no value from code, and it
 decides nothing: statements in conditions, comparisons and checks are marked
 ``hedged``, and the grader refuses to call an answer wrong where the text
-leaves room. What it finds and what it cannot is in checker/README.md.
+leaves room; a mismatch it finds is at most ``suspected_wrong``. What it
+finds and what it cannot is in checker/README.md.
 """
 
 import datetime
@@ -24,7 +25,6 @@ from extractors.common.response import split_fences, PLAIN
 
 MAX_TEXT = 1_000_000
 MAX_CANDIDATES = 50
-MAX_SEEN = 20_000
 MAX_LABEL = 100
 
 HEDGE = (r"\b(?:if|would|could|instead|not|wrong|incorrect|mistakes?|naive(?:ly)?|"
@@ -45,8 +45,6 @@ _CORRECTION = re.compile(r"\b(?:correction|(?:corrected|updated) (?:value|answer
                          r"result)|actually|on reflection|revised)\b", re.IGNORECASE)
 _SUMMARY = re.compile(r"\b(?:final answers?|summary|in short|to summari[sz]e|"
                       r"(?:in )?conclusion|bottom line|tl;?dr)\b", re.IGNORECASE)
-# Where one sentence ends, for what is cut as harmless
-_DOUBT_SENTENCE = re.compile(r"\n|(?<=[.!?])[ \t]+")
 # A list of ratios ("12/68 and 12/72 teeth") shares the unit at its end.
 _RATIOS = re.compile(r"(?:/\d{1,6})?(?: and \d{1,6}/\d{1,6}){0,4}")
 _UNIT_WORDS = re.compile(r" ?([^\s,;:()!?|=]{1,15})(?: ([^\s,;:()!?|=]{1,15}))?")
@@ -55,6 +53,9 @@ _PLAIN_WORDS = frozenset({"a", "A", "in", "s", "r", "l", "t", "C", "K"})
 # What may stand between a label and its number.
 _BEFORE_NUMBER = re.compile(r"(?:[ *_]|=|≈|≃|:|\||[$€£]|\bis\b|\bof\b|\babout\b){0,8}$")
 _LEVEL_PERCENTS = (1.0, 5.0, 95.0, 99.0)
+# A significance level named in a form the level patterns may not read.
+_LEVEL_NAMED = re.compile(r"significance level|level of significance|\balpha\b|α|"
+                          r"per ?cent level|\b(?:one|five|ten) per ?cent\b", re.IGNORECASE)
 _STARRED = re.compile(r"(?:^|[\s(])[A-Za-zτσ]\w{0,3}[\^_]?\{?\\?\*\}?\)?\s*$")
 _VALUED = re.compile(r"=|≈|:\s{0,3}\S{0,20}\d")
 _HYPOTHESES = re.compile(r"H_?\{?[01a]\}?\b|hypothes", re.IGNORECASE)
@@ -115,19 +116,6 @@ def _unit_after(text):
     if first.lower() in ("%", "percent", "teeth", "tooth"):
         return first.lower()
     return first if units.canonical(first) else None
-
-
-def _without_benign(task, sentence):
-    """``sentence`` without the phrases that state no assumption."""
-    if len(sentence) > labels.MAX_BENIGN:
-        return sentence
-    uncharged = labels.UNCHARGED.get(task)
-    if uncharged and not re.search(r"\d", sentence):
-        return re.sub(uncharged, " ", sentence, flags=re.IGNORECASE)
-    benign = labels.BENIGN.get(task)
-    if not benign or re.search(labels.ADDED_AMOUNT, sentence, re.IGNORECASE):
-        return sentence
-    return re.sub(benign, " ", sentence, flags=re.IGNORECASE)
 
 
 def _date(text):
@@ -245,13 +233,6 @@ class _Reader:
                              *(b.body for b in blocks if b.language in PLAIN)])
         self.sentences, self.tables = read(working)
         self.truncated = truncated
-        self.doubts = {}
-        plain = text.replace("**", "").replace("\\%", "%")
-        plain = "\n".join(_without_benign(self.task, part)
-                          for part in _DOUBT_SENTENCE.split(plain))
-        for pattern, names, reason in labels.DOUBTS.get(self.task, ()):
-            if re.search(pattern, plain, re.IGNORECASE):
-                self.doubts.update(dict.fromkeys(names or self.listed, reason))
         self.taken = set()        # the sentences and rows a value came from
         self.keyed_tables = []
         self.wanted = {name: pattern for name, pattern
@@ -269,10 +250,8 @@ class _Reader:
         quantity = self.quantity(name)
         if quantity["unit"] == "currency" and not unit:
             unit = "currency"
-        doubt = self.doubts.get(name)
-        if self.truncated:
-            doubt = "the response is cut off"
-        statement = Stated(value, unit, source=EXTRACTED, hedged=hedged, doubt=doubt)
+        statement = Stated(value, unit, source=EXTRACTED, hedged=hedged,
+                           cut_off=self.truncated)
         held = self.found.setdefault(name, [])
         if statement not in held and len(held) < MAX_CANDIDATES:
             held.append(statement)
@@ -722,7 +701,8 @@ class _Reader:
             for found in re.findall(pattern, normal, re.IGNORECASE)[:20]:
                 value = float(found.rstrip("% "))
                 levels.add(round(value if "%" in found else value * 100, 6))
-        if not levels and self.level != "L2":
+        # the brief's 5%, unless a level is named in a form not read
+        if not levels and self.level != "L2" and not _LEVEL_NAMED.search(normal):
             levels = {5.0}
         return tuple(tests), tuple(sorted(levels))
 
@@ -747,16 +727,6 @@ class _Reader:
                     found[alternative["id"]] = False
         return found
 
-    def seen(self):
-        found = set()
-        for index, match in enumerate(NUMBER.finditer(clean(self.text))):
-            value = parse(match).value
-            if math.isfinite(value):
-                found.add(value)
-            if index >= MAX_SEEN:
-                break
-        return tuple(sorted(found))
-
     def answers(self):
         self.read_sentences()
         self.read_tables()
@@ -773,7 +743,7 @@ class _Reader:
                   if len(values) == 1 and None not in values}
         return Answers(quantities=quantities, inputs=inputs,
                        conditions=self.conditions(), tests=tests, levels=levels,
-                       seen=self.seen(), extracted_inputs=frozenset(inputs))
+                       extracted_inputs=frozenset(inputs))
 
 
 def extract(reference, level, text, truncated=False):

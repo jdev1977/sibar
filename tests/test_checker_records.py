@@ -88,8 +88,24 @@ def test_supplied_answers_override_the_found_ones(tmp_path):
     assert run_file(path, answers_path=answers) == {"correct": 1}
     [entry] = checks(path)[item["record_id"]]
     assert entry["detail"]["answers_from"] == ["extracted", "supplied"]
-    assert run_file(path) == {"wrong": 1}
+    assert run_file(path) == {"suspected_wrong": 1}
     assert run_file(path, answers_path=answers, extract=False) == {"correct": 1}
+
+
+def test_a_suspected_answer_is_counted_apart_until_a_reader_rules(tmp_path, capsys):
+    item = record("Monthly payment: $202.50\nTotal interest: $1,692.65\n")
+    path = written(tmp_path, item)
+    assert main(["--records", str(path)]) == 0
+    out = capsys.readouterr().out
+    assert "suspected_wrong 1" in out and "review" in out
+    assert "correct" not in out.replace("suspected_wrong", "")
+    [entry] = checks(path)[item["record_id"]]
+    assert entry["detail"]["verdict"] == "suspected_wrong"
+    answers = tmp_path / "answers.yaml"
+    for ruling, verdict in (("confirmed", "wrong"), ("rejected", "could_not_determine")):
+        answers.write_text(f"record_id: {item['record_id']}\n"
+                           f"review: {{monthly_payment: {ruling}}}\n", encoding="utf-8")
+        assert run_file(path, answers_path=answers) == {verdict: 1}
 
 
 def test_a_named_markdown_file_of_the_output_is_read(tmp_path):
@@ -106,7 +122,7 @@ def test_a_named_markdown_file_of_the_output_is_read(tmp_path):
 def test_a_truncated_record_is_never_wrong(tmp_path):
     item = record("Monthly payment: $202.50", status="truncated")
     path = written(tmp_path, item)
-    assert run_file(path) == {"could_not_determine": 1}
+    assert run_file(path) == {"suspected_wrong": 1}
 
 
 @pytest.mark.parametrize("text", [

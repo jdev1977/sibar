@@ -11,6 +11,15 @@ result carries that note.
 The rule behind every choice here: a false "correct" or a false "wrong" is
 worse than "could not determine".
 
+**Text extraction never gives a final "wrong".** A value read from the
+response that does not match is `suspected_wrong`: text cannot tell a wrong
+answer from one worked under an assumption of the response's own (a margin,
+a factor of safety, coded data, a launch height, fees) or from a number the
+extractor misread. A final `wrong` comes only from an answers file: a value
+supplied there, or a reader confirming the suspected one (`review`).
+`suspected_wrong` is counted apart; it is neither right nor wrong, so leave
+it out of correctness rates or send it to review.
+
 ## Usage
 
     python -m checker --records FILE
@@ -28,6 +37,9 @@ JSON.
 
 Exit code 0: done. 1: some record could not be graded. 2: refused.
 
+The last line counts the level verdicts, `suspected_wrong` on its own, with
+a reminder that it needs review when there is any.
+
 ## The result
 
 The entry's `outcome` is `ok` when the response was graded, whatever the
@@ -37,11 +49,11 @@ grade, and `error` when it could not be (no reference file, no level, or a
 
 | Field | Meaning |
 |---|---|
-| `verdict` | The level: `correct`, `correct_alternative`, `wrong`, `incomplete`, `could_not_determine` or `not_checkable` |
+| `verdict` | The level: `correct`, `correct_alternative`, `wrong`, `suspected_wrong`, `incomplete`, `could_not_determine` or `not_checkable` |
 | `answers_verdict` | The same, from the reference values alone, without the criteria |
 | `partial` | The reference values cover only part of what is asked: `correct` says that part is right, and no more |
-| `quantities` | Per quantity: `status` (`correct`, `correct_alternative`, `wrong`, `not_stated`, `could_not_determine`), the `alternative`, a `reason`, and each `stated` value with its `source` (`extracted` or `supplied`) |
-| `criteria` | Per criterion and item: `pass`, `fail`, `could_not_determine` or `not_applicable`; `record_only` items are marked and decide nothing |
+| `quantities` | Per quantity: `status` (`correct`, `correct_alternative`, `wrong`, `suspected_wrong`, `not_stated`, `could_not_determine`), the `alternative`, a `reason`, a reader's `review` where one was given (`confirmed`, `rejected`, or `not_applied` when the value was not suspected), and each `stated` value with its `source` (`extracted` or `supplied`) |
+| `criteria` | Per criterion and item: `pass`, `fail`, `suspected_fail`, `could_not_determine` or `not_applicable`; `record_only` items are marked and decide nothing |
 | `alternatives` | The alternatives the answer matched |
 | `answers_from` | `extracted`, `supplied` or both |
 | `task`, `prompt_set_version`, `reference_sha256` | What it was graded against |
@@ -49,7 +61,11 @@ grade, and `error` when it could not be (no reference file, no level, or a
 ### How the level verdict follows
 
 - `wrong`: a graded quantity is wrong (an `if_reported` one included: it may
-  be missing, not wrong), or a criterion fails.
+  be missing, not wrong), or a criterion fails. Only supplied values and a
+  reader's judgements lead here.
+- Otherwise `suspected_wrong` if a quantity is suspected wrong, or a
+  criterion is suspected to fail (an item checked on inputs read from the
+  text, or a text item that follows a suspected quantity).
 - Otherwise `could_not_determine` if a required quantity is undetermined, or
   another quantity has several statements that do not settle.
 - `incomplete`: a required quantity, or every `one_of` group, is not stated.
@@ -91,6 +107,9 @@ conditions: {one_face: true}   # an alternative's id: stated or not
 facts: {test: wilcoxon_exact, level_percent: 5}   # hypothesis test only
 criteria:                      # a reader's judgement of an item
   pump_kind: {kind_named: pass}
+review:                        # a reader's ruling on a suspected_wrong value
+  plate_area: confirmed        # it is the response's answer: wrong
+  total_head: rejected         # it is not (misread, or not the final answer)
 ```
 
 - Quantity ids, input names, criterion and item ids, and alternative ids are
@@ -108,19 +127,27 @@ criteria:                      # a reader's judgement of an item
 - `facts.test`: `t`, `z`, `wilcoxon` (variant unknown), `wilcoxon_exact`,
   `wilcoxon_normal`, `wilcoxon_normal_corrected`, `sign_flip_permutation`,
   `sign_test` or `other`.
+- `review` settles a `suspected_wrong` quantity: `confirmed` makes it `wrong`,
+  `rejected` makes it `could_not_determine`. It changes nothing else (the
+  result says `not_applied`). If the response's answer is another value, or
+  its assumption is one of the reference's alternatives, supply the value or
+  the condition instead. A suspected criterion item is settled by judging it
+  under `criteria`, which then wins over the inputs read from the text.
 
 ## Grading rules worth knowing
 
 - A value that matches an alternative counts only when the response states its
   condition. If that is not established, the result is
-  `could_not_determine`; if it is known not to be stated, `wrong`.
+  `could_not_determine`; if it is known not to be stated, `wrong` (from
+  text, `suspected_wrong`).
 - A conditional quantity is graded against the stated inputs. Without them it
   is not graded, except for the two quantities with a `range`, and then only
   from a `complete` answers file.
 - The hypothesis p-value is graded against the test used, and the decision
   against the rule "reject when that test's p is below the stated level".
 - A response that states an effective annual rate (or residuals as fitted
-  minus measured) and gives the reference value is not graded.
+  minus measured) and gives the reference value is not graded. From text,
+  a mention of the assumption is enough to leave it ungraded.
 
 ## Extraction
 
@@ -162,42 +189,33 @@ would print.
 | Acid constants | Not extracted: answers file |
 | Load factor, self-weight, belt thickness | Not extracted. A mention keeps the matching alternative open |
 
-A criterion is never failed on an extracted input alone.
+A criterion check that fails on an input read from the text is only
+`suspected_fail`.
 
-### Assumptions of the response's own
+The hypothesis test's significance level is the one the text states; where
+it states none, the brief's 5% is assumed at L0 and L1, unless a level is
+named in a form that is not read ("the one percent level", "alpha").
 
-Where the text mentions one, an extracted value that differs is
-`could_not_determine`, not `wrong`, for the quantities that follow from it
-(the patterns are `DOUBTS` in [labels.py](labels.py)): a margin or safety
-allowance or factor (heat sink, pipe and pump, beam, conveyor, bracket,
-spring; for the beam not the dictated factor of 3), a junction target (heat
-sink), a load factor or self-weight (beam, bracket), belt slip or thickness,
-a preload, fees, taxes, insurance or extra payments, another temperature or
-activity corrections, points left out or weighted, a launch height, wind or
-spin, and, for the mean and its interval, differences. A right value is still
-`correct`.
+### A mismatch is only suspected
 
-The patterns are broad on purpose, because a false "wrong" is worse than
-"could not determine". Only these are taken as harmless (`BENIGN` and
-`UNCHARGED`), and not where the same sentence states an added amount: an
-interval that excludes 50, the target or zero; a "significant difference";
-a note without any figure that the payment excludes taxes, insurance or fees;
-"for safety, use ..." operating advice without figures or sizing words; a
-fuse margin above the current; an initial height of 0; "ignore spin and
-wind".
+Every extracted value that does not match, and every criterion check that
+fails on inputs read from the text, is `suspected_wrong` (or
+`suspected_fail`), whatever else the response says: no keyword list decides
+whether an assumption of the response's own explains it. The `reason` says
+when the response was cut off. A reader or an answers file settles it.
 
 ### When it concludes nothing
 
 The result is `could_not_determine` when there is no labelled value; when the
 only ones stand in a condition, comparison, check, option or trial; when
-statements disagree; when a labelled statement with a number cannot be read
-(a range, a decimal comma, a space as thousands separator, an unknown unit or
-trailing words); when a differing value was found but a matching number is
-also somewhere in the response; for any mismatch, when the response is cut
-off; and when a correction ("actually", "correction", "revised") or a
-summary holds a number that was neither read nor given and could replace the
-value: one under that quantity's label, or else in a unit it accepts, or
-with no label and no known unit (then every value).
+statements grade differently (one right, one wrong); when a labelled
+statement with a number cannot be read (a range, a decimal comma, a space as
+thousands separator, an unknown unit or trailing words); when the value could
+be right under an alternative whose condition the text mentions; and when a
+correction ("actually", "correction", "revised") or a summary holds a number
+that was neither read nor given and could replace the value: one under that
+quantity's label, or else in a unit it accepts, or with no label and no known
+unit (then every value).
 
 ### What is not extracted
 
@@ -209,36 +227,58 @@ can say it.
 
 ## Blind spots
 
-- **Graded accuracy is biased upward.** Where a harmless mention cannot be
-  told from a real assumption, the doubt stays, so a wrong value beside it is
-  `could_not_determine` while a right one is `correct`. Examples: "no safety
-  factor is applied", "no outliers were removed", "no fees", "assume no
-  slip", "this leaves some margin", "the design junction temperature is
-  125 °C", "the ball returns to its launch height", "significant
-  differences". Count `could_not_determine` results, and read a sample,
-  before comparing accuracy between groups.
-- Recall is low by design. Expect many `could_not_determine` results; send
-  those to a reader or a model-based extractor.
-- The extractor can be fooled. A labelled figure may be an unflagged
-  intermediate or rejected value while the real conclusion is written in a
-  form it does not read. The guards above narrow this; they cannot close it.
-  Spot-check extracted `wrong` and `correct` results against the response
-  before relying on counts.
+- **From text alone there is no "wrong".** A correctness rate over
+  extracted results alone has only `correct` on one side; compare groups on
+  `correct` with `suspected_wrong` and `could_not_determine` counted apart,
+  or review the suspected ones first.
+- Recall is low by design. Expect many `could_not_determine` and
+  `suspected_wrong` results; send them to a reader or a model-based extractor.
 - Money is graded to the cent, as the references set it. A response that
   rounds money in the labelled line itself ("Monthly payment: $178", "Total
-  interest: $1,693") is graded `wrong` unless the precise figure also appears
-  somewhere in it.
-- The wordings that put a value in doubt are a fixed list. A margin,
-  assumption or correction worded another way is not noticed, and the value
-  that follows from it can be graded `wrong`.
+  interest: $1,693") is suspected wrong.
 - Hedging and conditions are recognised by English words only. Replies in
   other languages, or numbers in images, are not read.
-- Whether an alternative's condition is stated is judged by the absence of a
-  few words. A response that states an assumption in other words is graded as
-  not stating it.
 - The checker grades final values, not the method, the working, the CAD file
   or the explanation.
 - A `correct` at a `partial` level says nothing about the sizing.
+
+### How text can still give a false "correct"
+
+The extractor can call a value `correct` that is not the response's answer.
+The paths known, and what narrows each:
+
+- **An intermediate or rejected figure under a matching label**, while the
+  conclusion is written in a form it does not read (no label, an image, code
+  output). Narrowed by the hedge words, the headings of options and checks,
+  and the correction and summary rule; not closed.
+- **A remark in brackets is cut off**: "Monthly payment: $178.21 (with fees,
+  $185)" reads $178.21.
+- **A later bare number is not compared**: a matching labelled value stays
+  `correct` even if a differing unlabelled number follows outside a
+  correction or summary.
+- **Inputs read from the text** (motor speed, spring dimensions, bracket
+  radius) grade conditional quantities and criterion checks. A misread input
+  can make a value match, or a check pass, by chance.
+- **Alternative conditions are judged by a few words.** Their absence rules
+  an alternative out, which cannot make a wrong value `correct`; but the
+  reference value is still `correct` where a replacing assumption (an
+  effective rate, fitted minus measured) is stated in words the pattern
+  does not know.
+- **The hypothesis test is taken from keywords anywhere in the text.** A test
+  named but not used can decide the p-value's grade, and the decision is
+  graded against every test named when they agree.
+- **A cut-off response** keeps a matching value `correct`, though it might
+  have revised it later.
+- **A level can be `correct` with `if_reported` values undetermined** (an
+  unknown unit, an alternative left open, a correction): only a suspected or
+  wrong one stops it.
+
+Closed in fix round 4: the reference value beside a mentioned replacing
+assumption, and a decision graded at an assumed 5% when the response names
+its level in words, are no longer `correct`; a mismatch of an extra value
+(cut off, beside a matching number, or stated twice) is now suspected
+instead of vanishing behind a `correct` level. Spot-check `correct` results
+against the response before relying on counts.
 
 ## Tests
 
