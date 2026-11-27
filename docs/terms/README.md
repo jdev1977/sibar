@@ -85,14 +85,15 @@ automation rules.
    protected by copyright, and outputs may contain third-party material (OpenAI
    says code output may carry open source licences). That is a legal question
    the terms leave open.
-7. The runner currently leaves `store` at its default for OpenAI and Google, so
-   both keep response state (OpenAI at least 30 days).
+7. The runner sends `store: false` to OpenAI and Google (decided 2026-11-27),
+   so neither is asked to keep response state; abuse-monitoring logs remain.
+   The tagger's batch requests are not covered by that decision.
 8. Storing, not only publishing, may be affected for Google: APIs Terms §5(e)
    also covers building databases or permanent copies of returned content.
 
 ## Decisions for the Human
 
-All unmade. Tick and date each one; T6.3 records the final decision.
+Tick and date each one as it is made; T6.3 records the final decision.
 
 Scope
 - [ ] Which providers' API outputs may enter the repository:
@@ -123,8 +124,9 @@ Conditions on anything published
 Data handling
 - [ ] Google tier: unpaid quota (outputs may be used for training and read by
   reviewers) or paid.
-- [ ] Whether the runner sends `store: false` to OpenAI and Google. It limits
-  retention but departs from sending provider defaults only.
+- [x] Whether the runner sends `store: false` to OpenAI and Google. It limits
+  retention but departs from sending provider defaults only. **Yes
+  (2026-11-27).**
 - [ ] Whether DeepSeek is acceptable, given storage in China, PRC law and terms
   that do not settle training on API data.
 - [ ] Account settings for T5.1: training opt-out on or off; temporary or

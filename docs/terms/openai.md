@@ -67,7 +67,7 @@ Sharing and Publication Policy, and Usage Policies".
 - **Retention.** Abuse-monitoring logs "retained for up to 30 days" by default
   (data controls guide). The Responses API, which the runner uses, keeps
   application state "for at least 30 days" by default or when `store` is true;
-  the runner leaves `store` at its default. Zero Data Retention needs approval.
+  the runner sends `store: false` (decided 2026-11-27). Zero Data Retention needs approval.
 - **Region.** The contracting party is OpenAI Ireland Ltd. for the EEA or
   Switzerland and OpenAI OpCo, LLC elsewhere; governing law is Irish (EEA,
   Switzerland, UK) or Californian. Use "outside of the countries and territories

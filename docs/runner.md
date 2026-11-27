@@ -114,13 +114,16 @@ command resumes: done cells are skipped (see [Resuming](#resuming)). Then
 
 One user message holding the prompt text, exactly as loaded. Nothing else that
 changes generation: no system prompt, no temperature or other sampling
-parameter, no reasoning or thinking setting. Every adapter streams.
+parameter, no reasoning or thinking setting. Every adapter streams. OpenAI and
+Google are also told `store: false`, so they do not keep the response for later
+retrieval; their abuse-monitoring logs are kept all the same
+([docs/terms](terms/README.md)).
 
 | Provider | Endpoint | Body | Recorded `settings` | Output limit |
 |---|---|---|---|---|
 | Anthropic | `POST https://api.anthropic.com/v1/messages` | `model`, `max_tokens`, `messages`, `stream` | `max_tokens`, `stream`, `anthropic-version` | `max_tokens` is required: the model's maximum from models.yaml (128000) |
-| OpenAI | `POST https://api.openai.com/v1/responses` | `model`, `input`, `stream` | `stream` | none sent; bounded by the model's 128,000 maximum |
-| Google | `POST https://generativelanguage.googleapis.com/v1beta/interactions?alt=sse` | `model`, `input`, `stream` | `stream`, `alt`, `api-revision` | none sent; Gemini 4 then stops at 65,536 (thinking and output) |
+| OpenAI | `POST https://api.openai.com/v1/responses` | `model`, `input`, `stream`, `store` (false) | `stream`, `store` | none sent; bounded by the model's 128,000 maximum |
+| Google | `POST https://generativelanguage.googleapis.com/v1beta/interactions?alt=sse` | `model`, `input`, `stream`, `store` (false) | `stream`, `store`, `alt`, `api-revision` | none sent; Gemini 4 then stops at 65,536 (thinking and output) |
 | DeepSeek | `POST https://api.deepseek.com/chat/completions` | `model`, `messages`, `stream` | `stream` | none sent; the documented default is "64K" in thinking mode |
 
 `settings` holds the body parameters sent (besides the model and prompt) plus

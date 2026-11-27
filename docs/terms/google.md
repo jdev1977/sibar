@@ -57,7 +57,8 @@ there is a conflict ..., the additional terms will control for that conflict."
 - **Retention.** Paid: prompts and responses logged "for a limited period of
   time" for abuse detection; the abuse monitoring page gives "fifty-five (55)
   days". The Interactions API, which the runner uses: "By default, the
-  Interactions API enables state storage"; set `store` to `false` to avoid it.
+  Interactions API enables state storage"; set `store` to `false` to avoid it. The
+  runner does (decided 2026-11-27).
   Grounding with Google Search (not used) stores data 30 days and restricts
   storing its results.
 - **Region.** Only from an available region. In the EEA, Switzerland or UK the

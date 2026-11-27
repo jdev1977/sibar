@@ -20,7 +20,9 @@ Request: ``model`` and ``input`` (a plain string is "equivalent to a text
 input with the user role"). No ``instructions``, no ``reasoning`` (default
 effort), no ``temperature``/``top_p``, no ``max_output_tokens`` (optional;
 the request is then bounded by the model's documented maximum output, which
-the ledger reserves). ``store`` is left at its default (true).
+the ledger reserves). ``store`` is false (decided 2026-11-27, default true):
+the response is not kept for later retrieval; abuse logs still are. The
+create page, read 2026-11-27, gives no effect of it on generation.
 
 Streaming is chosen, not required: the API documents no limit for a
 non-streamed response, but an uncapped reasoning response can run for many
@@ -85,11 +87,12 @@ class OpenAIAdapter(Adapter):
     reasoning_in_output = True
 
     def prepare(self, model, prompt, api_key):
-        body = {"model": model.id, "input": prompt, "stream": True}
+        body = {"model": model.id, "input": prompt, "stream": True,
+                "store": False}
         headers = {"authorization": f"Bearer {api_key}",
                    "content-type": "application/json"}
         request = HttpRequest("POST", URL, headers, json.dumps(body).encode("utf-8"))
-        return Prepared(request, {"stream": True}, None)
+        return Prepared(request, {"stream": True, "store": False}, None)
 
     def parse_stream(self, response):
         request_id = self.header_request_id(response)
