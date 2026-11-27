@@ -1,8 +1,32 @@
 # Secrets
 
 This repository is public. Keys are read from environment variables only and
-are never committed. `.env.example` lists the variable names; put real values in
-your environment or in a local `.env` (gitignored).
+are never committed. `.env.example` lists the variable names. **No command
+in this repository reads a `.env` file**: the runner and the tagger see only
+the variables set in the shell (or the user account) that runs them. A local
+`.env` is gitignored and blocked by the commit hook, but setting a value
+there does nothing by itself.
+
+## Setting keys in PowerShell
+
+For one PowerShell window (PowerShell 7; the key is typed hidden and does
+not go into the command history):
+
+    Set-Item Env:ANTHROPIC_API_KEY (Read-Host -MaskInput "Anthropic key")
+    Set-Item Env:OPENAI_API_KEY (Read-Host -MaskInput "OpenAI key")
+    Set-Item Env:GEMINI_API_KEY (Read-Host -MaskInput "Gemini key")
+    Set-Item Env:DEEPSEEK_API_KEY (Read-Host -MaskInput "DeepSeek key")
+
+The variables last until the window is closed; run the commands
+(`.venv\Scripts\python -m runner.run ...`) in that same window. To keep a key
+for every new window, set it as a user environment variable (Windows
+Settings, "Edit environment variables for your account") and open a new
+window. `ANTHROPIC_WORKSPACE_ID` (optional, not secret) is set the same way.
+Check which are set, without showing values:
+
+    "ANTHROPIC_API_KEY","OPENAI_API_KEY","GEMINI_API_KEY","DEEPSEEK_API_KEY" | ForEach-Object { "$_ set: $([bool][Environment]::GetEnvironmentVariable($_))" }
+
+A dry run (`--dry-run`) also lists the missing keys without sending anything.
 
 ## Setup
 

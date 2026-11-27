@@ -59,8 +59,13 @@ user profile. To run generated code, also build the
 packages): `.venv/Scripts/python -m sandbox setup`. The last command turns on the pre-commit and pre-push secret scan. Run it once
 per clone. See [docs/secrets.md](docs/secrets.md).
 
-API keys are read from environment variables only. `.env.example` lists the
-variable names.
+API keys are read from environment variables only; no command reads a `.env`
+file. `.env.example` lists the variable names, and
+[docs/secrets.md](docs/secrets.md#setting-keys-in-powershell) shows how to
+set them in PowerShell.
+
+Commands in the docs are written `python -m ...`, one per line: in
+PowerShell, run them from the repository root as `.venv\Scripts\python -m ...`.
 
 ## Tests
 

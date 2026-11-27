@@ -27,9 +27,13 @@ log and the ledger before going on.
 
 ## Tagging
 
-    python -m tagger tag --records data/runs/pilot-1/records.jsonl \
-        --type pipeline --tagger claude-haiku-5-5 --run cal-haiku --dry-run
-    python -m tagger tag ... --paid --batch-cap 5 --total-cap 50 [--wait]
+    python -m tagger tag --records data/runs/pilot-1/records.jsonl --type pipeline --tagger claude-haiku-5-5 --run cal-haiku --dry-run
+    python -m tagger tag --records data/runs/pilot-1/records.jsonl --type pipeline --tagger claude-haiku-5-5 --run cal-haiku --paid --batch-cap 5 --total-cap 50 --wait
+
+One command per line; in PowerShell write `.venv\Scripts\python` for
+`python` ([docs/runner.md](../docs/runner.md#use)). The tagger reads its key
+from the environment only, never from a `.env` file
+([docs/secrets.md](../docs/secrets.md#setting-keys-in-powershell)).
 
 | Option | Meaning |
 |---|---|
@@ -147,10 +151,8 @@ features, is a new key and a new request.
 To **measure** how much a live model's tags vary (docs/rubrics.md, "Repeat
 tagging", target 0.97), tag again into a separate cache and compare:
 
-    python -m tagger tag ... --run repeat-1 --cache data/tagger/cache-repeat.jsonl --paid ...
-    python -m tagger agreement --type pipeline \
-        --a data/tagger/cal-haiku/records.claude-haiku-5-5.jsonl \
-        --b data/tagger/repeat-1/records.claude-haiku-5-5.jsonl
+    python -m tagger tag --records data/runs/pilot-1/records.jsonl --type pipeline --tagger claude-haiku-5-5 --run repeat-1 --cache data/tagger/cache-repeat.jsonl --paid --batch-cap 5 --total-cap 50 --wait
+    python -m tagger agreement --type pipeline --a data/tagger/cal-haiku/records.claude-haiku-5-5.jsonl --b data/tagger/repeat-1/records.claude-haiku-5-5.jsonl
 
 ### Money
 
@@ -222,10 +224,8 @@ same operating-system lock as the ledger).
 
 ## Agreement
 
-    python -m tagger agreement --type pipeline --a human/tags.yaml \
-        --b data/tagger/cal-haiku/records.claude-haiku-5-5.jsonl [--json out.json]
-    python -m tagger agreement --type pipeline --a CLAUDE.jsonl --b OTHER.jsonl \
-        --family anthropic
+    python -m tagger agreement --type pipeline --a data/tagger/human-pipeline/tags.yaml --b data/tagger/cal-haiku/records.claude-haiku-5-5.jsonl [--json out.json]
+    python -m tagger agreement --type pipeline --a CLAUDE.jsonl --b OTHER.jsonl --family anthropic
 
 Side A is the reference. A side is a human tag file (`.yaml`) or a tagged
 record file. The command prints, as [docs/rubrics.md](../docs/rubrics.md),
@@ -250,8 +250,7 @@ items after it have no A answer.
 
 ## The human tag file
 
-    python -m tagger template --type pipeline --records FILE... \
-        --sample 30 --seed 1 --out data/tagger/human-pipeline
+    python -m tagger template --type pipeline --records FILE... --sample 30 --seed 1 --out data/tagger/human-pipeline
 
 writes `tags.yaml` and one reading sheet per output in `sheets/`. A sheet
 holds the rubric's instructions, the items with their options in the same

@@ -44,6 +44,9 @@ Filled by these tasks in [tasks.md](../tasks.md):
 
 ## Before you run it
 
+Commands here are one per line, run from the repository root; in PowerShell
+write `.venv\Scripts\python` for `python` ([docs/runner.md](../docs/runner.md#use)).
+
 1. Run the extractors over the runner's record file, so that every `ok`
    record carries every extractor of the type at the version `features.yaml`
    lists:
@@ -124,8 +127,8 @@ dimension whose D has a task interval above 0), and `shared_defaults`.
 
 ## The stability check (T1.8)
 
-    python -m analysis stability --records data/runs/pilot-1/records.jsonl \
-        --batch pilot-1 --model <model-id> [--compare 5,10]
+    python -m analysis stability --records data/runs/pilot-1/records.jsonl --batch pilot-1 --model gpt-6.2-sol
+    python -m analysis stability --records data/runs/pilot-1/records.jsonl --batch pilot-1 --model gpt-6.2-sol --compare 10,20
 
 `--compare` is `5,10` (the first check, default) or `10,20` (the repeat). The
 check reads one batch.
@@ -136,8 +139,7 @@ lacks, and the runner command that runs them. The runner plans run indexes 1
 to N and skips those already recorded ([docs/runner.md](../docs/runner.md)),
 so the doubling is
 
-    python -m runner.run --prompts prompts/website --batch-id pilot-1 \
-        --models <model-id> --levels L0 --runs 10 --dry-run
+    python -m runner.run --prompts prompts/website --batch-id pilot-1 --models gpt-6.2-sol --levels L0 --runs 10 --dry-run
 
 and then the same with `--paid` and both caps. A failed attempt leaves its
 run index missing, and the runner retries it. A cell whose runs exist but
