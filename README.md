@@ -30,6 +30,7 @@ and the viewer are not built yet, and no results exist.
 | [prompts/](prompts/README.md) | Task prompts, by project type |
 | [runner/](runner/README.md) | Python package: run record format and generation runs |
 | [renderer/](docs/renderer.md) | Python package: offline screenshots of generated pages |
+| [sandbox/](docs/sandbox.md) | Python package: runs generated code in a Windows sandbox (no network, no files outside its folder, limits) and records the outcome |
 | [extractors/](docs/extractors.md) | Python package: features parsed from outputs |
 | [analysis/](analysis/README.md) | Python package: the metrics and the stability check, with the data files they read (how each feature is counted, what each prompt dictates) |
 | [rubrics/](rubrics/README.md) | Versioned tagging rubrics, by project type |
@@ -53,7 +54,9 @@ You need Git and Python 3.13. From the repository root, in a Windows shell (use
     git config core.hooksPath .githooks
 
 The Chromium download is for the [renderer](docs/renderer.md); it goes to the
-user profile. The last command turns on the pre-commit and pre-push secret scan. Run it once
+user profile. To run generated code, also build the
+[sandbox](docs/sandbox.md)'s own Python once (it downloads its pinned
+packages): `.venv/Scripts/python -m sandbox setup`. The last command turns on the pre-commit and pre-push secret scan. Run it once
 per clone. See [docs/secrets.md](docs/secrets.md).
 
 API keys are read from environment variables only. `.env.example` lists the

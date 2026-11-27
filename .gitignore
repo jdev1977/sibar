@@ -22,3 +22,6 @@ node_modules/
 __pycache__/
 .venv/
 .claude/settings.local.json
+
+# Sandbox runtime and working folders (sandbox/, T2.7)
+.sandbox/
