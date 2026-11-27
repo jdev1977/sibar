@@ -89,9 +89,9 @@ def test_openai_request():
     prepared = prepare("gpt-6.2-sol")
     assert prepared.request.url == "https://api.openai.com/v1/responses"
     assert json.loads(prepared.request.body) == {
-        "model": "gpt-6.2-sol", "input": PROMPT, "stream": True}
+        "model": "gpt-6.2-sol", "input": PROMPT, "stream": True, "store": False}
     assert prepared.request.headers["authorization"] == f"Bearer {KEY}"
-    assert prepared.settings == {"stream": True}
+    assert prepared.settings == {"stream": True, "store": False}
     assert prepared.max_output_tokens is None
 
 
@@ -100,9 +100,12 @@ def test_google_request():
     assert prepared.request.url == (
         "https://generativelanguage.googleapis.com/v1beta/interactions?alt=sse")
     assert json.loads(prepared.request.body) == {
-        "model": "gemini-4-hydrogen", "input": PROMPT, "stream": True}
+        "model": "gemini-4-hydrogen", "input": PROMPT, "stream": True,
+        "store": False}
     assert prepared.request.headers["x-goog-api-key"] == KEY
     assert prepared.request.headers["api-revision"] == "2026-05-20"
+    assert prepared.settings == {"stream": True, "store": False, "alt": "sse",
+                                 "api-revision": "2026-05-20"}
     assert prepared.max_output_tokens is None
 
 

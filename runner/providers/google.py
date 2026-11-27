@@ -20,8 +20,11 @@ Written from Google's documentation, read on 2026-11-25:
 Request: ``model`` and ``input`` (a string). No ``system_instruction``, no
 ``generation_config`` (default thinking level and output limit), no
 ``background`` and no ``max_output_tokens``, so long decode never starts and
-models.yaml's 65536 bounds the request. The generateContent API is labelled
-legacy, so it is not used. The ``Api-Revision`` header pins the API
+models.yaml's 65536 bounds the request. ``store`` is false (decided
+2026-11-27): the interaction is not kept for later retrieval. The create page,
+read 2026-11-27, gives no default and says nothing of its effect on
+generation, streaming or the interaction id. The generateContent API is
+labelled legacy, so it is not used. The ``Api-Revision`` header pins the API
 behaviour; it sets no model parameter.
 
 Streaming is chosen because a non-streamed hop is cut at 10 minutes and a
@@ -40,8 +43,9 @@ Serving: the interaction's ``service_tier`` is recorded; ``flex`` or
 
 Not verified against a live response (no key yet): the whole adapter; whether
 Gemini 3.5 Flash-Lite also stops at 65,536 when no limit is sent (its model
-page gives that output limit); and the request id (no header is documented,
-so the interaction id is used).
+page gives that output limit); the request id (no header is documented, so
+the interaction id is used, and null if a response that is not stored has
+none); and that the API accepts ``store`` false with streaming.
 """
 
 import json
@@ -87,10 +91,12 @@ class GoogleAdapter(Adapter):
     reasoning_in_output = False  # the provider's output count excludes thinking
 
     def prepare(self, model, prompt, api_key):
-        body = {"model": model.id, "input": prompt, "stream": True}
+        body = {"model": model.id, "input": prompt, "stream": True,
+                "store": False}
         headers = {"x-goog-api-key": api_key, "content-type": "application/json",
                    "api-revision": API_REVISION}
-        settings = {"stream": True, "alt": "sse", "api-revision": API_REVISION}
+        settings = {"stream": True, "store": False, "alt": "sse",
+                    "api-revision": API_REVISION}
         request = HttpRequest("POST", URL, headers, json.dumps(body).encode("utf-8"))
         return Prepared(request, settings, None)
 
