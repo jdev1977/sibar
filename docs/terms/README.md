@@ -122,8 +122,8 @@ Conditions on anything published
   and whether to ask either for permission.
 
 Data handling
-- [ ] Google tier: unpaid quota (outputs may be used for training and read by
-  reviewers) or paid.
+- [x] Google tier: unpaid quota (outputs may be used for training and read by
+  reviewers) or paid. **Paid (2026-11-27).**
 - [x] Whether the runner sends `store: false` to OpenAI and Google. It limits
   retention but departs from sending provider defaults only. **Yes
   (2026-11-27).**
