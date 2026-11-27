@@ -135,6 +135,23 @@ def test_refuses_mixed_settings_within_a_model(spec):
     assert len(select([records[0], other_model], spec, ["b1"]).runs) == 2
 
 
+def test_website_rubric_tags_are_said_to_be_ignored_and_change_no_number(spec):
+    from runner.record import with_features
+    plain = [make(spec, run_index=i, values={CORNER: "rounded" if i % 2 else "square"})
+             for i in (1, 2, 3)]
+    tagged = [with_features(r, "rubric.website", "1@claude-haiku-5-5",
+                            {"status": "ok", "opening": "none"}) for r in plain[:2]]
+    tagged.append(plain[2])
+    before = select(plain, spec, ["b1"])
+    after = select(tagged, spec, ["b1"])
+    assert not any("rubric.website" in note for note in before.notes)
+    notes = [note for note in after.notes if "rubric.website" in note]
+    assert len(notes) == 1 and "not read" in notes[0] and "2 records" in notes[0]
+    one, two = tables.compute(before, spec), tables.compute(after, spec)
+    one.pop("notes"), two.pop("notes")
+    assert one == two
+
+
 def test_values_a_response_reported_are_not_compared_as_settings(spec):
     # The runner stores per-response serving details as reported_<field>; one
     # response served differently must not block the model's tables.

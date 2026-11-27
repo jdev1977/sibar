@@ -9,6 +9,7 @@ mean something other than it says is refused with a message.
 
 import datetime
 import json
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -278,6 +279,18 @@ def _check_one_tagger(records, spec):
                           "tags of two taggers are never mixed")
 
 
+def _unread_rubrics(records, spec):
+    """Notes for rubric tags the records carry but features.yaml does not
+    declare (the website rubric): they are stored, and not read."""
+    found = Counter(e["extractor"] for record in records for e in record["extractors"]
+                    if e["extractor"].startswith("rubric.")
+                    and e["extractor"] not in spec.extractor_versions)
+    features = spec.source.get("features", "features.yaml")
+    return [f"{count} records carry {name} tags, which are not read: {features} "
+            f"declares no {name} variables, so no table or metric uses them"
+            for name, count in sorted(found.items())]
+
+
 def _check_extractors(record, spec, required):
     listed = {e["extractor"]: e["extractor_version"] for e in record["extractors"]}
     rid = record["record_id"]
@@ -402,6 +415,7 @@ def select(records, spec, batches):
             continue
         chosen.setdefault(cell_key(record), record)
     _check_one_tagger([r for r in chosen.values() if r["status"] == "ok"], spec)
+    notes.extend(_unread_rubrics(chosen.values(), spec))
     settings, serving = {}, {}
     runs = []
     for key in sorted(chosen, key=lambda k: tuple("" if v is None else str(v) for v in k)):

@@ -30,6 +30,12 @@ Present now: [website/](website/), [pipeline/](pipeline/),
 outcomes from the rubric and need tagged records
 ([docs/metrics.md](../docs/metrics.md#types-with-a-rubric)).
 
+**The website rubric is not read.** `website/features.yaml` declares no
+`rubric.website` variables, so tags of the website rubric that a record
+carries change no table or metric; the output says so in a note
+(`N records carry rubric.website tags, which are not read`). Reading them is
+a later metrics change.
+
 [tests/test_metrics_data.py](../tests/test_metrics_data.py) checks both files
 against the extractors and the prompts: every extracted feature is declared,
 the versions match, every quoted phrase is in its prompt. Raising an extractor
